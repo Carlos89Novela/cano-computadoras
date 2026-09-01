@@ -12,14 +12,7 @@ class ServicioController extends Controller
 {
     public function index(): View
     {
-        $servicios = Servicio::query()
-            ->orderBy('nombre')
-            ->get();
-
-        return view(
-            'admin.servicios.index',
-            compact('servicios')
-        );
+        return view('admin.servicios.index');
     }
 
     public function create(): View

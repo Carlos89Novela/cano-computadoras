@@ -35,7 +35,8 @@
                 <div class="overflow-hidden rounded-xl bg-white shadow dark:bg-zinc-900">
                     <div class="overflow-x-auto">
 
-                        <table class="w-full text-left">
+                        <!-- Use Tailwind for table styling; avoid DataTables default CSS -->
+                        <table id="ordenes-table" class="w-full text-left table-auto">
                             <thead class="bg-zinc-800 text-white">
                                 <tr>
                                     <th class="p-4">Folio</th>
@@ -48,50 +49,48 @@
                             </thead>
 
                             <tbody>
-                                @foreach ($ordenes as $orden)
-                                    <tr class="border-b border-zinc-700 last:border-b-0">
-
-                                        <td class="p-4 font-semibold text-purple-500">
-                                            {{ $orden->folio }}
-                                        </td>
-
-                                        <td class="p-4 text-gray-900 dark:text-white">
-                                            {{ $orden->user->name }}
-                                        </td>
-
-                                        <td class="p-4 text-gray-900 dark:text-white">
-                                            <p class="font-semibold">
-                                                {{ $orden->equipo->marca }}
-                                                {{ $orden->equipo->modelo }}
-                                            </p>
-
-                                            <p class="text-sm text-gray-500">
-                                                {{ $orden->equipo->tipo }}
-                                            </p>
-                                        </td>
-
-                                        <td class="p-4">
-                                            <span class="inline-block rounded-full bg-purple-950 px-3 py-1 text-sm text-purple-200">
-                                                {{ $orden->estado }}
-                                            </span>
-                                        </td>
-
-                                        <td class="p-4 text-gray-900 dark:text-white">
-                                            {{ $orden->fecha_ingreso->format('d/m/Y') }}
-                                        </td>
-
-                                        <td class="p-4">
-                                            <a
-                                                href="{{ route('admin.ordenes.edit', ['orden' => $orden->id]) }}"
-                                                class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                                                Administrar
-                                            </a> 
-                                        </td>
-
-                                    </tr>
-                                @endforeach
+                                <!-- Data will be loaded via AJAX -->
                             </tbody>
                         </table>
+
+                        <script>
+                            (function waitForDT(fn){
+                                if (window.jQuery && $.fn.DataTable) return fn();
+                                setTimeout(function(){ waitForDT(fn); }, 50);
+                            })(function(){
+                                $('#ordenes-table').DataTable({
+                                    serverSide: true,
+                                    processing: true,
+                                    ajax: {
+                                        url: '{{ route('admin.ordenes.data') }}',
+                                        type: 'GET'
+                                    },
+                                    columns: [
+                                        { data: 'folio', name: 'folio' },
+                                        { data: 'cliente', name: 'cliente' },
+                                        { data: 'equipo', name: 'equipo' },
+                                        { data: 'estado', name: 'estado' },
+                                        { data: 'fecha_ingreso', name: 'fecha_ingreso' },
+                                        { data: 'acciones', name: 'acciones', orderable: false, searchable: false }
+                                    ],
+                                    pageLength: 10,
+                                    responsive: true,
+                                    language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                                    dom: "<'flex items-center justify-between mb-3'<'flex items-center' l><'flex items-center' f>>t<'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
+                                    initComplete: function () {
+                                        var lengthSel = $(this).closest('.dataTables_wrapper').find('select');
+                                        lengthSel.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-2 py-1');
+
+                                        var searchInput = $(this).closest('.dataTables_wrapper').find('input[type="search"]');
+                                        searchInput.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-3 py-2');
+
+                                        var paginate = $(this).closest('.dataTables_wrapper').find('.dataTables_paginate');
+                                        paginate.find('a').addClass('mx-1 inline-flex items-center rounded-md bg-transparent border border-zinc-700 px-3 py-1 text-sm text-white');
+                                        paginate.find('a.current').addClass('bg-purple-600 text-white border-transparent');
+                                    }
+                                });
+                            });
+                        </script>
 
                     </div>
                 </div>

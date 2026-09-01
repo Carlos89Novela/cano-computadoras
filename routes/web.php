@@ -80,6 +80,11 @@ Route::middleware(['auth', 'administrador'])
         )->name('ordenes.index');
 
         Route::get(
+            '/ordenes/data',
+            [AdminOrdenServicioController::class, 'data']
+        )->name('ordenes.data');
+
+        Route::get(
             '/ordenes/{orden}/editar',
             [AdminOrdenServicioController::class, 'edit']
         )->name('ordenes.edit');
