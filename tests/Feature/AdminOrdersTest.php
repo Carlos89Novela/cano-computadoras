@@ -37,6 +37,27 @@ test('authenticated users can access the dashboard', function () {
         ->assertSee('Dashboard');
 });
 
+test('admin users can view the services catalog as a DataTables table', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    Servicio::create([
+        'nombre' => 'Diagnóstico avanzado',
+        'descripcion' => 'Revisión profunda de hardware y software.',
+        'precio' => 850.00,
+        'activo' => true,
+    ]);
+
+    $response = $this->actingAs($admin)->get('/admin/servicios');
+
+    $response->assertOk()
+        ->assertSee('Servicios y precios')
+        ->assertSee('Diagnóstico avanzado')
+        ->assertSee('servicios-table');
+});
+
 test('admin users can create a service', function () {
     Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
 
