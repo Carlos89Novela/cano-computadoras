@@ -483,6 +483,141 @@ test('users can mark all their own notifications as read', function () {
     $this->assertEquals(0, $user->unreadNotifications()->count());
 });
 
+test('admin order updates create repair history and a user notification', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $cliente = User::factory()->create();
+    $equipo = Equipo::create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Lenovo',
+        'modelo' => 'ThinkPad X1',
+    ]);
+
+    $orden = OrdenServicio::create([
+        'folio' => 'REP-FINAL-UPDATE',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'El equipo tarda en iniciar.',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($admin)->put('/admin/ordenes/'.$orden->id, [
+        'estado' => 'En reparación',
+        'diagnostico' => 'Se requiere diagnóstico profundo.',
+        'comentario' => 'Se inició la reparación técnica.',
+    ]);
+
+    $response->assertRedirect(route('admin.ordenes.edit', ['orden' => $orden->id]));
+
+    $this->assertDatabaseHas('historial_reparaciones', [
+        'orden_servicio_id' => $orden->id,
+        'estado' => 'En reparación',
+        'comentarios' => 'Se inició la reparación técnica.',
+    ]);
+
+    $this->assertDatabaseHas('notifications', [
+        'notifiable_type' => User::class,
+        'notifiable_id' => $cliente->id,
+    ]);
+});
+
+test('users can authorize their own repair only while it is waiting authorization', function () {
+    $usuario = User::factory()->create();
+    $equipo = Equipo::create([
+        'user_id' => $usuario->id,
+        'tipo' => 'Desktop',
+        'marca' => 'HP',
+        'modelo' => 'EliteDesk 800',
+    ]);
+
+    $orden = OrdenServicio::create([
+        'folio' => 'REP-AUTH-FINAL',
+        'user_id' => $usuario->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'Falla al iniciar el sistema.',
+        'estado' => 'Esperando autorización',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($usuario)->post('/ordenes/'.$orden->id.'/autorizar', [
+        'decision' => 'autorizada',
+    ]);
+
+    $response->assertRedirect(route('ordenes.show', ['orden' => $orden->id]))
+        ->assertSessionHas('success', 'Presupuesto autorizado correctamente.');
+
+    $this->assertDatabaseHas('orden_servicios', [
+        'id' => $orden->id,
+        'estado' => 'Esperando refacción',
+        'autorizacion' => 'autorizada',
+    ]);
+
+    $orden->refresh();
+    $this->assertNotNull($orden->fecha_autorizacion);
+});
+
+test('users cannot authorize a repair unless it is waiting authorization', function () {
+    $usuario = User::factory()->create();
+    $equipo = Equipo::create([
+        'user_id' => $usuario->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Acer',
+        'modelo' => 'Aspire 5',
+    ]);
+
+    $orden = OrdenServicio::create([
+        'folio' => 'REP-AUTH-INVALID',
+        'user_id' => $usuario->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'La batería no carga.',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($usuario)->post('/ordenes/'.$orden->id.'/autorizar', [
+        'decision' => 'autorizada',
+    ]);
+
+    $response->assertStatus(422);
+});
+
+test('admin invalid status values are rejected during order update', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $cliente = User::factory()->create();
+    $equipo = Equipo::create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'XPS 13',
+    ]);
+
+    $orden = OrdenServicio::create([
+        'folio' => 'REP-INVALID-STATUS',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'El equipo no inicia.',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($admin)->from(route('admin.ordenes.edit', ['orden' => $orden->id]))
+        ->put('/admin/ordenes/'.$orden->id, [
+            'estado' => 'Estado inválido',
+            'diagnostico' => 'Se invalida la prueba.',
+        ]);
+
+    $response->assertSessionHasErrors('estado');
+});
+
 test('regular users cannot access the admin panel routes', function () {
     $user = User::factory()->create();
 
