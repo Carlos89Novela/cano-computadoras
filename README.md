@@ -1,88 +1,102 @@
-# CaÒo Computadoras
+# Cano Computadoras
 
-AplicaciÛn web para gestionar equipos, reparaciones y servicios tÈcnicos de una tienda de computadoras.
+Aplicaci√≥n web para gestionar equipos, reparaciones y servicios t√©cnicos de una tienda de computadoras.
 
-## DescripciÛn general
+## Descripci√≥n general
 
-Este proyecto est· construido con Laravel y usa Livewire, Tailwind CSS, permisos por roles y un flujo de administraciÛn para servicios y Ûrdenes de reparaciÛn.
+Este proyecto est√° construido con Laravel y usa Tailwind CSS, permisos por roles y un flujo de administraci√≥n para servicios, equipos y √≥rdenes de reparaci√≥n.
 
 ## Funcionalidades principales
 
-- Registro y administraciÛn de equipos por usuario.
-- Solicitud de reparaciÛn por parte del cliente.
-- Seguimiento p˙blico por folio.
-- Panel administrativo para revisar y actualizar Ûrdenes.
-- GestiÛn de servicios y precios.
+- Registro y administraci√≥n de equipos por usuario.
+- Solicitud de reparaci√≥n por parte del cliente.
+- Seguimiento p√∫blico por folio.
+- Panel administrativo para revisar y actualizar √≥rdenes.
+- Gesti√≥n de servicios y precios.
 - Control de permisos por rol (`administrador`).
+- Notificaciones de actualizaci√≥n de reparaci√≥n para el cliente.
+- Exportaci√≥n de √≥rdenes en PDF.
 
 ## Estado actual
 
-La aplicaciÛn ya cuenta con una base funcional para:
+La aplicaci√≥n ya cuenta con una base funcional para:
 
-- login y autenticaciÛn
+- login y autenticaci√≥n
 - dashboard del cliente
-- administraciÛn de reparaciones
-- creaciÛn y actualizaciÛn de servicios
-- gestiÛn de Ûrdenes por folio
+- administraci√≥n de reparaciones
+- creaci√≥n y actualizaci√≥n de servicios
+- gesti√≥n de √≥rdenes por folio
 - acceso controlado por roles
+- validaci√≥n de propiedad por usuario
+- historial y notificaciones del ciclo de vida de cada reparaci√≥n
 
 ## Pruebas implementadas
 
-Se creÛ la suite principal de pruebas funcionales en `tests/Feature/AdminOrdersTest.php`.
+La suite principal de pruebas funcionales est√° en `tests/Feature/AdminOrdersTest.php`.
 
-### Cobertura actual
+### Cobertura final verificada
 
-- Acceso al panel administrativo por administrador.
+- Acceso del administrador al panel de √≥rdenes.
 - Bloqueo del panel administrativo para usuarios normales.
-- Acceso al dashboard autenticado.
-- CreaciÛn de un servicio por administrador.
-- ActualizaciÛn de un servicio por administrador.
+- Acceso autenticado al dashboard.
+- Creaci√≥n de servicios por administrador.
+- Actualizaci√≥n de servicios por administrador.
 - Cambio de estado de una orden por administrador.
-- CreaciÛn de una reparaciÛn por el cliente.
-- Seguimiento p˙blico por folio.
-- RestricciÛn de acceso a Ûrdenes ajenas.
-- RestricciÛn para autorizar Ûrdenes ajenas.
-- Bloqueo de rutas administrativas para usuarios normales.
+- Creaci√≥n de una reparaci√≥n por parte del cliente para su propio equipo.
+- Seguimiento p√∫blico por folio.
+- Restringir acceso a √≥rdenes ajenas.
+- Restringir autorizar √≥rdenes ajenas.
+- Restringir rutas de cliente a usuarios invitados.
+- Listado de √≥rdenes solo del usuario autenticado.
+- Bloqueo de creaci√≥n de √≥rdenes para equipos ajenos.
+- Control de gesti√≥n de equipos por propietario.
+- Listado de equipos solo del usuario autenticado.
+- Acceso a notificaciones solo por usuario propietario.
+- Lectura masiva de notificaciones propias.
+- Generaci√≥n de historial de reparaci√≥n y notificaci√≥n al cliente al actualizar estado.
+- Autorizaci√≥n del cliente solo cuando la orden est√° en espera de autorizaci√≥n.
+- Rechazo de estados inv√°lidos por parte del administrador.
+- Bloqueo de PDF de √≥rdenes ajenas.
+- Acceso al detalle de la propia orden.
 
-### Comando de validaciÛn
+### Comando de validaci√≥n
 
 ```bash
 php artisan test tests/Feature/AdminOrdersTest.php
 ```
 
-Resultado verificado: 11 pruebas pasadas, 26 assertions.
+Resultado verificado: 26 pruebas pasadas, 81 assertions.
 
 ## Historial de trabajo y cambios
 
-> Comentarios cronolÛgicos del progreso del proyecto.
+> Comentarios cronol√≥gicos del progreso del proyecto.
 
-### 2026-09-01
+### 2026-09-01 - Etapa de validaci√≥n funcional y seguridad
 
-- Se crea la rama `feature/testing-core-flows` para guardar la etapa de validaciÛn del core del negocio.
-- Se implementan pruebas funcionales para admin, dashboard, creaciÛn de Ûrdenes, seguimiento p˙blico y seguridad.
+- Se crea la rama `feature/testing-core-flows` para guardar la etapa de validaci√≥n del core del negocio.
+- Se implementa la suite inicial de pruebas funcionales para admin, dashboard, creaci√≥n de √≥rdenes, seguimiento p√∫blico y seguridad.
 - Se corrige el uso del campo `comentarios` en historial de reparaciones para alinear con el esquema real del proyecto.
-- Se deja documentada la cobertura de pruebas en este README como parte del proceso de control de calidad.
-
-### 2026-09-01
-
-- Se ajusta la vista administrativa de Ûrdenes para usar DataTables y estilo visual con Tailwind.
+- Se ajusta la vista administrativa de √≥rdenes para usar DataTables con estilo Tailwind y AJAX seguro.
 - Se centraliza la carga de jQuery/DataTables y estilos compartidos.
-- Se valida la ruta AJAX del panel administrativo para ordenes.
+- Se corrige la l√≥gica de propiedad para impedir acceso a recursos ajenos.
+- Se a√±aden pruebas para PDF, detalle de √≥rdenes, equipos, notificaciones y autorizaci√≥n del cliente.
+- Se documenta la cobertura final en este README.
 
-### 2026-09-01
+### 2026-09-01 - Cierre de QA del flujo principal
 
-- Se revisa y corrige el flujo de creaciÛn y seguimiento de Ûrdenes para evitar inconsistencias en historial.
-- Se mejora la lÛgica de permisos para restringir acceso a recursos ajenos.
+- Se valida el flujo completo de reparaci√≥n: ingreso, diagn√≥stico, autorizaci√≥n, actualizaci√≥n, historial y notificaci√≥n.
+- Se valida el acceso por rol y por propietario para equipos, √≥rdenes y notificaciones.
+- Se deja la rama lista para entrega con la cobertura de calidad m√°s reciente.
 
 ## Roadmap sugerido
 
-1. AÒadir pruebas para el flujo de ediciÛn de equipos por usuario.
-2. Agregar pruebas para PDF de Ûrdenes y validaciÛn de propiedad.
-3. Mejorar filtros y b˙squedas del panel administrativo.
-4. Convertir la tabla de servicios a DataTables si el volumen crece.
-5. Continuar con pruebas de UX y seguridad del cliente.
+1. Mejorar filtros y b√∫squedas del panel administrativo.
+2. A√±adir m√°s pruebas E2E para UX de cliente y notificaciones visuales.
+3. Evaluar la conversi√≥n de la tabla de servicios a DataTables si el volumen aumenta.
+4. Continuar con pruebas de rendimiento y validaci√≥n de PDF.
+5. Revisar mejoras de UX en el flujo de autorizaci√≥n y entrega.
 
-## TecnologÌas principales
+## Tecnolog√≠as principales
 
 - Laravel
 - PHP
@@ -90,7 +104,8 @@ Resultado verificado: 11 pruebas pasadas, 26 assertions.
 - Livewire
 - Spatie Permission
 - Pest PHP
+- jQuery DataTables
 
 ## Licencia
 
-Este proyecto se mantiene como desarrollo interno de la aplicaciÛn y sigue el est·ndar de Laravel con control de versiÛn en GitHub.
+Este proyecto se mantiene como desarrollo interno de la aplicaci√≥n y sigue el est√°ndar de Laravel con control de versi√≥n en GitHub.
