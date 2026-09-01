@@ -95,6 +95,16 @@ Route::middleware(['auth', 'administrador'])
         )->name('ordenes.update');
 
         Route::get(
+            '/ordenes/exportar/csv',
+            [AdminOrdenServicioController::class, 'exportCsv']
+        )->name('ordenes.exportar.csv');
+
+        Route::get(
+            '/ordenes/exportar/pdf',
+            [AdminOrdenServicioController::class, 'exportPdf']
+        )->name('ordenes.exportar.pdf');
+
+        Route::get(
             '/ordenes/{orden}/pdf',
             [AdminOrdenServicioController::class, 'pdf']
         )->name('ordenes.pdf');

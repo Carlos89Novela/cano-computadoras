@@ -28,6 +28,64 @@ test('regular users cannot access the admin orders page', function () {
     $response->assertForbidden();
 });
 
+test('admin users see advanced filters and detail actions in the orders dashboard', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $response = $this->actingAs($admin)->get('/admin/ordenes');
+
+    $response->assertOk()
+        ->assertSee('Filtro por estado')
+        ->assertSee('Exportar CSV')
+        ->assertSee('Ver detalle');
+});
+
+test('admin users can export filtered orders in csv and pdf formats', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $cliente = User::factory()->create();
+    $equipo = Equipo::create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Inspiron 15',
+    ]);
+
+    OrdenServicio::create([
+        'folio' => 'REP-CSV-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'Pantalla apagada',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    OrdenServicio::create([
+        'folio' => 'REP-CSV-002',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'Teclado no responde',
+        'estado' => 'En reparación',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $csvResponse = $this->actingAs($admin)->get('/admin/ordenes/exportar/csv?estado=Recibido');
+    $csvResponse->assertOk()
+        ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+    $csvResponse->assertSee('Folio');
+    $csvResponse->assertSee('REP-CSV-001');
+
+    $pdfResponse = $this->actingAs($admin)->get('/admin/ordenes/exportar/pdf?estado=Recibido');
+    $pdfResponse->assertOk()
+        ->assertHeader('Content-Type', 'application/pdf');
+});
+
 test('authenticated users can access the dashboard', function () {
     $user = User::factory()->create();
 
