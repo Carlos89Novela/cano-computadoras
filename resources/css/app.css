@@ -1,3 +1,56 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    [x-cloak] {
+        display: none !important;
+    }
+}
+
+@layer components {
+    .ion-btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg shadow-sm transition-shadow duration-150;
+    }
+
+    .ion-btn:focus {
+        @apply ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent outline-none;
+    }
+
+    .card-hero {
+        @apply bg-gradient-to-br from-zinc-900/60 via-zinc-900/40 to-transparent p-8 rounded-2xl shadow-lg;
+    }
+}
+
+/* Homepage background image (place image at public/images/hero-bg.jpg) */
+
+/* Homepage gradient + subtle pattern background (no image) */
+.home-bg {
+    /* Tech SVG background with purple accents */
+    position: relative;
+    /* SVG first, then a semi-transparent gradient overlay to tint it */
+    background-image:
+        url('/images/home-bg.svg'),
+        linear-gradient(180deg, rgba(14,8,36,0.14) 0%, rgba(8,6,24,0.28) 100%);
+    background-size: cover, cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+
+/* Slight overlay for improved text contrast (tuned for purple tones) */
+.home-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(4,2,10,0.36), rgba(3,2,12,0.62));
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Ensure main content sits above the overlay */
+.home-content {
+    position: relative;
+    z-index: 10;
+}
+
+.service-icon svg { display: block; }

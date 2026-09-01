@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,11 +11,12 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
-        <!-- Scripts -->
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        <!-- Styles -->
+        @vite(['resources/css/app.css'])
+        @livewireStyles
     </head>
-    <body class="font-sans antialiased">
-        <div class="min-h-screen bg-gray-100 dark:bg-gray-900">
+    <body class="bg-gray-950 font-sans text-white antialiased">
+        <div class="min-h-screen bg-gray-950">
             @include('layouts.navigation')
 
             <!-- Page Heading -->
@@ -32,5 +33,14 @@
                 {{ $slot }}
             </main>
         </div>
+        @livewireScripts
+
+        @vite(['resources/js/app.js'])
+        <!-- DataTables helpers -->
+        @include('components.datatables-styles')
+
+        <!-- jQuery + DataTables JS (loaded once globally) -->
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     </body>
 </html>

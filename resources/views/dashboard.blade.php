@@ -198,7 +198,7 @@
 
                         <div class="overflow-x-auto">
 
-                            <table class="w-full text-left">
+                            <table id="ordenes-recientes-table" class="w-full text-left table-auto">
 
                                 <thead class="bg-zinc-800 text-white">
                                     <tr>
@@ -273,6 +273,31 @@
                                 </tbody>
 
                             </table>
+
+                            <script>
+                                (function waitForDT(fn){
+                                    if (window.jQuery && $.fn.DataTable) return fn();
+                                    setTimeout(function(){ waitForDT(fn); }, 50);
+                                })(function(){
+                                    $('#ordenes-recientes-table').DataTable({
+                                        pageLength: 5,
+                                        responsive: true,
+                                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                                        dom: "<'flex items-center justify-between mb-3'<'flex items-center' l><'flex items-center' f>>t<'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
+                                        initComplete: function () {
+                                            var lengthSel = $(this).closest('.dataTables_wrapper').find('select');
+                                            lengthSel.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-2 py-1');
+
+                                            var searchInput = $(this).closest('.dataTables_wrapper').find('input[type="search"]');
+                                            searchInput.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-3 py-2');
+
+                                            var paginate = $(this).closest('.dataTables_wrapper').find('.dataTables_paginate');
+                                            paginate.find('a').addClass('mx-1 inline-flex items-center rounded-md bg-transparent border border-zinc-700 px-3 py-1 text-sm text-white');
+                                            paginate.find('a.current').addClass('bg-purple-600 text-white border-transparent');
+                                        }
+                                    });
+                                });
+                            </script>
 
                         </div>
 

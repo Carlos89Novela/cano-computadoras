@@ -26,12 +26,11 @@
         </div>
 
         <div class="flex gap-3">
-
-            <a href="/login" class="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg">
+            <a href="/login" class="btn btn-outline btn-ghost">
                 Iniciar Sesión
             </a>
 
-            <a href="/register" class="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg">
+            <a href="/register" class="btn btn-primary">
                 Registrarse
             </a>
 
@@ -40,30 +39,36 @@
     </header>
 
     <!-- HERO -->
-    <section class="max-w-6xl mx-auto text-center py-24 px-6">
+    <div class="home-bg">
+        <section class="max-w-6xl mx-auto text-center py-24 px-6 home-content">
+            <div class="hero">
+                <div class="hero-content max-w-3xl text-center">
+                    <div class="card-hero">
+                    <h2 class="text-5xl font-bold mb-6">
+                        Servicio Profesional de Reparación de Computadoras
+                    </h2>
 
-        <h2 class="text-5xl font-bold mb-6">
-            Servicio Profesional de Reparación de Computadoras
-        </h2>
+                    <p class="text-xl text-gray-300 mb-6">
+                        Reparación, mantenimiento y soporte técnico para laptops,
+                        computadoras de escritorio y equipos empresariales.
+                    </p>
 
-        <p class="text-xl text-gray-300 mb-10">
-            Reparación, mantenimiento y soporte técnico para laptops,
-            computadoras de escritorio y equipos empresariales.
-        </p>
+                    <div class="flex justify-center gap-4">
+                        <a href="/register" class="btn btn-primary btn-lg">
+                            Solicitar Servicio
+                        </a>
 
-        <div class="flex justify-center gap-4">
-
-            <a href="/register" class="ion-btn bg-purple-500 hover:bg-purple-600 px-6 py-3 rounded-lg text-white font-bold">
-                Solicitar Servicio
-            </a>
-
-            <a href="#precios" class="ion-btn bg-zinc-800 hover:bg-zinc-700 px-6 py-3 rounded-lg text-white font-bold">
-                Ver Precios
-            </a>
-
-        </div>
-
-    </section>
+                        <a href="#precios" class="btn btn-outline btn-lg">
+                            Ver Precios
+                        </a>
+                    </div>
+                </div>
+            </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
 
     <!-- SERVICIOS -->
     <section class="max-w-6xl mx-auto px-6">
@@ -74,34 +79,68 @@
 
         <div class="grid md:grid-cols-3 gap-6">
 
-            <div class="bg-zinc-900 p-6 rounded-xl">
-                <h3 class="text-xl font-bold text-purple-500 mb-3">
-                    Formateo
-                </h3>
+            <div class="bg-zinc-900 p-6 rounded-xl flex items-start gap-4">
+                <div class="service-icon flex-shrink-0 mt-1">
+                    <!-- drive + wrench icon -->
+                    <svg width="36" height="36" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="2" y="7" width="20" height="10" rx="2" fill="#1f0b2e" />
+                        <circle cx="7" cy="12" r="2" fill="#7c3aed" />
+                        <path d="M16 8l3-3 1 1-3 3" fill="#c084fc" />
+                        <path d="M13 11l5 5" stroke="#9f7aea" stroke-width="1.6" stroke-linecap="round" />
+                        <path d="M15 9l-2 2" stroke="#c084fc" stroke-width="1.6" stroke-linecap="round" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-purple-500 mb-3">
+                        Formateo
+                    </h3>
 
-                <p>
-                    Instalación y configuración de Windows.
-                </p>
+                    <p>
+                        Instalación y configuración de Windows.
+                    </p>
+                </div>
             </div>
 
-            <div class="bg-zinc-900 p-6 rounded-xl">
-                <h3 class="text-xl font-bold text-purple-500 mb-3">
-                    Eliminación de Virus
-                </h3>
+            <div class="bg-zinc-900 p-6 rounded-xl flex items-start gap-4">
+                <div class="service-icon flex-shrink-0 mt-1">
+                    <!-- shield + bug (removal) icon -->
+                    <svg width="36" height="36" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2l7 3v4c0 5-3.6 9.7-7 11-3.4-1.3-7-6-7-11V5l7-3z" fill="#6b21a8" />
+                        <path d="M9.5 11.5a2.5 2.5 0 0 0 5 0" stroke="#f3e8ff" stroke-width="1.2" fill="none" stroke-linecap="round" />
+                        <rect x="11" y="8.5" width="2" height="3" rx="0.6" fill="#c084fc" />
+                        <path d="M8 16l8-8" stroke="#fca5a5" stroke-width="1.6" stroke-linecap="round" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-purple-500 mb-3">
+                        Eliminación de Virus
+                    </h3>
 
-                <p>
-                    Limpieza de malware y optimización.
-                </p>
+                    <p>
+                        Limpieza de malware y optimización.
+                    </p>
+                </div>
             </div>
 
-            <div class="bg-zinc-900 p-6 rounded-xl">
-                <h3 class="text-xl font-bold text-purple-500 mb-3">
-                    Actualización SSD
-                </h3>
+            <div class="bg-zinc-900 p-6 rounded-xl flex items-start gap-4">
+                <div class="service-icon flex-shrink-0 mt-1">
+                    <!-- ssd + bolt icon -->
+                    <svg width="36" height="36" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="6" width="18" height="12" rx="2" fill="#6b21a8" />
+                        <rect x="6" y="9" width="12" height="6" fill="#1f0b2e" />
+                        <path d="M10 9l2-3v3l2-1-3 5v-3l-1 1z" fill="#facc15" />
+                        <circle cx="18" cy="8" r="1" fill="#c084fc" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-purple-500 mb-3">
+                        Actualización SSD
+                    </h3>
 
-                <p>
-                    Incrementa la velocidad de tu equipo.
-                </p>
+                    <p>
+                        Incrementa la velocidad de tu equipo.
+                    </p>
+                </div>
             </div>
 
         </div>
