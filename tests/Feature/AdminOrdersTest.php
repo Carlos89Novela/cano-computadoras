@@ -248,6 +248,93 @@ test('users cannot authorize another persons repair order', function () {
     $response->assertForbidden();
 });
 
+test('guests are redirected to the login page when they try to access client repair routes', function () {
+    $this->get('/ordenes')->assertRedirect('/login');
+    $this->get('/ordenes/create')->assertRedirect('/login');
+    $this->get('/ordenes/1')->assertRedirect('/login');
+    $this->get('/ordenes/1/pdf')->assertRedirect('/login');
+});
+
+test('users can only list orders that belong to them', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    $userEquipo = Equipo::create([
+        'user_id' => $user->id,
+        'tipo' => 'Laptop',
+        'marca' => 'HP',
+        'modelo' => 'Pavilion',
+    ]);
+
+    $otherEquipo = Equipo::create([
+        'user_id' => $other->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Inspiron',
+    ]);
+
+    OrdenServicio::create([
+        'folio' => 'REP-MY-ORDER-1',
+        'user_id' => $user->id,
+        'equipo_id' => $userEquipo->id,
+        'problema_reportado' => 'Se congela.',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    OrdenServicio::create([
+        'folio' => 'REP-MY-ORDER-2',
+        'user_id' => $user->id,
+        'equipo_id' => $userEquipo->id,
+        'problema_reportado' => 'No carga el sistema.',
+        'estado' => 'En reparación',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    OrdenServicio::create([
+        'folio' => 'REP-OTHER-ORDER',
+        'user_id' => $other->id,
+        'equipo_id' => $otherEquipo->id,
+        'problema_reportado' => 'No conecta USB.',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($user)->get('/ordenes');
+
+    $response->assertOk()
+        ->assertSee('REP-MY-ORDER-1')
+        ->assertSee('REP-MY-ORDER-2')
+        ->assertDontSee('REP-OTHER-ORDER');
+});
+
+test('users cannot create repair orders for equipment that belongs to another user', function () {
+    $owner = User::factory()->create();
+    $intruder = User::factory()->create();
+
+    $equipo = Equipo::create([
+        'user_id' => $owner->id,
+        'tipo' => 'Desktop',
+        'marca' => 'Lenovo',
+        'modelo' => 'ThinkCentre M920',
+    ]);
+
+    $servicio = Servicio::create([
+        'nombre' => 'Revisión de red',
+        'descripcion' => 'Diagnóstico de conectividad.',
+        'precio' => 425.00,
+        'activo' => true,
+    ]);
+
+    $response = $this->actingAs($intruder)->post('/ordenes', [
+        'equipo_id' => $equipo->id,
+        'servicio_id' => $servicio->id,
+        'problema_reportado' => 'El equipo se cae de la red y tarda en responder.',
+    ]);
+
+    $response->assertNotFound();
+});
+
 test('regular users cannot access the admin panel routes', function () {
     $user = User::factory()->create();
 
