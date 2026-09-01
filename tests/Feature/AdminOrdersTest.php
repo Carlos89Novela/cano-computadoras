@@ -335,6 +335,75 @@ test('users cannot create repair orders for equipment that belongs to another us
     $response->assertNotFound();
 });
 
+test('guests cannot access equipment management routes', function () {
+    $this->get('/equipos')->assertRedirect('/login');
+    $this->get('/equipos/create')->assertRedirect('/login');
+    $this->get('/equipos/1/edit')->assertRedirect('/login');
+});
+
+test('users can only manage their own equipment', function () {
+    $owner = User::factory()->create();
+    $intruder = User::factory()->create();
+
+    $equipo = Equipo::create([
+        'user_id' => $owner->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Samsung',
+        'modelo' => 'Book4',
+    ]);
+
+    $response = $this->actingAs($intruder)->get('/equipos/'.$equipo->id.'/edit');
+    $response->assertForbidden();
+
+    $updateResponse = $this->actingAs($intruder)->put('/equipos/'.$equipo->id, [
+        'tipo' => 'Laptop',
+        'marca' => 'Samsung',
+        'modelo' => 'Book X',
+        'numero_serie' => 'ABC123',
+        'descripcion' => 'Cambio no permitido.',
+    ]);
+
+    $updateResponse->assertForbidden();
+
+    $this->assertDatabaseMissing('equipos', [
+        'id' => $equipo->id,
+        'modelo' => 'Book X',
+    ]);
+});
+
+test('users can list only their own equipment', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    Equipo::create([
+        'user_id' => $user->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Lenovo',
+        'modelo' => 'ThinkPad T14',
+    ]);
+
+    Equipo::create([
+        'user_id' => $user->id,
+        'tipo' => 'Desktop',
+        'marca' => 'HP',
+        'modelo' => 'ProDesk',
+    ]);
+
+    Equipo::create([
+        'user_id' => $other->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude 5400',
+    ]);
+
+    $response = $this->actingAs($user)->get('/equipos');
+
+    $response->assertOk()
+        ->assertSee('ThinkPad T14')
+        ->assertSee('ProDesk')
+        ->assertDontSee('Latitude 5400');
+});
+
 test('regular users cannot access the admin panel routes', function () {
     $user = User::factory()->create();
 
