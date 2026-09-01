@@ -254,3 +254,59 @@ test('regular users cannot access the admin panel routes', function () {
     $this->actingAs($user)->get('/admin/servicios')->assertForbidden();
     $this->actingAs($user)->get('/admin/ordenes/data')->assertForbidden();
 });
+
+test('users cannot download pdfs for orders that belong to another user', function () {
+    $owner = User::factory()->create();
+    $intruder = User::factory()->create();
+
+    $equipo = Equipo::create([
+        'user_id' => $owner->id,
+        'tipo' => 'Laptop',
+        'marca' => 'MSI',
+        'modelo' => 'GF63',
+    ]);
+
+    $orden = OrdenServicio::create([
+        'folio' => 'REP-OTHER-PDF',
+        'user_id' => $owner->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'Se recalienta al usar editor.',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($intruder)->get('/ordenes/'.$orden->id.'/pdf');
+
+    $response->assertForbidden();
+});
+
+test('logged in users can access their own order detail page', function () {
+    $user = User::factory()->create();
+    $equipo = Equipo::create([
+        'user_id' => $user->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude 5420',
+    ]);
+
+    $orden = OrdenServicio::create([
+        'folio' => 'REP-OWN-DETAIL',
+        'user_id' => $user->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'El equipo tarda en arrancar.',
+        'estado' => 'En reparación',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $orden->historial()->create([
+        'user_id' => $user->id,
+        'estado' => 'En reparación',
+        'comentarios' => 'Se inició la revisión técnica.',
+    ]);
+
+    $response = $this->actingAs($user)->get('/ordenes/'.$orden->id);
+
+    $response->assertOk()
+        ->assertSee('REP-OWN-DETAIL')
+        ->assertSee('El equipo tarda en arrancar.');
+});
