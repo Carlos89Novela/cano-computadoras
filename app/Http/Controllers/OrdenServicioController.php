@@ -96,7 +96,7 @@ class OrdenServicioController extends Controller
         $orden->historial()->create([
             'user_id' => $request->user()->id,
             'estado' => 'Recibido',
-            'comentario' => 'Solicitud de reparación registrada.',
+            'comentarios' => 'Solicitud de reparación registrada.',
         ]);
 
         // Redirigir al usuario a la vista de la orden de servicio con un mensaje de éxito
@@ -192,7 +192,7 @@ class OrdenServicioController extends Controller
         $orden->historial()->create([
             'user_id' => $request->user()->id,
             'estado' => $orden->estado,
-            'comentario' => $autorizada
+            'comentarios' => $autorizada
                 ? 'El cliente autorizó el presupuesto.'
                 : 'El cliente rechazó el presupuesto.',
         ]);

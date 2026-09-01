@@ -175,7 +175,7 @@ class OrdenServicioController extends Controller
 
         if (
             $estadoAnterior !== $datos['estado'] ||
-            !empty($datos['comentarios'])
+            !empty($datos['comentario'])
         ) {
             $orden->historial()->create([
                 'user_id' => $request->user()->id,
