@@ -4,6 +4,8 @@ use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\Servicio;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 test('admin users can access the orders management page', function () {
@@ -402,6 +404,83 @@ test('users can list only their own equipment', function () {
         ->assertSee('ThinkPad T14')
         ->assertSee('ProDesk')
         ->assertDontSee('Latitude 5400');
+});
+
+test('guests cannot access notification routes', function () {
+    $this->get('/notificaciones')->assertRedirect('/login');
+    $this->post('/notificaciones/123/leer')->assertRedirect('/login');
+    $this->post('/notificaciones/leer-todas')->assertRedirect('/login');
+});
+
+test('users can only read their own notifications', function () {
+    $owner = User::factory()->create();
+    $intruder = User::factory()->create();
+
+    $ownerNotificationId = (string) Str::uuid();
+    $intruderNotificationId = (string) Str::uuid();
+
+    DB::table('notifications')->insert([
+        [
+            'id' => $ownerNotificationId,
+            'type' => 'App\\Notifications\\EstadoReparacionActualizado',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $owner->id,
+            'data' => json_encode(['orden_id' => 1, 'mensaje' => 'Se actualizó su reparación.']),
+            'read_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'id' => $intruderNotificationId,
+            'type' => 'App\\Notifications\\EstadoReparacionActualizado',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $intruder->id,
+            'data' => json_encode(['orden_id' => 2, 'mensaje' => 'No debe leer esto.']),
+            'read_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    $response = $this->actingAs($intruder)->post('/notificaciones/'.$ownerNotificationId.'/leer');
+    $response->assertNotFound();
+
+    $this->assertNull($owner->notifications()->find($ownerNotificationId)->read_at);
+    $this->assertNull($intruder->notifications()->find($intruderNotificationId)->read_at);
+});
+
+test('users can mark all their own notifications as read', function () {
+    $user = User::factory()->create();
+
+    DB::table('notifications')->insert([
+        [
+            'id' => (string) Str::uuid(),
+            'type' => 'App\\Notifications\\EstadoReparacionActualizado',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $user->id,
+            'data' => json_encode(['orden_id' => 10, 'mensaje' => 'Texto 1.']),
+            'read_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'id' => (string) Str::uuid(),
+            'type' => 'App\\Notifications\\EstadoReparacionActualizado',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $user->id,
+            'data' => json_encode(['orden_id' => 11, 'mensaje' => 'Texto 2.']),
+            'read_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    $response = $this->actingAs($user)->post('/notificaciones/leer-todas');
+
+    $response->assertRedirect('/notificaciones')
+        ->assertSessionHas('success', 'Todas las notificaciones fueron marcadas como leídas.');
+
+    $this->assertEquals(0, $user->unreadNotifications()->count());
 });
 
 test('regular users cannot access the admin panel routes', function () {
