@@ -58,6 +58,10 @@ La suite principal de pruebas funcionales está en `tests/Feature/AdminOrdersTes
 - Rechazo de estados inválidos por parte del administrador.
 - Bloqueo de PDF de órdenes ajenas.
 - Acceso al detalle de la propia orden.
+- Filtros avanzados por estado en el panel administrativo.
+- Exportación CSV y PDF con filtro activo desde el dashboard.
+- Vista de resumen ejecutivo y totales en el PDF de reporte.
+- Rediseño del landing principal con identidad gráfica tipo logotipo premium.
 
 ### Comando de validación
 
@@ -65,7 +69,7 @@ La suite principal de pruebas funcionales está en `tests/Feature/AdminOrdersTes
 php artisan test tests/Feature/AdminOrdersTest.php
 ```
 
-Resultado verificado: 26 pruebas pasadas, 81 assertions.
+Resultado verificado: 29 pruebas pasadas, 97 assertions.
 
 ## Historial de trabajo y cambios
 
@@ -81,6 +85,26 @@ Resultado verificado: 26 pruebas pasadas, 81 assertions.
 - Se corrige la lógica de propiedad para impedir acceso a recursos ajenos.
 - Se añaden pruebas para PDF, detalle de órdenes, equipos, notificaciones y autorización del cliente.
 - Se documenta la cobertura final en este README.
+
+### 2026-09-01 - Mejoras operativas del panel administrativo
+
+- Se mejora la UX del panel de órdenes con filtros por estado, búsqueda, ordenamiento y mejores badges visuales.
+- Se integra la columna de costo para análisis operativo directo desde la tabla.
+- Se agregan botones para ver detalle y administrar cada orden desde la vista de gestión.
+- Se mejora la calidad visual del dashboard para mantener coherencia con la identidad de la marca.
+
+### 2026-09-01 - Exportación profesional de reportes
+
+- Se implementa la exportación de órdenes en CSV y PDF desde el backend con filtro activo.
+- El PDF incluye cabecera, resumen ejecutivo, total de ingresos y desglose por estado.
+- Se genera un nombre de archivo profesional según fecha y estado filtrado.
+- Se corrige la entrega del contenido para mantener un flujo de reportes confiable y reproducible.
+
+### 2026-09-01 - Rediseño del branding del landing principal
+
+- Se aplica una nueva identidad visual con un logotipo tipo marca premium para Cano Computadoras.
+- Se adapta el hero principal con un estilo oscuro, violeta y técnico.
+- Se mantiene la navegación y llamadas a la acción funcional para login, registro y servicios.
 
 ### 2026-09-01 - Cierre de QA del flujo principal
 
