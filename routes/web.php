@@ -109,6 +109,11 @@ Route::middleware(['auth', 'administrador'])
             [AdminOrdenServicioController::class, 'pdf']
         )->name('ordenes.pdf');
 
+        Route::post(
+            '/ordenes/bulk-update',
+            [AdminOrdenServicioController::class, 'bulkUpdate']
+        )->name('ordenes.bulk_update');
+
         Route::resource('servicios', AdminServicioController::class)
             ->parameters(['servicios' => 'servicio'])
             ->except(['show']);

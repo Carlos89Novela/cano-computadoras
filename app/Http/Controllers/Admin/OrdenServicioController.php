@@ -91,6 +91,7 @@ class OrdenServicioController extends Controller
 
         $data = $rows->map(function ($orden) {
             return [
+                'select' => '<input type="checkbox" class="orden-select" data-id="'. $orden->id .'">',
                 'folio' => '<a class="text-purple-500 font-semibold" href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'">'.$orden->folio.'</a>',
                 'cliente' => $orden->user?->name ?? '',
                 'equipo' => ($orden->equipo?->marca ?? '').' '.($orden->equipo?->modelo ?? ''),
@@ -106,6 +107,42 @@ class OrdenServicioController extends Controller
             'recordsTotal' => $total,
             'recordsFiltered' => $filtered,
             'data' => $data,
+        ]);
+    }
+
+    public function bulkUpdate(Request $request)
+    {
+        $datos = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:orden_servicios,id'],
+            'estado' => ['required', 'string', 'in:Recibido,En diagnóstico,Esperando autorización,Esperando refacción,En reparación,En pruebas,Listo para entrega,Entregado,Cancelado'],
+            'comentario' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $ordenes = OrdenServicio::whereIn('id', $datos['ids'])->get();
+
+        foreach ($ordenes as $orden) {
+            $estadoAnterior = $orden->estado;
+
+            $orden->update([
+                'estado' => $datos['estado'],
+            ]);
+
+            $orden->historial()->create([
+                'user_id' => $request->user()->id,
+                'estado' => $datos['estado'],
+                'comentarios' => $datos['comentario'] ?? 'Cambio masivo de estado realizado por el administrador.',
+            ]);
+
+            if ($estadoAnterior !== $datos['estado']) {
+                // Notify user about state change
+                $orden->user->notify(new EstadoReparacionActualizado($orden, $datos['comentario'] ?? null));
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'updated' => $ordenes->count(),
         ]);
     }
 

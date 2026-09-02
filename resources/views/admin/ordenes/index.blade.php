@@ -94,6 +94,7 @@
                         <table id="ordenes-table" class="w-full text-left table-auto">
                             <thead class="bg-zinc-800 text-white">
                                 <tr>
+                                    <th class="p-4"><input id="ordenes-select-all" type="checkbox" class="h-4 w-4" /></th>
                                     <th class="p-4">Folio</th>
                                     <th class="p-4">Cliente</th>
                                     <th class="p-4">Equipo</th>
@@ -139,6 +140,7 @@
                                         }
                                     },
                                     columns: [
+                                        { data: 'select', name: 'select', orderable: false, searchable: false },
                                         { data: 'folio', name: 'folio' },
                                         { data: 'cliente', name: 'cliente' },
                                         { data: 'equipo', name: 'equipo' },
@@ -206,6 +208,55 @@
                                 $('#ordenes-search').on('input', function () {
                                     table.search($(this).val()).draw();
                                 });
+
+                                    // Selection and bulk actions
+                                    $('#ordenes-select-all').on('change', function () {
+                                        var checked = $(this).is(':checked');
+                                        $('.orden-select').prop('checked', checked);
+                                    });
+
+                                    $(document).on('change', '.orden-select', function () {
+                                        var all = $('.orden-select').length === $('.orden-select:checked').length;
+                                        $('#ordenes-select-all').prop('checked', all);
+                                    });
+
+                                    function selectedIds() {
+                                        return $('.orden-select:checked').map(function () { return $(this).data('id'); }).get();
+                                    }
+
+                                    // Bulk action UI
+                                    var bulkToolbar = $('<div class="mt-4 flex items-center gap-2"></div>');
+                                    bulkToolbar.append('<select id="bulk-estado" class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"><option value="">Cambiar estado...</option><option value="Recibido">Recibido</option><option value="En diagnóstico">En diagnóstico</option><option value="Esperando autorización">Esperando autorización</option><option value="Esperando refacción">Esperando refacción</option><option value="En reparación">En reparación</option><option value="En pruebas">En pruebas</option><option value="Listo para entrega">Listo para entrega</option><option value="Entregado">Entregado</option><option value="Cancelado">Cancelado</option></select>');
+                                    bulkToolbar.append('<button id="bulk-apply" class="rounded-xl border border-purple-600 bg-purple-600 px-3 py-2 text-sm font-medium text-white">Aplicar</button>');
+                                    bulkToolbar.append('<button id="bulk-clear" class="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-white">Limpiar</button>');
+                                    $(".admin-toolbar > .p-4").append(bulkToolbar);
+
+                                    $('#bulk-clear').on('click', function () {
+                                        $('.orden-select').prop('checked', false);
+                                        $('#ordenes-select-all').prop('checked', false);
+                                    });
+
+                                    $('#bulk-apply').on('click', function () {
+                                        var ids = selectedIds();
+                                        var estado = $('#bulk-estado').val();
+                                        if (!ids.length) { alert('Selecciona al menos una orden.'); return; }
+                                        if (!estado) { alert('Selecciona un estado.'); return; }
+
+                                        $.ajax({
+                                            url: '{{ route('admin.ordenes.bulk_update') }}',
+                                            method: 'POST',
+                                            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
+                                            data: { ids: ids, estado: estado },
+                                            success: function (res) {
+                                                alert('Se actualizaron ' + (res.updated || 0) + ' órdenes.');
+                                                table.draw(false);
+                                                $('#bulk-clear').click();
+                                            },
+                                            error: function (err) {
+                                                alert('Error al actualizar.');
+                                            }
+                                        });
+                                    });
 
                                 function sanitizeExportValue(value) {
                                     return String(value ?? '')
