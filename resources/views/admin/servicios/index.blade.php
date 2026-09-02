@@ -13,9 +13,9 @@
                 </p>
             </div>
 
-             <a
+                 <a
                 href="{{ route('admin.servicios.create') }}"
-                class="ion-btn ion-btn--primary"
+                     class="ion-btn ion-btn--primary no-print"
             >
                 Nuevo servicio
             </a>
@@ -25,12 +25,6 @@
 
     <div class="bg-gray-950 py-12">
         <div class="mx-auto max-w-7xl space-y-6 px-6">
-
-            @if (session('success'))
-                <div class="rounded-lg border border-green-700 bg-green-950 p-4 text-green-200">
-                    {{ session('success') }}
-                </div>
-            @endif
 
             @php
                 $serviciosActivos = $servicios->where('activo', true)->count();
@@ -144,20 +138,13 @@
                                     $('#servicios-table').DataTable({
                                         pageLength: 10,
                                         order: [[1, 'asc']],
+                                        processing: true,
                                         responsive: true,
-                                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                                        language: {
+                                            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json',
+                                            processing: '<span class="table-loading" role="status" aria-live="polite">Cargando servicios...</span>'
+                                        },
                                         dom: "<'flex items-center justify-between mb-3'<'flex items-center' l>><'table-wrap't><'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
-                                        initComplete: function () {
-                                            var lengthSel = $(this).closest('.dataTables_wrapper').find('select');
-                                            lengthSel.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-2 py-1');
-
-                                            var searchInput = $(this).closest('.dataTables_wrapper').find('input[type="search"]');
-                                            searchInput.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-3 py-2');
-
-                                            var paginate = $(this).closest('.dataTables_wrapper').find('.dataTables_paginate');
-                                            paginate.find('a').addClass('mx-1 inline-flex items-center rounded-md bg-transparent border border-zinc-700 px-3 py-1 text-sm text-white');
-                                            paginate.find('a.current').addClass('bg-purple-600 text-white border-transparent');
-                                        }
                                     });
                                 });
                             </script>

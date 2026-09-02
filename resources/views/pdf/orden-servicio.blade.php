@@ -75,6 +75,12 @@
             border-collapse: collapse;
         }
 
+        .info-table,
+        .cost-table,
+        .history-item {
+            page-break-inside: avoid;
+        }
+
         .info-table td {
             width: 50%;
             padding: 7px 8px;

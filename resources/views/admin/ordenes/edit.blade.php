@@ -9,12 +9,6 @@
     <div class="py-12">
         <div class="mx-auto max-w-4xl px-6">
 
-            @if (session('success'))
-                <div class="mb-6 rounded-lg border border-green-700 bg-green-950 p-4 text-green-200">
-                    {{ session('success') }}
-                </div>
-            @endif
-
             <div class="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
@@ -131,7 +125,7 @@
                         id="estado"
                         name="estado"
                         required
-                        class="w-full rounded-lg border-zinc-700 bg-zinc-800 text-white"
+                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('estado')])
                     >
                         @foreach ($estados as $estado)
                             <option
@@ -163,7 +157,7 @@
                         name="diagnostico"
                         rows="5"
                         maxlength="3000"
-                        class="w-full rounded-lg border-zinc-700 bg-zinc-800 text-white"
+                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('diagnostico')])
                         placeholder="Describe el diagnóstico técnico."
                     >{{ old('diagnostico', $orden->diagnostico) }}</textarea>
 
@@ -191,7 +185,7 @@
                             min="0"
                             step="0.01"
                             value="{{ old('costo_estimado', $orden->costo_estimado) }}"
-                            class="w-full rounded-lg border-zinc-700 bg-zinc-800 text-white"
+                            @class(['admin-form-control', 'admin-form-control--error' => $errors->has('costo_estimado')])
                             placeholder="0.00"
                         >
 
@@ -217,7 +211,7 @@
                             min="0"
                             step="0.01"
                             value="{{ old('costo_final', $orden->costo_final) }}"
-                            class="w-full rounded-lg border-zinc-700 bg-zinc-800 text-white"
+                            @class(['admin-form-control', 'admin-form-control--error' => $errors->has('costo_final')])
                             placeholder="0.00"
                         >
 
@@ -243,7 +237,7 @@
                         name="comentario"
                         rows="3"
                         maxlength="2000"
-                        class="w-full rounded-lg border-zinc-700 bg-zinc-800 text-white"
+                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('comentario')])
                         placeholder="Este comentario aparecerá en el historial."
                     >{{ old('comentario') }}</textarea>
 
@@ -258,14 +252,14 @@
 
                     <button
                         type="submit"
-                        class="rounded-lg bg-purple-600 px-5 py-3 font-semibold text-white transition hover:bg-purple-700"
+                        class="ion-btn ion-btn--primary"
                     >
                         Guardar cambios
                     </button>
 
                     <a
                         href="{{ route('admin.ordenes.index') }}"
-                        class="inline-block rounded-lg bg-zinc-700 px-5 py-3 font-semibold text-white transition hover:bg-zinc-600"
+                        class="ion-btn ion-btn--secondary"
                     >
                         Cancelar
                     </a>
@@ -273,7 +267,7 @@
                     <a
                         href="{{ route('admin.ordenes.pdf', ['orden' => $orden->id]) }}"
                         target="_blank"
-                        class="inline-block rounded-lg bg-zinc-700 px-5 py-3 font-semibold text-white transition hover:bg-zinc-600"
+                        class="ion-btn ion-btn--secondary"
                     >
                         Descargar comprobante PDF
                     </a>

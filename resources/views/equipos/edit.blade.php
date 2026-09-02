@@ -8,7 +8,8 @@
     <div class="py-12">
         <div class="mx-auto max-w-3xl px-6">
 
-             }}"
+                <form
+                     action="{{ route('equipos.update', $equipo) }}"
                 method="POST"
                 class="space-y-6 rounded-xl bg-white p-8 shadow dark:bg-zinc-900"
             >
@@ -122,7 +123,8 @@
                         Guardar cambios
                     </button>
 
-                     }}"
+                          <a
+                                href="{{ route('equipos.index') }}"
                         class="rounded-lg bg-zinc-700 px-5 py-3 text-white hover:bg-zinc-600"
                     >
                         Cancelar
