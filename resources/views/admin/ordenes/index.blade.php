@@ -21,7 +21,7 @@
                 </div>
             @endif
 
-            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow dark:bg-zinc-900">
+            <div class="admin-toolbar mb-6 overflow-hidden rounded-2xl bg-white shadow dark:bg-zinc-900">
                 <div class="p-4 border-b border-zinc-700 bg-zinc-900/80">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div class="flex flex-wrap items-center gap-3">
@@ -43,10 +43,10 @@
                         </div>
 
                         <div class="flex flex-wrap items-center gap-2">
-                            <button id="export-csv" type="button" class="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500">
+                            <button id="export-csv" type="button" class="rounded-xl border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-medium text-white shadow-lg shadow-emerald-900/25 transition hover:-translate-y-0.5 hover:bg-emerald-500">
                                 Exportar CSV
                             </button>
-                            <button id="export-pdf" type="button" class="rounded-lg border border-red-600 bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-500">
+                            <button id="export-pdf" type="button" class="rounded-xl border border-red-600 bg-red-600 px-3 py-2 text-sm font-medium text-white shadow-lg shadow-red-900/25 transition hover:-translate-y-0.5 hover:bg-red-500">
                                 Exportar PDF
                             </button>
                         </div>
@@ -69,7 +69,7 @@
                     </div>
                 </div>
             @else
-                <div class="overflow-hidden rounded-xl bg-white shadow dark:bg-zinc-900">
+                <div class="admin-table-panel overflow-hidden rounded-2xl bg-white shadow dark:bg-zinc-900">
                     <div class="overflow-x-auto">
 
                         <!-- Use Tailwind for table styling; avoid DataTables default CSS -->

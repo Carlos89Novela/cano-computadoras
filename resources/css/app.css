@@ -79,6 +79,38 @@ body {
     background: rgba(124, 58, 237, 0.05);
 }
 
+.admin-toolbar {
+    border: 1px solid rgba(168, 85, 247, 0.18);
+    box-shadow: 0 18px 40px rgba(76, 29, 149, 0.12);
+}
+
+.admin-table-panel {
+    border: 1px solid rgba(168, 85, 247, 0.16);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+#ordenes-table thead th {
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #e9d5ff;
+    background: linear-gradient(180deg, rgba(39, 39, 42, 1), rgba(24, 24, 27, 1));
+}
+
+#ordenes-table tbody tr {
+    transition: background-color 180ms ease, transform 180ms ease;
+}
+
+#ordenes-table tbody tr:hover {
+    background: rgba(124, 58, 237, 0.08);
+}
+
+.dataTables_wrapper .dataTables_paginate a,
+.dataTables_wrapper .dataTables_length select,
+.dataTables_wrapper .dataTables_filter input {
+    border-radius: 0.75rem !important;
+}
+
 /* Homepage background image (place image at public/images/hero-bg.jpg) */
 
 /* Homepage gradient + subtle pattern background (no image) */
