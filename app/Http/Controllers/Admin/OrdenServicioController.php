@@ -10,6 +10,7 @@ use Illuminate\View\View;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\Response;
 use App\Notifications\EstadoReparacionActualizado;
+use Illuminate\Support\Str;
 
 class OrdenServicioController extends Controller
 {
@@ -31,11 +32,17 @@ class OrdenServicioController extends Controller
             'equipo',
             'estado',
             'fecha_ingreso',
+            'costo_final',
         ];
 
         $query = OrdenServicio::query()
             ->with(['user', 'equipo'])
             ->select('orden_servicios.*');
+
+        $estadoFiltro = $request->input('estado');
+        if (!empty($estadoFiltro) && $estadoFiltro !== 'all') {
+            $query->where('orden_servicios.estado', $estadoFiltro);
+        }
 
         $total = $query->count();
 
@@ -43,7 +50,7 @@ class OrdenServicioController extends Controller
         $search = $request->input('search.value');
         if (!empty($search)) {
             $query->where(function ($q) use ($search) {
-                $q->where('folio', 'like', "%{$search}%")
+                $q->where('orden_servicios.folio', 'like', "%{$search}%")
                     ->orWhereHas('user', function ($q2) use ($search) {
                         $q2->where('name', 'like', "%{$search}%");
                     })
@@ -51,7 +58,7 @@ class OrdenServicioController extends Controller
                         $q3->where('marca', 'like', "%{$search}%")
                             ->orWhere('modelo', 'like', "%{$search}%");
                     })
-                    ->orWhere('estado', 'like', "%{$search}%");
+                    ->orWhere('orden_servicios.estado', 'like', "%{$search}%");
             });
         }
 
@@ -63,17 +70,17 @@ class OrdenServicioController extends Controller
         if ($orderColIndex !== null && isset($columns[$orderColIndex])) {
             $col = $columns[$orderColIndex];
             if ($col === 'cliente') {
-                $query->join('users', 'orden_servicios.user_id', '=', 'users.id')
+                $query->leftJoin('users', 'orden_servicios.user_id', '=', 'users.id')
                     ->orderBy('users.name', $orderDir);
             } elseif ($col === 'equipo') {
-                $query->join('equipos', 'orden_servicios.equipo_id', '=', 'equipos.id')
+                $query->leftJoin('equipos', 'orden_servicios.equipo_id', '=', 'equipos.id')
                     ->orderBy('equipos.marca', $orderDir)
                     ->orderBy('equipos.modelo', $orderDir);
             } else {
                 $query->orderBy('orden_servicios.'.$col, $orderDir);
             }
         } else {
-            $query->latest('id');
+            $query->latest('orden_servicios.id');
         }
 
         // Pagination
@@ -87,9 +94,10 @@ class OrdenServicioController extends Controller
                 'folio' => '<a class="text-purple-500 font-semibold" href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'">'.$orden->folio.'</a>',
                 'cliente' => $orden->user?->name ?? '',
                 'equipo' => ($orden->equipo?->marca ?? '').' '.($orden->equipo?->modelo ?? ''),
-                'estado' => '<span class="inline-block rounded-full bg-purple-950 px-3 py-1 text-sm text-purple-200">'.e($orden->estado).'</span>',
+                'estado' => view('admin.ordenes.partials.estado-badge', ['estado' => $orden->estado])->render(),
                 'fecha_ingreso' => $orden->fecha_ingreso?->format('d/m/Y') ?? '',
-                'acciones' => '<a href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Administrar</a>',
+                'costo_final' => $orden->costo_final ?? 0,
+                'acciones' => '<div class="flex flex-wrap gap-2"><a href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'" class="rounded-md border border-purple-600 bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-500">Ver detalle</a><a href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'" class="rounded-md border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500">Administrar</a></div>',
             ];
         })->toArray();
 
@@ -175,7 +183,7 @@ class OrdenServicioController extends Controller
 
         if (
             $estadoAnterior !== $datos['estado'] ||
-            !empty($datos['comentarios'])
+            !empty($datos['comentario'])
         ) {
             $orden->historial()->create([
                 'user_id' => $request->user()->id,
@@ -202,6 +210,91 @@ class OrdenServicioController extends Controller
                 'success',
                 'La reparación fue actualizada correctamente.'
             );
+    }
+
+    public function exportCsv(Request $request): Response
+    {
+        $query = OrdenServicio::query()
+            ->with(['user', 'equipo'])
+            ->orderBy('fecha_ingreso', 'desc')
+            ->orderBy('id', 'desc');
+
+        $estado = (string) $request->query('estado', 'all');
+        if (!empty($estado) && $estado !== 'all') {
+            $query->where('estado', $estado);
+        }
+
+        $ordenes = $query->get();
+
+        $headers = ['Folio', 'Cliente', 'Equipo', 'Estado', 'Fecha de ingreso', 'Costo final'];
+        $rows = [$headers];
+
+        foreach ($ordenes as $orden) {
+            $rows[] = [
+                $orden->folio,
+                $orden->user?->name ?? '-',
+                trim(($orden->equipo?->marca ?? '').' '.($orden->equipo?->modelo ?? '')) ?: '-',
+                $orden->estado ?? '-',
+                $orden->fecha_ingreso?->format('d/m/Y') ?? '-',
+                '$'.number_format((float) ($orden->costo_final ?? 0), 2, '.', ','),
+            ];
+        }
+
+        $csv = fopen('php://temp', 'r+');
+        foreach ($rows as $row) {
+            fputcsv($csv, $row);
+        }
+        rewind($csv);
+        $content = stream_get_contents($csv);
+        fclose($csv);
+
+        $filename = 'ordenes-cano-computadoras'.($estado !== 'all' ? '-'.Str::slug($estado) : '').'-'.now()->format('Y-m-d').'.csv';
+
+        return response($content, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    public function exportPdf(Request $request): Response
+    {
+        $query = OrdenServicio::query()
+            ->with(['user', 'equipo'])
+            ->orderBy('fecha_ingreso', 'desc')
+            ->orderBy('id', 'desc');
+
+        $estado = (string) $request->query('estado', 'all');
+        if (!empty($estado) && $estado !== 'all') {
+            $query->where('estado', $estado);
+        }
+
+        $ordenes = $query->get();
+
+        $resumenPorEstado = $ordenes
+            ->groupBy('estado')
+            ->map(function ($items, $estado) {
+                return [
+                    'cantidad' => $items->count(),
+                    'total' => $items->sum(fn ($orden) => (float) ($orden->costo_final ?? 0)),
+                ];
+            })
+            ->sortKeys();
+
+        $totalOrdenes = $ordenes->count();
+        $totalIngresos = $ordenes->sum(fn ($orden) => (float) ($orden->costo_final ?? 0));
+
+        $pdf = Pdf::loadView('pdf.ordenes-reporte', [
+            'ordenes' => $ordenes,
+            'estado' => $estado,
+            'fechaGeneracion' => now()->format('d/m/Y H:i'),
+            'resumenPorEstado' => $resumenPorEstado,
+            'totalOrdenes' => $totalOrdenes,
+            'totalIngresos' => $totalIngresos,
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'reporte-ordenes'.($estado !== 'all' ? '-'.Str::slug($estado) : '').'-'.now()->format('Y-m-d').'.pdf';
+
+        return $pdf->download($filename);
     }
 
     public function pdf(

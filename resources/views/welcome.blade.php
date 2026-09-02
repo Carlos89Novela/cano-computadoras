@@ -10,60 +10,45 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
-<body class="bg-black text-white">
+<body class="bg-[#020b1a] text-white">
 
-    <!-- CABECERA -->
-    <header class="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
-
-        <div class="flex items-center gap-3">
-            <div class="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-                C
-            </div>
-
-            <h1 class="text-3xl font-bold text-purple-500">
-                Cano Computadoras
-            </h1>
-        </div>
-
+    <header class="max-w-7xl mx-auto px-6 py-5 flex justify-end items-center">
         <div class="flex gap-3">
-            <a href="/login" class="btn btn-outline btn-ghost">
+            <a href="/login" class="inline-flex items-center justify-center rounded-full border border-purple-400/60 bg-transparent px-5 py-2 text-sm font-semibold text-purple-200 transition hover:bg-purple-500/10">
                 Iniciar Sesión
             </a>
 
-            <a href="/register" class="btn btn-primary">
+            <a href="/register" class="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition hover:brightness-110">
                 Registrarse
             </a>
-
         </div>
-
     </header>
 
-    <!-- HERO -->
     <div class="home-bg">
-        <section class="max-w-6xl mx-auto text-center py-24 px-6 home-content">
+        <section class="max-w-6xl mx-auto text-center py-10 px-6 home-content">
             <div class="hero">
-                <div class="hero-content max-w-3xl text-center">
-                    <div class="card-hero">
-                    <h2 class="text-5xl font-bold mb-6">
-                        Servicio Profesional de Reparación de Computadoras
-                    </h2>
+                <div class="hero-content max-w-4xl text-center">
+                    <div class="card-hero landing-panel">
+                        <span class="eyebrow">Soporte técnico profesional</span>
 
-                    <p class="text-xl text-gray-300 mb-6">
-                        Reparación, mantenimiento y soporte técnico para laptops,
-                        computadoras de escritorio y equipos empresariales.
-                    </p>
+                        <h2 class="text-5xl font-bold mb-6 text-white">
+                            Servicio Profesional de Reparación de Computadoras
+                        </h2>
 
-                    <div class="flex justify-center gap-4">
-                        <a href="/register" class="btn btn-primary btn-lg">
-                            Solicitar Servicio
-                        </a>
+                        <p class="text-xl text-gray-300 mb-6">
+                            Reparación, mantenimiento y soporte técnico para laptops,
+                            computadoras de escritorio y equipos empresariales.
+                        </p>
 
-                        <a href="#precios" class="btn btn-outline btn-lg">
-                            Ver Precios
-                        </a>
-                    </div>
-                </div>
-            </div>
+                        <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
+                            <a href="/register" class="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 px-8 py-3 text-base font-bold uppercase tracking-wide text-white shadow-lg shadow-violet-500/25 transition duration-200 hover:brightness-110 hover:-translate-y-0.5">
+                                Solicitar Servicio
+                            </a>
+
+                            <a href="#precios" class="inline-flex items-center justify-center rounded-full border border-violet-300/80 bg-transparent px-8 py-3 text-base font-bold uppercase tracking-wide text-violet-100 transition duration-200 hover:bg-violet-500/10 hover:-translate-y-0.5">
+                                Ver Precios
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -79,7 +64,7 @@
 
         <div class="grid md:grid-cols-3 gap-6">
 
-            <div class="bg-zinc-900 p-6 rounded-xl flex items-start gap-4">
+            <div class="service-card bg-zinc-900/70 p-6 rounded-2xl flex items-start gap-4">
                 <div class="service-icon flex-shrink-0 mt-1">
                     <!-- drive + wrench icon -->
                     <svg width="36" height="36" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -101,7 +86,7 @@
                 </div>
             </div>
 
-            <div class="bg-zinc-900 p-6 rounded-xl flex items-start gap-4">
+            <div class="service-card bg-zinc-900/70 p-6 rounded-2xl flex items-start gap-4">
                 <div class="service-icon flex-shrink-0 mt-1">
                     <!-- shield + bug (removal) icon -->
                     <svg width="36" height="36" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -122,7 +107,7 @@
                 </div>
             </div>
 
-            <div class="bg-zinc-900 p-6 rounded-xl flex items-start gap-4">
+            <div class="service-card bg-zinc-900/70 p-6 rounded-2xl flex items-start gap-4">
                 <div class="service-icon flex-shrink-0 mt-1">
                     <!-- ssd + bolt icon -->
                     <svg width="36" height="36" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -154,11 +139,11 @@
             Lista de Precios
         </h2>
 
-        <div class="max-w-4xl mx-auto bg-zinc-900 rounded-xl overflow-hidden">
+        <div class="max-w-4xl mx-auto bg-zinc-900/70 rounded-2xl overflow-hidden border border-violet-500/20 shadow-[0_20px_45px_rgba(124,58,237,0.18)]">
 
             @forelse ($servicios as $servicio)
 
-                <div class="flex flex-col gap-2 border-b border-zinc-700 p-5 last:border-b-0 md:flex-row md:items-center md:justify-between">
+                <div class="price-row flex flex-col gap-2 border-b border-zinc-700/80 p-5 last:border-b-0 md:flex-row md:items-center md:justify-between">
 
                     <div>
                         <h3 class="font-semibold text-white">

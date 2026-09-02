@@ -33,9 +33,91 @@
             @endif
 
             <section class="overflow-visible rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-xl">
+                @if ($servicios->isEmpty())
+                    <div class="rounded-xl bg-zinc-950 p-10 text-center">
+                        <h3 class="text-xl font-bold text-white">
+                            No existen servicios registrados
+                        </h3>
 
-                <livewire:servicios-table />
+                        <p class="mt-2 text-gray-400">
+                            Agrega el primer servicio para que aparezca en el catálogo público.
+                        </p>
+                    </div>
+                @else
+                    <div class="overflow-hidden rounded-xl bg-zinc-950 shadow-xl">
+                        <div class="overflow-x-auto">
+                            <table id="servicios-table" class="w-full text-left table-auto">
+                                <thead class="bg-zinc-800 text-white">
+                                    <tr>
+                                        <th class="p-4">ID</th>
+                                        <th class="p-4">Servicio</th>
+                                        <th class="p-4">Precio</th>
+                                        <th class="p-4">Estado</th>
+                                        <th class="p-4">Acciones</th>
+                                    </tr>
+                                </thead>
 
+                                <tbody>
+                                    @foreach ($servicios as $servicio)
+                                        <tr class="border-b border-zinc-800 text-zinc-200">
+                                            <td class="p-4 text-zinc-400">#{{ $servicio->id }}</td>
+                                            <td class="p-4">
+                                                <div class="font-semibold text-white">{{ $servicio->nombre }}</div>
+                                                @if ($servicio->descripcion)
+                                                    <p class="mt-1 max-w-md text-sm text-zinc-400">
+                                                        {{ Str::limit($servicio->descripcion, 110) }}
+                                                    </p>
+                                                @endif
+                                            </td>
+                                            <td class="p-4 font-medium text-purple-200">
+                                                ${{ number_format($servicio->precio, 2) }}
+                                            </td>
+                                            <td class="p-4">
+                                                @if ($servicio->activo)
+                                                    <span class="inline-flex rounded-full bg-emerald-900/80 px-3 py-1 text-xs font-semibold text-emerald-200">
+                                                        Activo
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex rounded-full bg-red-900/80 px-3 py-1 text-xs font-semibold text-red-200">
+                                                        Inactivo
+                                                    </span>
+                                                @endif
+                                            </td>
+                                            <td class="p-4">
+                                                @include('admin.servicios.partials.acciones', ['servicio' => $servicio])
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+
+                            <script>
+                                (function waitForDT(fn){
+                                    if (window.jQuery && $.fn.DataTable) return fn();
+                                    setTimeout(function(){ waitForDT(fn); }, 50);
+                                })(function(){
+                                    $('#servicios-table').DataTable({
+                                        pageLength: 10,
+                                        order: [[1, 'asc']],
+                                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
+                                        dom: "<'flex items-center justify-between mb-3'<'flex items-center' l><'flex items-center' f>>t<'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
+                                        initComplete: function () {
+                                            var lengthSel = $(this).closest('.dataTables_wrapper').find('select');
+                                            lengthSel.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-2 py-1');
+
+                                            var searchInput = $(this).closest('.dataTables_wrapper').find('input[type="search"]');
+                                            searchInput.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-3 py-2');
+
+                                            var paginate = $(this).closest('.dataTables_wrapper').find('.dataTables_paginate');
+                                            paginate.find('a').addClass('mx-1 inline-flex items-center rounded-md bg-transparent border border-zinc-700 px-3 py-1 text-sm text-white');
+                                            paginate.find('a.current').addClass('bg-purple-600 text-white border-transparent');
+                                        }
+                                    });
+                                });
+                            </script>
+                        </div>
+                    </div>
+                @endif
             </section>
 
         </div>
