@@ -116,6 +116,46 @@ test('admin users can search orders by folio, client and equipment text', functi
         ->assertSee('Todos');
 });
 
+test('admin users see a repair summary and activity history in the detail page', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $cliente = User::factory()->create(['name' => 'Ana López']);
+    $equipo = Equipo::create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'HP',
+        'modelo' => 'Pavilion 15',
+    ]);
+
+    $orden = OrdenServicio::create([
+        'folio' => 'REP-DETAIL-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'Pantalla apagada',
+        'estado' => 'En reparación',
+        'diagnostico' => 'Falla en la tarjeta gráfica.',
+        'costo_estimado' => 850.00,
+        'costo_final' => 980.00,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $orden->historial()->create([
+        'user_id' => $admin->id,
+        'estado' => 'En reparación',
+        'comentarios' => 'Se inició la revisión del equipo.',
+    ]);
+
+    $response = $this->actingAs($admin)->get(route('admin.ordenes.edit', ['orden' => $orden->id]));
+
+    $response->assertOk()
+        ->assertSee('Resumen de la reparación')
+        ->assertSee('Historial de trabajo')
+        ->assertSee('Se inició la revisión del equipo.');
+});
+
 test('authenticated users can access the dashboard', function () {
     $user = User::factory()->create();
 
