@@ -23,8 +23,8 @@
 
             <div class="admin-toolbar mb-6 overflow-hidden rounded-2xl bg-white shadow dark:bg-zinc-900">
                 <div class="p-4 border-b border-zinc-700 bg-zinc-900/80">
-                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div class="flex flex-1 flex-col gap-3 xl:flex-row xl:items-center">
                             <label class="flex items-center gap-2 text-sm font-medium text-zinc-300" for="estado-filtro">
                                 Filtro por estado
                             </label>
@@ -40,6 +40,24 @@
                                 <option value="Entregado">Entregado</option>
                                 <option value="Cancelado">Cancelado</option>
                             </select>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="all" data-active="true">Todos</button>
+                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="Recibido" data-active="false">Recibido</button>
+                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="En diagnóstico" data-active="false">En diagnóstico</button>
+                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="En reparación" data-active="false">En reparación</button>
+                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="Listo para entrega" data-active="false">Listo</button>
+                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="Entregado" data-active="false">Entregado</button>
+                            </div>
+                        </div>
+
+                        <div class="w-full max-w-md">
+                            <label for="ordenes-search" class="mb-2 block text-sm font-medium text-zinc-300">
+                                Buscar por folio, cliente o equipo
+                            </label>
+                            <div class="relative">
+                                <input id="ordenes-search" type="search" placeholder="Buscar por folio, cliente o equipo" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder:text-zinc-400 focus:border-purple-500 focus:outline-none" />
+                            </div>
                         </div>
 
                         <div class="flex flex-wrap items-center gap-2">
@@ -116,6 +134,7 @@
                                         type: 'GET',
                                         data: function (d) {
                                             d.estado = $('#estado-filtro').val();
+                                            d.search = { value: $('#ordenes-search').val() || '' };
                                             return d;
                                         }
                                     },
@@ -132,13 +151,10 @@
                                     pageLength: 10,
                                     responsive: true,
                                     language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-                                    dom: "<'flex items-center justify-between mb-3'<'flex items-center' l><'flex items-center' f>>t<'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
+                                    dom: "<'flex items-center justify-between mb-3'<'flex items-center' l>><'table-wrap't><'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
                                     initComplete: function () {
                                         var lengthSel = $(this).closest('.dataTables_wrapper').find('select');
                                         lengthSel.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-2 py-1');
-
-                                        var searchInput = $(this).closest('.dataTables_wrapper').find('input[type="search"]');
-                                        searchInput.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-3 py-2');
 
                                         var paginate = $(this).closest('.dataTables_wrapper').find('.dataTables_paginate');
                                         paginate.find('a').addClass('mx-1 inline-flex items-center rounded-md bg-transparent border border-zinc-700 px-3 py-1 text-sm text-white');
@@ -169,8 +185,26 @@
                                     ]
                                 });
 
+                                function updateStatusChipState(selectedStatus) {
+                                    $('.estado-chip').attr('data-active', 'false').removeClass('border-purple-500 bg-purple-600 text-white').addClass('border-zinc-700 bg-zinc-800 text-zinc-200');
+                                    $('.estado-chip[data-status="' + selectedStatus + '"]').attr('data-active', 'true').removeClass('border-zinc-700 bg-zinc-800 text-zinc-200').addClass('border-purple-500 bg-purple-600 text-white');
+                                }
+
                                 $('#estado-filtro').on('change', function () {
+                                    var selectedStatus = $(this).val();
+                                    updateStatusChipState(selectedStatus || 'all');
                                     table.draw();
+                                });
+
+                                $('.estado-chip').on('click', function () {
+                                    var selectedStatus = $(this).data('status');
+                                    $('#estado-filtro').val(selectedStatus);
+                                    updateStatusChipState(selectedStatus);
+                                    table.draw();
+                                });
+
+                                $('#ordenes-search').on('input', function () {
+                                    table.search($(this).val()).draw();
                                 });
 
                                 function sanitizeExportValue(value) {
@@ -190,8 +224,12 @@
                                 $('#export-csv').on('click', function () {
                                     var url = new URL('{{ route('admin.ordenes.exportar.csv') }}');
                                     var estado = $('#estado-filtro').val();
+                                    var search = $('#ordenes-search').val();
                                     if (estado && estado !== 'all') {
                                         url.searchParams.set('estado', estado);
+                                    }
+                                    if (search && search.trim() !== '') {
+                                        url.searchParams.set('search', search.trim());
                                     }
                                     window.location.href = url.toString();
                                 });
@@ -199,8 +237,12 @@
                                 $('#export-pdf').on('click', function () {
                                     var url = new URL('{{ route('admin.ordenes.exportar.pdf') }}');
                                     var estado = $('#estado-filtro').val();
+                                    var search = $('#ordenes-search').val();
                                     if (estado && estado !== 'all') {
                                         url.searchParams.set('estado', estado);
+                                    }
+                                    if (search && search.trim() !== '') {
+                                        url.searchParams.set('search', search.trim());
                                     }
                                     window.location.href = url.toString();
                                 });

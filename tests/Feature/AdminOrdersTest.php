@@ -86,6 +86,76 @@ test('admin users can export filtered orders in csv and pdf formats', function (
         ->assertHeader('Content-Type', 'application/pdf');
 });
 
+test('admin users can search orders by folio, client and equipment text', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $cliente = User::factory()->create(['name' => 'Ana López']);
+    $equipo = Equipo::create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'HP',
+        'modelo' => 'Pavilion 15',
+    ]);
+
+    OrdenServicio::create([
+        'folio' => 'REP-SEARCH-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'Pantalla apagada',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($admin)->get('/admin/ordenes');
+
+    $response->assertOk()
+        ->assertSee('Buscar por folio, cliente o equipo')
+        ->assertSee('Todos');
+});
+
+test('admin users see a repair summary and activity history in the detail page', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $cliente = User::factory()->create(['name' => 'Ana López']);
+    $equipo = Equipo::create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'HP',
+        'modelo' => 'Pavilion 15',
+    ]);
+
+    $orden = OrdenServicio::create([
+        'folio' => 'REP-DETAIL-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'Pantalla apagada',
+        'estado' => 'En reparación',
+        'diagnostico' => 'Falla en la tarjeta gráfica.',
+        'costo_estimado' => 850.00,
+        'costo_final' => 980.00,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $orden->historial()->create([
+        'user_id' => $admin->id,
+        'estado' => 'En reparación',
+        'comentarios' => 'Se inició la revisión del equipo.',
+    ]);
+
+    $response = $this->actingAs($admin)->get(route('admin.ordenes.edit', ['orden' => $orden->id]));
+
+    $response->assertOk()
+        ->assertSee('Resumen de la reparación')
+        ->assertSee('Historial de trabajo')
+        ->assertSee('Se inició la revisión del equipo.');
+});
+
 test('authenticated users can access the dashboard', function () {
     $user = User::factory()->create();
 
@@ -114,6 +184,35 @@ test('admin users can view the services catalog as a DataTables table', function
         ->assertSee('Servicios y precios')
         ->assertSee('Diagnóstico avanzado')
         ->assertSee('servicios-table');
+});
+
+test('admin users see a service catalog summary with active totals and pricing overview', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    Servicio::create([
+        'nombre' => 'Diagnóstico avanzado',
+        'descripcion' => 'Revisión profunda de hardware y software.',
+        'precio' => 850.00,
+        'activo' => true,
+    ]);
+
+    Servicio::create([
+        'nombre' => 'Revisión básica',
+        'descripcion' => 'Servicio de mantenimiento general.',
+        'precio' => 350.00,
+        'activo' => false,
+    ]);
+
+    $response = $this->actingAs($admin)->get('/admin/servicios');
+
+    $response->assertOk()
+        ->assertSee('Resumen del catálogo')
+        ->assertSee('Servicios activos')
+        ->assertSee('Inactivos')
+        ->assertSee('Precio promedio');
 });
 
 test('admin users can create a service', function () {
