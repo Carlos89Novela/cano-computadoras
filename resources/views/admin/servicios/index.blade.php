@@ -15,7 +15,7 @@
 
              <a
                 href="{{ route('admin.servicios.create') }}"
-                class="inline-block rounded-lg bg-purple-600 px-5 py-3 font-semibold text-white transition hover:bg-purple-700"
+                class="ion-btn ion-btn--primary"
             >
                 Nuevo servicio
             </a>
@@ -89,9 +89,9 @@
                         </p>
                     </div>
                 @else
-                    <div class="overflow-hidden rounded-xl bg-zinc-950 shadow-xl">
+                    <div class="overflow-hidden rounded-xl bg-zinc-950 shadow-xl table-card">
                         <div class="overflow-x-auto">
-                            <table id="servicios-table" class="w-full text-left table-auto">
+                            <table id="servicios-table" class="servicios-table w-full text-left table-auto">
                                 <thead class="bg-zinc-800 text-white">
                                     <tr>
                                         <th class="p-4">ID</th>
@@ -144,8 +144,9 @@
                                     $('#servicios-table').DataTable({
                                         pageLength: 10,
                                         order: [[1, 'asc']],
+                                        responsive: true,
                                         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-                                        dom: "<'flex items-center justify-between mb-3'<'flex items-center' l><'flex items-center' f>>t<'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
+                                        dom: "<'flex items-center justify-between mb-3'<'flex items-center' l>><'table-wrap't><'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
                                         initComplete: function () {
                                             var lengthSel = $(this).closest('.dataTables_wrapper').find('select');
                                             lengthSel.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-2 py-1');

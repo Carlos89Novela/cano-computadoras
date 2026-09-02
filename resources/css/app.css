@@ -187,6 +187,9 @@ body {
 .ion-btn--danger { background-color: rgba(239,68,68,1); color: white; }
 .ion-btn--danger:hover { background-color: rgba(220,38,38,1); }
 
+.ion-btn--secondary { background-color: rgba(61, 65, 72, 1); color: white; border: 1px solid rgba(var(--color-accent-rgb), 0.06); }
+.ion-btn--secondary:hover { background-color: rgba(55, 59, 63, 1); }
+
 /* Make DataTables controls a bit more compact */
 .dataTables_wrapper .dataTables_filter input,
 .dataTables_wrapper .dataTables_length select {
@@ -196,4 +199,30 @@ body {
 .table-card {
     border-radius: 0.75rem;
     overflow: hidden;
+}
+
+/* Wrapper used by DataTables dom to give a consistent container */
+.table-wrap {
+    padding: 0.5rem 0.75rem;
+}
+
+/* Make wide tables scroll horizontally on small screens */
+.table-wrap .dataTables_scroll {
+    overflow-x: auto;
+}
+
+/* Ensure tables have a minimum readable width and consistent spacing */
+.table-wrap table {
+    min-width: 640px;
+}
+
+@media (max-width: 640px) {
+    /* Reduce padding to fit small screens while allowing horizontal scroll */
+    .table-wrap th, .table-wrap td {
+        padding: 0.5rem 0.6rem;
+        font-size: 0.92rem;
+    }
+    .dataTables_wrapper .dataTables_paginate a {
+        padding: .35rem .5rem !important;
+    }
 }
