@@ -224,6 +224,21 @@ class OrdenServicioController extends Controller
             $query->where('estado', $estado);
         }
 
+        $search = trim((string) $request->query('search', ''));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('orden_servicios.folio', 'like', "%{$search}%")
+                    ->orWhere('orden_servicios.estado', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($q2) use ($search) {
+                        $q2->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('equipo', function ($q3) use ($search) {
+                        $q3->where('marca', 'like', "%{$search}%")
+                            ->orWhere('modelo', 'like', "%{$search}%");
+                    });
+            });
+        }
+
         $ordenes = $query->get();
 
         $headers = ['Folio', 'Cliente', 'Equipo', 'Estado', 'Fecha de ingreso', 'Costo final'];
@@ -266,6 +281,21 @@ class OrdenServicioController extends Controller
         $estado = (string) $request->query('estado', 'all');
         if (!empty($estado) && $estado !== 'all') {
             $query->where('estado', $estado);
+        }
+
+        $search = trim((string) $request->query('search', ''));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('orden_servicios.folio', 'like', "%{$search}%")
+                    ->orWhere('orden_servicios.estado', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($q2) use ($search) {
+                        $q2->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('equipo', function ($q3) use ($search) {
+                        $q3->where('marca', 'like', "%{$search}%")
+                            ->orWhere('modelo', 'like', "%{$search}%");
+                    });
+            });
         }
 
         $ordenes = $query->get();

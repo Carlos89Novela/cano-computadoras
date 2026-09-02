@@ -86,6 +86,36 @@ test('admin users can export filtered orders in csv and pdf formats', function (
         ->assertHeader('Content-Type', 'application/pdf');
 });
 
+test('admin users can search orders by folio, client and equipment text', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $cliente = User::factory()->create(['name' => 'Ana López']);
+    $equipo = Equipo::create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'HP',
+        'modelo' => 'Pavilion 15',
+    ]);
+
+    OrdenServicio::create([
+        'folio' => 'REP-SEARCH-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'Pantalla apagada',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this->actingAs($admin)->get('/admin/ordenes');
+
+    $response->assertOk()
+        ->assertSee('Buscar por folio, cliente o equipo')
+        ->assertSee('Todos');
+});
+
 test('authenticated users can access the dashboard', function () {
     $user = User::factory()->create();
 
