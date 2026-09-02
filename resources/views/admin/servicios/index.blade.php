@@ -49,24 +49,32 @@
                 </div>
 
                 <div class="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div class="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-                        <p class="text-xs uppercase tracking-wide text-zinc-400">Total</p>
-                        <p class="mt-2 text-2xl font-bold text-white">{{ $servicios->count() }}</p>
+                    <div class="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-zinc-400">Total</p>
+                            <p class="mt-2 text-2xl font-bold text-white">{{ $servicios->count() }}</p>
+                        </div>
                     </div>
 
-                    <div class="rounded-xl border border-emerald-700/40 bg-emerald-950/60 p-4">
-                        <p class="text-xs uppercase tracking-wide text-emerald-300">Servicios activos</p>
-                        <p class="mt-2 text-2xl font-bold text-emerald-100">{{ $serviciosActivos }}</p>
+                    <div class="rounded-xl border border-emerald-700/40 bg-emerald-950/60 p-4 flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-emerald-300">Servicios activos</p>
+                            <p class="mt-2 text-2xl font-bold text-emerald-100">{{ $serviciosActivos }}</p>
+                        </div>
                     </div>
 
-                    <div class="rounded-xl border border-red-700/40 bg-red-950/60 p-4">
-                        <p class="text-xs uppercase tracking-wide text-red-300">Inactivos</p>
-                        <p class="mt-2 text-2xl font-bold text-red-100">{{ $serviciosInactivos }}</p>
+                    <div class="rounded-xl border border-red-700/40 bg-red-950/60 p-4 flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-red-300">Inactivos</p>
+                            <p class="mt-2 text-2xl font-bold text-red-100">{{ $serviciosInactivos }}</p>
+                        </div>
                     </div>
 
-                    <div class="rounded-xl border border-violet-700/40 bg-violet-950/60 p-4">
-                        <p class="text-xs uppercase tracking-wide text-violet-300">Precio promedio</p>
-                        <p class="mt-2 text-2xl font-bold text-violet-100">${{ number_format((float) $precioPromedio, 2) }}</p>
+                    <div class="rounded-xl border border-violet-700/40 bg-violet-950/60 p-4 flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-violet-300">Precio promedio</p>
+                            <p class="mt-2 text-2xl font-bold text-violet-100">${{ number_format((float) $precioPromedio, 2) }}</p>
+                        </div>
                     </div>
                 </div>
 
@@ -96,7 +104,7 @@
 
                                 <tbody>
                                     @foreach ($servicios as $servicio)
-                                        <tr class="border-b border-zinc-800 text-zinc-200">
+                                        <tr class="border-b border-zinc-800 text-zinc-200 hover:bg-zinc-800 transition-colors">
                                             <td class="p-4 text-zinc-400">#{{ $servicio->id }}</td>
                                             <td class="p-4">
                                                 <div class="font-semibold text-white">{{ $servicio->nombre }}</div>
