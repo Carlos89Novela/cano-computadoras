@@ -32,7 +32,44 @@
                 </div>
             @endif
 
+            @php
+                $serviciosActivos = $servicios->where('activo', true)->count();
+                $serviciosInactivos = $servicios->where('activo', false)->count();
+                $precioPromedio = $servicios->avg('precio') ?? 0;
+            @endphp
+
             <section class="overflow-visible rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-xl">
+                <div class="mb-6">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-purple-300">
+                        Resumen del catálogo
+                    </p>
+                    <h3 class="mt-2 text-xl font-bold text-white">
+                        Estado general de servicios
+                    </h3>
+                </div>
+
+                <div class="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div class="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                        <p class="text-xs uppercase tracking-wide text-zinc-400">Total</p>
+                        <p class="mt-2 text-2xl font-bold text-white">{{ $servicios->count() }}</p>
+                    </div>
+
+                    <div class="rounded-xl border border-emerald-700/40 bg-emerald-950/60 p-4">
+                        <p class="text-xs uppercase tracking-wide text-emerald-300">Servicios activos</p>
+                        <p class="mt-2 text-2xl font-bold text-emerald-100">{{ $serviciosActivos }}</p>
+                    </div>
+
+                    <div class="rounded-xl border border-red-700/40 bg-red-950/60 p-4">
+                        <p class="text-xs uppercase tracking-wide text-red-300">Inactivos</p>
+                        <p class="mt-2 text-2xl font-bold text-red-100">{{ $serviciosInactivos }}</p>
+                    </div>
+
+                    <div class="rounded-xl border border-violet-700/40 bg-violet-950/60 p-4">
+                        <p class="text-xs uppercase tracking-wide text-violet-300">Precio promedio</p>
+                        <p class="mt-2 text-2xl font-bold text-violet-100">${{ number_format((float) $precioPromedio, 2) }}</p>
+                    </div>
+                </div>
+
                 @if ($servicios->isEmpty())
                     <div class="rounded-xl bg-zinc-950 p-10 text-center">
                         <h3 class="text-xl font-bold text-white">

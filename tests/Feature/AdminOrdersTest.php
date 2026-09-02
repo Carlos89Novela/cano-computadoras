@@ -186,6 +186,35 @@ test('admin users can view the services catalog as a DataTables table', function
         ->assertSee('servicios-table');
 });
 
+test('admin users see a service catalog summary with active totals and pricing overview', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    Servicio::create([
+        'nombre' => 'Diagnóstico avanzado',
+        'descripcion' => 'Revisión profunda de hardware y software.',
+        'precio' => 850.00,
+        'activo' => true,
+    ]);
+
+    Servicio::create([
+        'nombre' => 'Revisión básica',
+        'descripcion' => 'Servicio de mantenimiento general.',
+        'precio' => 350.00,
+        'activo' => false,
+    ]);
+
+    $response = $this->actingAs($admin)->get('/admin/servicios');
+
+    $response->assertOk()
+        ->assertSee('Resumen del catálogo')
+        ->assertSee('Servicios activos')
+        ->assertSee('Inactivos')
+        ->assertSee('Precio promedio');
+});
+
 test('admin users can create a service', function () {
     Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
 
