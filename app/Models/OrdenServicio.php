@@ -44,7 +44,6 @@ class OrdenServicio extends Model
     protected function casts(): array
     {
         return [
-            'autorizacion' => 'boolean',
             'fecha_autorizacion' => 'datetime',
             'fecha_ingreso' => 'date',
             'fecha_entrega' => 'date',
