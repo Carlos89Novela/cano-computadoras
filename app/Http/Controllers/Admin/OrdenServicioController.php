@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\OrdenServicio;
+use App\Notifications\EstadoReparacionActualizado;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Symfony\Component\HttpFoundation\Response;
-use App\Notifications\EstadoReparacionActualizado;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class OrdenServicioController extends Controller
 {
@@ -40,7 +40,7 @@ class OrdenServicioController extends Controller
             ->select('orden_servicios.*');
 
         $estadoFiltro = $request->input('estado');
-        if (!empty($estadoFiltro) && $estadoFiltro !== 'all') {
+        if (! empty($estadoFiltro) && $estadoFiltro !== 'all') {
             $query->where('orden_servicios.estado', $estadoFiltro);
         }
 
@@ -48,7 +48,7 @@ class OrdenServicioController extends Controller
 
         // Filtering (global search)
         $search = $request->input('search.value');
-        if (!empty($search)) {
+        if (! empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('orden_servicios.folio', 'like', "%{$search}%")
                     ->orWhereHas('user', function ($q2) use ($search) {
@@ -91,7 +91,7 @@ class OrdenServicioController extends Controller
 
         $data = $rows->map(function ($orden) {
             return [
-                'select' => '<input type="checkbox" class="orden-select" data-id="'. $orden->id .'">',
+                'select' => '<input type="checkbox" class="orden-select" data-id="'.$orden->id.'">',
                 'folio' => '<a class="text-purple-500 font-semibold" href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'">'.$orden->folio.'</a>',
                 'cliente' => $orden->user?->name ?? '',
                 'equipo' => ($orden->equipo?->marca ?? '').' '.($orden->equipo?->modelo ?? ''),
@@ -113,36 +113,75 @@ class OrdenServicioController extends Controller
     public function bulkUpdate(Request $request)
     {
         $datos = $request->validate([
-            'ids' => ['required', 'array', 'min:1'],
-            'ids.*' => ['integer', 'exists:orden_servicios,id'],
-            'estado' => ['required', 'string', 'in:Recibido,En diagnóstico,Esperando autorización,Esperando refacción,En reparación,En pruebas,Listo para entrega,Entregado,Cancelado'],
-            'comentario' => ['nullable', 'string', 'max:2000'],
+            'ids' => [
+                'required',
+                'array',
+                'min:1',
+            ],
+            'ids.*' => [
+                'integer',
+                'distinct',
+                'exists:orden_servicios,id',
+            ],
+            'estado' => [
+                'required',
+                'string',
+                'in:Recibido,En diagnóstico,Esperando autorización,Esperando refacción,En reparación,En pruebas,Listo para entrega,Entregado,Cancelado',
+            ],
+            'comentario' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ]);
 
-        $ordenes = OrdenServicio::whereIn('id', $datos['ids'])->get();
+        $ordenes = OrdenServicio::query()
+            ->with('user')
+            ->whereIn('id', $datos['ids'])
+            ->get();
+
+        $ordenesActualizadas = 0;
 
         foreach ($ordenes as $orden) {
             $estadoAnterior = $orden->estado;
+            $estadoCambio = $estadoAnterior !== $datos['estado'];
+            $tieneComentario = filled($datos['comentario'] ?? null);
 
-            $orden->update([
-                'estado' => $datos['estado'],
-            ]);
+            if (! $estadoCambio && ! $tieneComentario) {
+                continue;
+            }
+
+            if ($estadoCambio) {
+                $orden->update([
+                    'estado' => $datos['estado'],
+                    'fecha_entrega' => $datos['estado'] === 'Entregado'
+                        ? now()->toDateString()
+                        : $orden->fecha_entrega,
+                ]);
+            }
 
             $orden->historial()->create([
                 'user_id' => $request->user()->id,
-                'estado' => $datos['estado'],
-                'comentarios' => $datos['comentario'] ?? 'Cambio masivo de estado realizado por el administrador.',
+                'estado' => $orden->estado,
+                'comentarios' => $datos['comentario']
+                    ?? 'Cambio masivo de estado realizado por el administrador.',
             ]);
 
-            if ($estadoAnterior !== $datos['estado']) {
-                // Notify user about state change
-                $orden->user->notify(new EstadoReparacionActualizado($orden, $datos['comentario'] ?? null));
+            if ($estadoCambio) {
+                $orden->user->notify(
+                    new EstadoReparacionActualizado(
+                        $orden,
+                        $datos['comentario'] ?? null
+                    )
+                );
             }
+
+            $ordenesActualizadas++;
         }
 
         return response()->json([
             'success' => true,
-            'updated' => $ordenes->count(),
+            'updated' => $ordenesActualizadas,
         ]);
     }
 
@@ -220,7 +259,7 @@ class OrdenServicioController extends Controller
 
         if (
             $estadoAnterior !== $datos['estado'] ||
-            !empty($datos['comentario'])
+            ! empty($datos['comentario'])
         ) {
             $orden->historial()->create([
                 'user_id' => $request->user()->id,
@@ -257,7 +296,7 @@ class OrdenServicioController extends Controller
             ->orderBy('id', 'desc');
 
         $estado = (string) $request->query('estado', 'all');
-        if (!empty($estado) && $estado !== 'all') {
+        if (! empty($estado) && $estado !== 'all') {
             $query->where('estado', $estado);
         }
 
@@ -316,7 +355,7 @@ class OrdenServicioController extends Controller
             ->orderBy('id', 'desc');
 
         $estado = (string) $request->query('estado', 'all');
-        if (!empty($estado) && $estado !== 'all') {
+        if (! empty($estado) && $estado !== 'all') {
             $query->where('estado', $estado);
         }
 
