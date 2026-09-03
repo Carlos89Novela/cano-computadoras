@@ -36,7 +36,6 @@
                         Seguimiento de reparaciones
                     </p>
                 </div>
-            </a>
 
             <a
                 href="{{ url('/') }}"

@@ -42,6 +42,56 @@ test('admin users see advanced filters and detail actions in the orders dashboar
         ->assertSee('Ver detalle');
 });
 
+test('admin visual contract keeps shared table and form selectors', function () {
+    Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('administrador');
+
+    $client = User::factory()->create();
+    $equipment = Equipo::create([
+        'user_id' => $client->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Visual Test',
+    ]);
+
+    OrdenServicio::create([
+        'folio' => 'REP-VISUAL-001',
+        'user_id' => $client->id,
+        'equipo_id' => $equipment->id,
+        'problema_reportado' => 'Prueba visual',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    Servicio::create([
+        'nombre' => 'Servicio visual',
+        'descripcion' => 'Servicio para contrato visual',
+        'precio' => 100,
+        'activo' => true,
+    ]);
+
+    $orders = $this->actingAs($admin)->get('/admin/ordenes');
+    $services = $this->actingAs($admin)->get('/admin/servicios');
+    $serviceForm = $this->actingAs($admin)->get('/admin/servicios/create');
+
+    $orders->assertOk()
+        ->assertSee('admin-table-panel')
+        ->assertSee('table-wrap')
+        ->assertSee('table-loading')
+        ->assertSee('no-print')
+        ->assertSee('toast-region');
+
+    $services->assertOk()
+        ->assertSee('table-card')
+        ->assertSee('servicios-table')
+        ->assertSee('table-loading');
+
+    $serviceForm->assertOk()
+        ->assertSee('admin-form-control');
+});
+
 test('admin users can export filtered orders in csv and pdf formats', function () {
     Role::firstOrCreate(['name' => 'administrador', 'guard_name' => 'web']);
 

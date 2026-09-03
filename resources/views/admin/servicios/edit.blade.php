@@ -32,7 +32,7 @@
                         required
                         maxlength="150"
                         value="{{ old('nombre', $servicio->nombre) }}"
-                        class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('nombre')])
                     >
 
                     @error('nombre')
@@ -55,7 +55,7 @@
                         name="descripcion"
                         rows="5"
                         maxlength="2000"
-                        class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('descripcion')])
                     >{{ old('descripcion', $servicio->descripcion) }}</textarea>
 
                     @error('descripcion')
@@ -82,7 +82,7 @@
                         max="99999999.99"
                         step="0.01"
                         value="{{ old('precio', $servicio->precio) }}"
-                        class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('precio')])
                     >
 
                     @error('precio')
@@ -112,14 +112,14 @@
 
                     <button
                         type="submit"
-                        class="rounded-lg bg-purple-600 px-5 py-3 font-semibold text-white transition hover:bg-purple-700"
+                        class="ion-btn ion-btn--primary"
                     >
                         Guardar cambios
                     </button>
 
                      <a
                         href="{{ route('admin.servicios.index') }}"
-                        class="rounded-lg bg-zinc-700 px-5 py-3 font-semibold text-white transition hover:bg-zinc-600"
+                        class="ion-btn ion-btn--secondary"
                     >
                         Cancelar
                     </a>

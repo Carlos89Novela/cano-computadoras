@@ -15,13 +15,7 @@
     <div class="py-12">
         <div class="mx-auto max-w-7xl px-6">
 
-            @if (session('success'))
-                <div class="mb-6 rounded-lg border border-green-700 bg-green-950 p-4 text-green-200">
-                    {{ session('success') }}
-                </div>
-            @endif
-
-            <div class="admin-toolbar mb-6 overflow-hidden rounded-2xl bg-white shadow dark:bg-zinc-900">
+            <div class="admin-toolbar no-print mb-6 overflow-hidden rounded-2xl bg-white shadow dark:bg-zinc-900">
                 <div class="p-4 border-b border-zinc-700 bg-zinc-900/80">
                     <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div class="flex flex-1 flex-col gap-3 xl:flex-row xl:items-center">
@@ -94,7 +88,7 @@
                         <table id="ordenes-table" class="w-full text-left table-auto">
                             <thead class="bg-zinc-800 text-white">
                                 <tr>
-                                    <th class="p-4"><input id="ordenes-select-all" type="checkbox" class="h-4 w-4" /></th>
+                                    <th class="p-4"><input id="ordenes-select-all" type="checkbox" class="h-4 w-4" aria-label="Seleccionar todas las órdenes visibles" /></th>
                                     <th class="p-4">Folio</th>
                                     <th class="p-4">Cliente</th>
                                     <th class="p-4">Equipo</th>
@@ -152,19 +146,14 @@
                                     order: [[4, 'desc']],
                                     pageLength: 10,
                                     responsive: true,
-                                    language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' },
-                                    dom: "<'flex items-center justify-between mb-3'<'flex items-center' l>><'table-wrap't><'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
-                                    initComplete: function () {
-                                        var lengthSel = $(this).closest('.dataTables_wrapper').find('select');
-                                        lengthSel.addClass('rounded-md bg-zinc-900 border border-zinc-700 text-white px-2 py-1');
-
-                                        var paginate = $(this).closest('.dataTables_wrapper').find('.dataTables_paginate');
-                                        paginate.find('a').addClass('mx-1 inline-flex items-center rounded-md bg-transparent border border-zinc-700 px-3 py-1 text-sm text-white');
-                                        paginate.find('a.current').addClass('bg-purple-600 text-white border-transparent');
+                                    language: {
+                                        url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json',
+                                        processing: '<span class="table-loading" role="status" aria-live="polite">Cargando órdenes...</span>'
                                     },
+                                    dom: "<'flex items-center justify-between mb-3'<'flex items-center' l>><'table-wrap't><'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
                                     columnDefs: [
                                         {
-                                            targets: 3,
+                                            targets: 4,
                                             render: function(data, type, row) {
                                                 if (type === 'display') {
                                                     var estado = row.estado || data;
@@ -175,7 +164,7 @@
                                             }
                                         },
                                         {
-                                            targets: 5,
+                                            targets: 6,
                                             render: function(data, type, row) {
                                                 var cost = Number(data || 0);
                                                 if (type === 'display') {
@@ -239,8 +228,8 @@
                                     $('#bulk-apply').on('click', function () {
                                         var ids = selectedIds();
                                         var estado = $('#bulk-estado').val();
-                                        if (!ids.length) { alert('Selecciona al menos una orden.'); return; }
-                                        if (!estado) { alert('Selecciona un estado.'); return; }
+                                        if (!ids.length) { window.showToast('Selecciona al menos una orden.', 'error'); return; }
+                                        if (!estado) { window.showToast('Selecciona un estado.', 'error'); return; }
 
                                         $.ajax({
                                             url: '{{ route('admin.ordenes.bulk_update') }}',
@@ -248,12 +237,12 @@
                                             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
                                             data: { ids: ids, estado: estado },
                                             success: function (res) {
-                                                alert('Se actualizaron ' + (res.updated || 0) + ' órdenes.');
+                                                window.showToast('Se actualizaron ' + (res.updated || 0) + ' órdenes.', 'success');
                                                 table.draw(false);
                                                 $('#bulk-clear').click();
                                             },
                                             error: function (err) {
-                                                alert('Error al actualizar.');
+                                                window.showToast('Error al actualizar.', 'error');
                                             }
                                         });
                                     });

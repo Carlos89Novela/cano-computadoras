@@ -61,6 +61,12 @@
             width: 100%;
             border-collapse: collapse;
         }
+        thead {
+            display: table-header-group;
+        }
+        tr {
+            page-break-inside: avoid;
+        }
         th, td {
             border: 1px solid #d1d5db;
             padding: 8px;
