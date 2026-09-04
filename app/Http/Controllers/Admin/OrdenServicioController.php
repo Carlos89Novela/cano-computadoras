@@ -23,7 +23,12 @@ class OrdenServicioController extends Controller
             ->latest()
             ->get();
 
-        return view('admin.ordenes.index', compact('ordenes'));
+        $estados = EstadoOrden::valores();
+
+        return view('admin.ordenes.index', compact(
+            'ordenes',
+            'estados'
+        ));
     }
 
     public function data(Request $request)

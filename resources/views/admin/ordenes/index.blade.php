@@ -24,17 +24,12 @@
                             </label>
                             <select id="estado-filtro" class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none">
                                 <option value="all">Todos</option>
-                                <option value="Recibido">Recibido</option>
-                                <option value="En diagnóstico">En diagnóstico</option>
-                                <option value="Esperando autorización">Esperando autorización</option>
-                                <option value="Esperando refacción">Esperando refacción</option>
-                                <option value="En reparación">En reparación</option>
-                                <option value="En pruebas">En pruebas</option>
-                                <option value="Listo para entrega">Listo para entrega</option>
-                                <option value="Entregado">Entregado</option>
-                                <option value="Cancelado">Cancelado</option>
+                                @foreach ($estados as $estado)
+                                    <option value="{{ $estado }}">
+                                        {{ $estado }}
+                                    </option>
+                                @endforeach
                             </select>
-
                             <div class="flex flex-wrap items-center gap-2">
                                 <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="all" data-active="true">Todos</button>
                                 <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="Recibido" data-active="false">Recibido</button>
@@ -105,6 +100,7 @@
                         </table>
 
                         <script>
+                            const estadosOrden = {{ Illuminate\Support\Js::from($estados) }};
                             (function waitForDT(fn){
                                 if (window.jQuery && $.fn.DataTable) return fn();
                                 setTimeout(function(){ waitForDT(fn); }, 50);
@@ -214,11 +210,52 @@
                                     }
 
                                     // Bulk action UI
-                                    var bulkToolbar = $('<div class="mt-4 flex items-center gap-2"></div>');
-                                    bulkToolbar.append('<select id="bulk-estado" class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"><option value="">Cambiar estado...</option><option value="Recibido">Recibido</option><option value="En diagnóstico">En diagnóstico</option><option value="Esperando autorización">Esperando autorización</option><option value="Esperando refacción">Esperando refacción</option><option value="En reparación">En reparación</option><option value="En pruebas">En pruebas</option><option value="Listo para entrega">Listo para entrega</option><option value="Entregado">Entregado</option><option value="Cancelado">Cancelado</option></select>');
-                                    bulkToolbar.append('<button id="bulk-apply" class="rounded-xl border border-purple-600 bg-purple-600 px-3 py-2 text-sm font-medium text-white">Aplicar</button>');
-                                    bulkToolbar.append('<button id="bulk-clear" class="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-white">Limpiar</button>');
-                                    $(".admin-toolbar > .p-4").append(bulkToolbar);
+                                    var bulkToolbar = $('<div>', {
+                                        class: 'mt-4 flex flex-wrap items-center gap-2'
+                                    });
+
+                                    var bulkEstado = $('<select>', {
+                                        id: 'bulk-estado',
+                                        class: 'rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white'
+                                    });
+
+                                    bulkEstado.append(
+                                        $('<option>', {
+                                            value: '',
+                                            text: 'Cambiar estado...'
+                                        })
+                                    );
+
+                                    estadosOrden.forEach(function (estado) {
+                                        bulkEstado.append(
+                                            $('<option>', {
+                                                value: estado,
+                                                text: estado
+                                            })
+                                        );
+                                    });
+
+                                    var bulkApply = $('<button>', {
+                                        id: 'bulk-apply',
+                                        type: 'button',
+                                        class: 'rounded-xl border border-purple-600 bg-purple-600 px-3 py-2 text-sm font-medium text-white',
+                                        text: 'Aplicar'
+                                    });
+
+                                    var bulkClear = $('<button>', {
+                                        id: 'bulk-clear',
+                                        type: 'button',
+                                        class: 'rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-white',
+                                        text: 'Limpiar'
+                                    });
+
+                                    bulkToolbar.append(
+                                        bulkEstado,
+                                        bulkApply,
+                                        bulkClear
+                                    );
+
+                                    $('.admin-toolbar > .p-4').append(bulkToolbar);
 
                                     $('#bulk-clear').on('click', function () {
                                         $('.orden-select').prop('checked', false);
