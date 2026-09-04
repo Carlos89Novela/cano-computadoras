@@ -24,10 +24,12 @@ class OrdenServicioController extends Controller
             ->get();
 
         $estados = EstadoOrden::valores();
+        $estadosRapidos = EstadoOrden::filtrosRapidos();
 
         return view('admin.ordenes.index', compact(
             'ordenes',
-            'estados'
+            'estados',
+            'estadosRapidos'
         ));
     }
 

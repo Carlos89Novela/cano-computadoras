@@ -16,47 +16,98 @@
         <div class="mx-auto max-w-7xl px-6">
 
             <div class="admin-toolbar no-print mb-6 overflow-hidden rounded-2xl bg-white shadow dark:bg-zinc-900">
-                <div class="p-4 border-b border-zinc-700 bg-zinc-900/80">
-                    <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                        <div class="flex flex-1 flex-col gap-3 xl:flex-row xl:items-center">
-                            <label class="flex items-center gap-2 text-sm font-medium text-zinc-300" for="estado-filtro">
-                                Filtro por estado
-                            </label>
-                            <select id="estado-filtro" class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none">
-                                <option value="all">Todos</option>
-                                @foreach ($estados as $estado)
-                                    <option value="{{ $estado }}">
-                                        {{ $estado }}
-                                    </option>
-                                @endforeach
-                            </select>
+                <div class="border-b border-zinc-700 bg-zinc-900/80 p-5">
+                    <div class="space-y-5">
+                        <div class="grid gap-4 lg:grid-cols-[minmax(220px,280px)_minmax(320px,1fr)_auto] lg:items-end">
+                            <div>
+                                <label
+                                    for="estado-filtro"
+                                    class="mb-2 block text-sm font-medium text-zinc-300"
+                                >
+                                    Filtro por estado
+                                </label>
+
+                                <select
+                                    id="estado-filtro"
+                                    class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                                >
+                                    <option value="all">Todos los estados</option>
+
+                                    @foreach ($estados as $estado)
+                                        <option value="{{ $estado }}">
+                                            {{ $estado }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    for="ordenes-search"
+                                    class="mb-2 block text-sm font-medium text-zinc-300"
+                                >
+                                    Buscar orden
+                                </label>
+
+                                <input
+                                    id="ordenes-search"
+                                    type="search"
+                                    placeholder="Buscar por folio, cliente o equipo"
+                                    class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                                >
+                            </div>
+
+                            <div class="flex flex-wrap gap-2 lg:justify-end">
+                                <button
+                                    id="export-csv"
+                                    type="button"
+                                    class="rounded-lg border border-emerald-600 bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/25 transition hover:-translate-y-0.5 hover:bg-emerald-500"
+                                >
+                                    Exportar CSV
+                                </button>
+
+                                <button
+                                    id="export-pdf"
+                                    type="button"
+                                    class="rounded-lg border border-red-600 bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-red-900/25 transition hover:-translate-y-0.5 hover:bg-red-500"
+                                >
+                                    Exportar PDF
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-zinc-800 pt-4">
+                            <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                Filtros rápidos
+                            </p>
+
                             <div class="flex flex-wrap items-center gap-2">
-                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="all" data-active="true">Todos</button>
-                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="Recibido" data-active="false">Recibido</button>
-                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="En diagnóstico" data-active="false">En diagnóstico</button>
-                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="En reparación" data-active="false">En reparación</button>
-                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="Listo para entrega" data-active="false">Listo</button>
-                                <button type="button" class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white" data-status="Entregado" data-active="false">Entregado</button>
+                                <button
+                                    type="button"
+                                    class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white"
+                                    data-status="all"
+                                    data-active="true"
+                                >
+                                    Todos
+                                </button>
+
+                                @foreach ($estadosRapidos as $valorEstado => $etiquetaEstado)
+                                    <button
+                                        type="button"
+                                        class="estado-chip rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-purple-500 hover:text-white data-[active=true]:border-purple-500 data-[active=true]:bg-purple-600 data-[active=true]:text-white"
+                                        data-status="{{ $valorEstado }}"
+                                        data-active="false"
+                                    >
+                                        {{ $etiquetaEstado }}
+                                    </button>
+                                @endforeach
                             </div>
                         </div>
 
-                        <div class="w-full max-w-md">
-                            <label for="ordenes-search" class="mb-2 block text-sm font-medium text-zinc-300">
-                                Buscar por folio, cliente o equipo
-                            </label>
-                            <div class="relative">
-                                <input id="ordenes-search" type="search" placeholder="Buscar por folio, cliente o equipo" class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder:text-zinc-400 focus:border-purple-500 focus:outline-none" />
-                            </div>
-                        </div>
-
-                        <div class="flex flex-wrap items-center gap-2">
-                            <button id="export-csv" type="button" class="rounded-xl border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-medium text-white shadow-lg shadow-emerald-900/25 transition hover:-translate-y-0.5 hover:bg-emerald-500">
-                                Exportar CSV
-                            </button>
-                            <button id="export-pdf" type="button" class="rounded-xl border border-red-600 bg-red-600 px-3 py-2 text-sm font-medium text-white shadow-lg shadow-red-900/25 transition hover:-translate-y-0.5 hover:bg-red-500">
-                                Exportar PDF
-                            </button>
-                        </div>
+                        <div
+                            id="bulk-actions-container"
+                            class="border-t border-zinc-800 pt-4"
+                        ></div>
                     </div>
                 </div>
             </div>
@@ -211,7 +262,7 @@
 
                                     // Bulk action UI
                                     var bulkToolbar = $('<div>', {
-                                        class: 'mt-4 flex flex-wrap items-center gap-2'
+                                        class: 'flex flex-wrap items-center gap-2'
                                     });
 
                                     var bulkEstado = $('<select>', {
@@ -255,7 +306,7 @@
                                         bulkClear
                                     );
 
-                                    $('.admin-toolbar > .p-4').append(bulkToolbar);
+                                    $('#bulk-actions-container').append(bulkToolbar);
 
                                     $('#bulk-clear').on('click', function () {
                                         $('.orden-select').prop('checked', false);
