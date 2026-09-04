@@ -281,8 +281,8 @@ class OrdenServicioController extends Controller
                 $orden->update([
                     'estado' => $datos['estado'],
                     'fecha_entrega' => $datos['estado'] === EstadoOrden::ENTREGADO->value
-                        ? now()->toDateString()
-                        : $orden->fecha_entrega,
+                        ? ($orden->fecha_entrega ?? now()->toDateString())
+                        : null,
                 ]);
             }
 
@@ -368,8 +368,8 @@ class OrdenServicioController extends Controller
             'costo_estimado' => $datos['costo_estimado'] ?? null,
             'costo_final' => $datos['costo_final'] ?? null,
             'fecha_entrega' => $datos['estado'] === EstadoOrden::ENTREGADO->value
-                ? now()->toDateString()
-                : $orden->fecha_entrega,
+                ? ($orden->fecha_entrega ?? now()->toDateString())
+                : null,
         ]);
 
         if (
