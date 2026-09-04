@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\EstadoOrden;
 use App\Http\Controllers\Controller;
 use App\Models\OrdenServicio;
 use App\Notifications\EstadoReparacionActualizado;
@@ -9,6 +10,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -125,8 +127,7 @@ class OrdenServicioController extends Controller
             ],
             'estado' => [
                 'required',
-                'string',
-                'in:Recibido,En diagnóstico,Esperando autorización,Esperando refacción,En reparación,En pruebas,Listo para entrega,Entregado,Cancelado',
+                Rule::enum(EstadoOrden::class),
             ],
             'comentario' => [
                 'nullable',
@@ -218,8 +219,7 @@ class OrdenServicioController extends Controller
         $datos = $request->validate([
             'estado' => [
                 'required',
-                'string',
-                'in:Recibido,En diagnóstico,Esperando autorización,Esperando refacción,En reparación,En pruebas,Listo para entrega,Entregado,Cancelado',
+                Rule::enum(EstadoOrden::class),
             ],
             'diagnostico' => [
                 'nullable',
