@@ -196,11 +196,10 @@ class OrdenServicioController extends Controller
             ])));
 
             return [
-                'select' => sprintf(
-                    '<input type="checkbox" class="orden-select" data-id="%d" aria-label="Seleccionar orden %s">',
-                    $orden->id,
-                    e($orden->folio)
-                ),
+                'select' => view(
+                    'admin.ordenes.partials.select-checkbox',
+                    ['orden' => $orden]
+                )->render(),
 
                 'folio' => view(
                     'admin.ordenes.partials.folio-link',
