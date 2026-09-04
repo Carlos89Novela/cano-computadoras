@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+@source "../../config/**/*.php";
+
+@source inline("border-sky-700 bg-sky-900 text-sky-200");
+@source inline("border-cyan-700 bg-cyan-900 text-cyan-200");
+@source inline("border-amber-700 bg-amber-900 text-amber-200");
+@source inline("border-orange-700 bg-orange-900 text-orange-200");
+@source inline("border-violet-700 bg-violet-900 text-violet-200");
+@source inline("border-indigo-700 bg-indigo-900 text-indigo-200");
+@source inline("border-emerald-700 bg-emerald-900 text-emerald-200");
+@source inline("border-teal-700 bg-teal-900 text-teal-200");
+@source inline("border-rose-700 bg-rose-900 text-rose-200");
+@source inline("border-slate-600 bg-slate-700 text-slate-200");
+
 @layer base {
     [x-cloak] {
         display: none !important;
@@ -376,7 +389,82 @@ body {
     padding: 0.5rem 0;
 }
 
+/* Colores de los estados de reparación */
+.estado-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 9999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1rem;
+}
+
+.estado-recibido {
+    border-color: #0369a1;
+    background-color: #0c4a6e;
+    color: #bae6fd;
+}
+
+.estado-en-diagnostico {
+    border-color: #0e7490;
+    background-color: #164e63;
+    color: #a5f3fc;
+}
+
+.estado-esperando-autorizacion {
+    border-color: #b45309;
+    background-color: #78350f;
+    color: #fde68a;
+}
+
+.estado-esperando-refaccion {
+    border-color: #c2410c;
+    background-color: #7c2d12;
+    color: #fed7aa;
+}
+
+.estado-en-reparacion {
+    border-color: #7c3aed;
+    background-color: #4c1d95;
+    color: #ddd6fe;
+}
+
+.estado-en-pruebas {
+    border-color: #4f46e5;
+    background-color: #312e81;
+    color: #c7d2fe;
+}
+
+.estado-listo-para-entrega {
+    border-color: #059669;
+    background-color: #064e3b;
+    color: #a7f3d0;
+}
+
+.estado-entregado {
+    border-color: #0d9488;
+    background-color: #134e4a;
+    color: #99f6e4;
+}
+
+.estado-cancelado {
+    border-color: #e11d48;
+    background-color: #881337;
+    color: #fecdd3;
+}
+
+.estado-desconocido {
+    border-color: #52525b;
+    background-color: #27272a;
+    color: #e4e4e7;
+}
+
 @media (max-width: 640px) {
+
     /* Reduce padding to fit small screens while allowing horizontal scroll */
     .table-wrap th, .table-wrap td {
         padding: 0.5rem 0.6rem;

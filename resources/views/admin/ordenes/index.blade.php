@@ -156,17 +156,11 @@
                                 if (window.jQuery && $.fn.DataTable) return fn();
                                 setTimeout(function(){ waitForDT(fn); }, 50);
                             })(function(){
-                                var statusBadges = {
-                                    'Recibido': 'bg-sky-900 text-sky-200 border border-sky-700',
-                                    'En diagnóstico': 'bg-cyan-900 text-cyan-200 border border-cyan-700',
-                                    'Esperando autorización': 'bg-amber-900 text-amber-200 border border-amber-700',
-                                    'Esperando refacción': 'bg-orange-900 text-orange-200 border border-orange-700',
-                                    'En reparación': 'bg-violet-900 text-violet-200 border border-violet-700',
-                                    'En pruebas': 'bg-indigo-900 text-indigo-200 border border-indigo-700',
-                                    'Listo para entrega': 'bg-emerald-900 text-emerald-200 border border-emerald-700',
-                                    'Entregado': 'bg-teal-900 text-teal-200 border border-teal-700',
-                                    'Cancelado': 'bg-rose-900 text-rose-200 border border-rose-700'
-                                };
+                                var statusBadges = {{ Illuminate\Support\Js::from(
+                                    collect(config('ordenes.clases_estado', []))
+                                        ->map(fn (array $clases): string => $clases['badge'])
+                                        ->all()
+                                ) }};
 
                                 var table = $('#ordenes-table').DataTable({
                                     serverSide: true,
@@ -204,8 +198,14 @@
                                             render: function(data, type, row) {
                                                 if (type === 'display') {
                                                     var estado = row.estado || data;
-                                                    var classes = statusBadges[estado] || 'bg-slate-700 text-slate-200 border border-slate-600';
-                                                    return '<span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ' + classes + '">' + estado + '</span>';
+                                                    var classes = statusBadges[estado]
+                                                        || @js(config(
+                                                            'ordenes.clase_estado_desconocido.badge',
+                                                            'border border-slate-600 bg-slate-700 text-slate-200'
+                                                        ));
+                                                    return '<span class="' + classes + '">'
+                                                        + estado
+                                                        + '</span>';
                                                 }
                                                 return data;
                                             }
