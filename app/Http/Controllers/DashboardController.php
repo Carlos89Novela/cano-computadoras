@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EstadoOrden;
 use App\Models\OrdenServicio;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -18,15 +19,12 @@ class DashboardController extends Controller
 
         $reparacionesActivas = $usuario
             ->ordenesServicio()
-            ->whereNotIn('estado', [
-                'Entregado',
-                'Cancelado',
-            ])
+            ->whereNotIn('estado', EstadoOrden::finalizados())
             ->count();
 
         $reparacionesTerminadas = $usuario
             ->ordenesServicio()
-            ->where('estado', 'Entregado')
+            ->where('estado', EstadoOrden::ENTREGADO->value)
             ->count();
 
         $totalReparaciones = $usuario
