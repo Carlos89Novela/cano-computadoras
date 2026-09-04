@@ -155,7 +155,7 @@ class OrdenServicioController extends Controller
             if ($estadoCambio) {
                 $orden->update([
                     'estado' => $datos['estado'],
-                    'fecha_entrega' => $datos['estado'] === 'Entregado'
+                    'fecha_entrega' => $datos['estado'] === EstadoOrden::ENTREGADO->value
                         ? now()->toDateString()
                         : $orden->fecha_entrega,
                 ]);
@@ -194,17 +194,7 @@ class OrdenServicioController extends Controller
             'historial.usuario',
         ]);
 
-        $estados = [
-            'Recibido',
-            'En diagnóstico',
-            'Esperando autorización',
-            'Esperando refacción',
-            'En reparación',
-            'En pruebas',
-            'Listo para entrega',
-            'Entregado',
-            'Cancelado',
-        ];
+        $estados = EstadoOrden::valores();
 
         return view(
             'admin.ordenes.edit',
@@ -252,7 +242,7 @@ class OrdenServicioController extends Controller
             'diagnostico' => $datos['diagnostico'] ?? null,
             'costo_estimado' => $datos['costo_estimado'] ?? null,
             'costo_final' => $datos['costo_final'] ?? null,
-            'fecha_entrega' => $datos['estado'] === 'Entregado'
+            'fecha_entrega' => $datos['estado'] === EstadoOrden::ENTREGADO->value
                 ? now()->toDateString()
                 : $orden->fecha_entrega,
         ]);
