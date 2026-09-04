@@ -84,6 +84,6 @@ class OrdenServicio extends Model
         return $this->hasMany(
             HistorialReparacion::class,
             'orden_servicio_id'
-        );
+        )->latest('created_at');
     }
 }

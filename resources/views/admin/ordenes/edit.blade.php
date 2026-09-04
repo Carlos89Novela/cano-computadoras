@@ -20,21 +20,27 @@
                         </h3>
                     </div>
 
-                    <span class="inline-flex rounded-full border border-purple-500 bg-purple-600/20 px-4 py-2 text-sm font-semibold text-purple-100">
-                        {{ $orden->estado }}
-                    </span>
+                    @include('admin.ordenes.partials.estado-badge', [
+                        'estado' => $orden->estado,
+                    ])
                 </div>
 
                 <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Cliente</p>
-                        <p class="mt-2 text-sm font-semibold text-white">{{ $orden->user->name }}</p>
+                        <p class="mt-2 text-sm font-semibold text-white">
+                            {{ $orden->user?->name ?? 'Cliente no disponible' }}
+                        </p>
                     </div>
 
                     <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Equipo</p>
                         <p class="mt-2 text-sm font-semibold text-white">
-                            {{ $orden->equipo->marca }} {{ $orden->equipo->modelo }}
+                            {{ trim(
+                                ($orden->equipo?->marca ?? '')
+                                .' '
+                                .($orden->equipo?->modelo ?? '')
+                            ) ?: 'Equipo no disponible' }}
                         </p>
                     </div>
 
@@ -78,11 +84,11 @@
                         </p>
 
                         <p class="font-semibold text-gray-900 dark:text-white">
-                            {{ $orden->user->name }}
+                            {{ $orden->user?->name ?? 'Cliente no disponible' }}
                         </p>
 
                         <p class="text-sm text-gray-500">
-                            {{ $orden->user->email }}
+                            {{ $orden->user?->email ?? 'Correo no disponible' }}
                         </p>
                     </div>
 
@@ -92,12 +98,15 @@
                         </p>
 
                         <p class="font-semibold text-gray-900 dark:text-white">
-                            {{ $orden->equipo->marca }}
-                            {{ $orden->equipo->modelo }}
+                            {{ trim(
+                                ($orden->equipo?->marca ?? '')
+                                .' '
+                                .($orden->equipo?->modelo ?? '')
+                            ) ?: 'Equipo no disponible' }}
                         </p>
 
                         <p class="text-sm text-gray-500">
-                            {{ $orden->equipo->tipo }}
+                            {{ $orden->equipo?->tipo ?? 'Tipo no disponible' }}
                         </p>
                     </div>
 
@@ -125,7 +134,12 @@
                         id="estado"
                         name="estado"
                         required
-                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('estado')])
+                        aria-describedby="estado-error"
+                        aria-invalid="{{ $errors->has('estado') ? 'true' : 'false' }}"
+                        @class([
+                            'admin-form-control',
+                            'admin-form-control--error' => $errors->has('estado'),
+                        ])
                     >
                         @foreach ($estados as $estado)
                             <option
@@ -138,7 +152,11 @@
                     </select>
 
                     @error('estado')
-                        <p class="mt-2 text-sm text-red-500">
+                        <p
+                            id="estado-error"
+                            class="mt-2 text-sm text-red-500"
+                            role="alert"
+                        >
                             {{ $message }}
                         </p>
                     @enderror
@@ -157,12 +175,28 @@
                         name="diagnostico"
                         rows="5"
                         maxlength="3000"
-                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('diagnostico')])
+                        aria-describedby="diagnostico-ayuda diagnostico-error"
+                        aria-invalid="{{ $errors->has('diagnostico') ? 'true' : 'false' }}"
+                        @class([
+                            'admin-form-control',
+                            'admin-form-control--error' => $errors->has('diagnostico'),
+                        ])
                         placeholder="Describe el diagnóstico técnico."
                     >{{ old('diagnostico', $orden->diagnostico) }}</textarea>
 
+                    <p
+                        id="diagnostico-ayuda"
+                        class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
+                    >
+                        Máximo 3000 caracteres.
+                    </p>
+
                     @error('diagnostico')
-                        <p class="mt-2 text-sm text-red-500">
+                        <p
+                            id="diagnostico-error"
+                            class="mt-2 text-sm text-red-500"
+                            role="alert"
+                        >
                             {{ $message }}
                         </p>
                     @enderror
@@ -182,15 +216,29 @@
                             id="costo_estimado"
                             name="costo_estimado"
                             type="number"
+                            inputmode="decimal"
                             min="0"
+                            max="999999.99"
                             step="0.01"
                             value="{{ old('costo_estimado', $orden->costo_estimado) }}"
+                            aria-describedby="costo-estimado-ayuda costo-estimado-error"
+                            aria-invalid="{{ $errors->has('costo_estimado') ? 'true' : 'false' }}"
                             @class(['admin-form-control', 'admin-form-control--error' => $errors->has('costo_estimado')])
                             placeholder="0.00"
                         >
+                        <p
+                            id="costo-estimado-ayuda"
+                            class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
+                        >
+                            Ingresa el importe sin símbolos, por ejemplo: 1250.00.
+                        </p>
 
                         @error('costo_estimado')
-                            <p class="mt-2 text-sm text-red-500">
+                            <p
+                                id="costo-estimado-error"
+                                class="mt-2 text-sm text-red-500"
+                                role="alert"
+                            >
                                 {{ $message }}
                             </p>
                         @enderror
@@ -208,15 +256,30 @@
                             id="costo_final"
                             name="costo_final"
                             type="number"
+                            inputmode="decimal"
                             min="0"
+                            max="999999.99"
                             step="0.01"
                             value="{{ old('costo_final', $orden->costo_final) }}"
+                            aria-describedby="costo-final-ayuda costo-final-error"
+                            aria-invalid="{{ $errors->has('costo_final') ? 'true' : 'false' }}"
                             @class(['admin-form-control', 'admin-form-control--error' => $errors->has('costo_final')])
                             placeholder="0.00"
                         >
 
+                        <p
+                            id="costo-final-ayuda"
+                            class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
+                        >
+                            Ingresa el importe sin símbolos, por ejemplo: 1250.00.
+                        </p>
+
                         @error('costo_final')
-                            <p class="mt-2 text-sm text-red-500">
+                            <p
+                                id="costo-final-error"
+                                class="mt-2 text-sm text-red-500"
+                                role="alert"
+                            >
                                 {{ $message }}
                             </p>
                         @enderror
@@ -237,12 +300,28 @@
                         name="comentario"
                         rows="3"
                         maxlength="2000"
-                        @class(['admin-form-control', 'admin-form-control--error' => $errors->has('comentario')])
+                        aria-describedby="comentario-ayuda comentario-error"
+                        aria-invalid="{{ $errors->has('comentario') ? 'true' : 'false' }}"
+                        @class([
+                            'admin-form-control',
+                            'admin-form-control--error' => $errors->has('comentario'),
+                        ])
                         placeholder="Este comentario aparecerá en el historial."
                     >{{ old('comentario') }}</textarea>
+                    <p
+                        id="comentario-ayuda"
+                        class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
+                    >
+                        Opcional. Se registrará en el historial de la reparación.
+                        Máximo 2000 caracteres.
+                    </p>
 
                     @error('comentario')
-                        <p class="mt-2 text-sm text-red-500">
+                        <p
+                            id="comentario-error"
+                            class="mt-2 text-sm text-red-500"
+                            role="alert"
+                        >
                             {{ $message }}
                         </p>
                     @enderror
@@ -266,7 +345,7 @@
 
                     <a
                         href="{{ route('admin.ordenes.pdf', ['orden' => $orden->id]) }}"
-                        target="_blank"
+                        target="_blank" rel="noopener noreferrer"
                         class="ion-btn ion-btn--secondary"
                     >
                         Descargar comprobante PDF
@@ -294,7 +373,7 @@
                     </div>
                 @else
                     <div class="space-y-4">
-                        @foreach ($orden->historial->sortByDesc('created_at') as $registro)
+                        @foreach ($orden->historial as $registro)
                             <div class="flex gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
                                 <div class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-purple-600/20 text-purple-200">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -304,9 +383,15 @@
 
                                 <div class="flex-1">
                                     <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                        <p class="font-semibold text-white">
-                                            {{ $registro->estado ?? 'Actualización' }}
-                                        </p>
+                                        @if ($registro->estado)
+                                            @include('admin.ordenes.partials.estado-badge', [
+                                                'estado' => $registro->estado,
+                                            ])
+                                        @else
+                                            <span class="text-sm font-semibold text-zinc-200">
+                                                Actualización
+                                            </span>
+                                        @endif
                                         <span class="text-xs text-zinc-400">
                                             {{ $registro->created_at?->format('d/m/Y H:i') ?? 'Fecha no disponible' }}
                                         </span>
@@ -317,7 +402,7 @@
                                     </p>
 
                                     <p class="mt-2 text-xs text-zinc-400">
-                                        Por {{ $registro->usuario?->name ?? 'Administrador' }}
+                                        Por {{ $registro->usuario?->name ?? 'Usuario no disponible' }}
                                     </p>
                                 </div>
                             </div>
