@@ -9,6 +9,7 @@ use App\Models\OrdenServicio;
 use App\Models\User;
 use App\Notifications\EstadoReparacionActualizado;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -404,104 +405,119 @@ class OrdenServicioController extends Controller
 
     public function exportCsv(Request $request): Response
     {
-        $query = OrdenServicio::query()
-            ->with(['user', 'equipo'])
-            ->orderBy('fecha_ingreso', 'desc')
-            ->orderBy('id', 'desc');
+        $estado = $this->obtenerEstadoExportacion($request);
 
-        $estado = (string) $request->query('estado', 'all');
-        if (! empty($estado) && $estado !== 'all') {
-            $query->where('estado', $estado);
-        }
+        $ordenes = $this
+            ->consultaExportacion($request, $estado)
+            ->get();
 
-        $search = trim((string) $request->query('search', ''));
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('orden_servicios.folio', 'like', "%{$search}%")
-                    ->orWhere('orden_servicios.estado', 'like', "%{$search}%")
-                    ->orWhereHas('user', function ($q2) use ($search) {
-                        $q2->where('name', 'like', "%{$search}%");
-                    })
-                    ->orWhereHas('equipo', function ($q3) use ($search) {
-                        $q3->where('marca', 'like', "%{$search}%")
-                            ->orWhere('modelo', 'like', "%{$search}%");
-                    });
-            });
-        }
+        $encabezados = [
+            'Folio',
+            'Cliente',
+            'Equipo',
+            'Estado',
+            'Fecha de ingreso',
+            'Costo final',
+        ];
 
-        $ordenes = $query->get();
-
-        $headers = ['Folio', 'Cliente', 'Equipo', 'Estado', 'Fecha de ingreso', 'Costo final'];
-        $rows = [$headers];
+        $filas = [$encabezados];
 
         foreach ($ordenes as $orden) {
-            $rows[] = [
+            $equipo = trim(implode(' ', array_filter([
+                $orden->equipo?->marca,
+                $orden->equipo?->modelo,
+            ])));
+
+            $filas[] = [
                 $orden->folio,
                 $orden->user?->name ?? '-',
-                trim(($orden->equipo?->marca ?? '').' '.($orden->equipo?->modelo ?? '')) ?: '-',
+                $equipo !== '' ? $equipo : '-',
                 $orden->estado ?? '-',
                 $orden->fecha_ingreso?->format('d/m/Y') ?? '-',
-                '$'.number_format((float) ($orden->costo_final ?? 0), 2, '.', ','),
+                '$'.number_format(
+                    (float) ($orden->costo_final ?? 0),
+                    2,
+                    '.',
+                    ','
+                ),
             ];
         }
 
-        $csv = fopen('php://temp', 'r+');
-        foreach ($rows as $row) {
-            fputcsv($csv, $row);
+        $archivo = fopen('php://temp', 'r+');
+
+        if ($archivo === false) {
+            abort(
+                500,
+                'No fue posible generar el archivo CSV.'
+            );
         }
-        rewind($csv);
-        $content = stream_get_contents($csv);
-        fclose($csv);
 
-        $filename = 'ordenes-cano-computadoras'.($estado !== 'all' ? '-'.Str::slug($estado) : '').'-'.now()->format('Y-m-d').'.csv';
+        fwrite($archivo, "\xEF\xBB\xBF");
 
-        return response($content, 200, [
+        foreach ($filas as $fila) {
+            fputcsv(
+                stream: $archivo,
+                fields: $fila,
+                separator: ';',
+                enclosure: '"',
+                escape: '',
+                eol: "\r\n"
+            );
+        }
+
+        rewind($archivo);
+
+        $contenido = stream_get_contents($archivo);
+
+        fclose($archivo);
+
+        if ($contenido === false) {
+            abort(
+                500,
+                'No fue posible obtener el contenido del archivo CSV.'
+            );
+        }
+
+        $nombreArchivo = 'ordenes-cano-computadoras'
+            .($estado !== 'all' ? '-'.Str::slug($estado) : '')
+            .'-'.now()->format('Y-m-d')
+            .'.csv';
+
+        return response($contenido, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Disposition' => 'attachment; filename="'.$nombreArchivo.'"',
         ]);
     }
 
     public function exportPdf(Request $request): Response
     {
-        $query = OrdenServicio::query()
-            ->with(['user', 'equipo'])
-            ->orderBy('fecha_ingreso', 'desc')
-            ->orderBy('id', 'desc');
+        $estado = $this->obtenerEstadoExportacion($request);
 
-        $estado = (string) $request->query('estado', 'all');
-        if (! empty($estado) && $estado !== 'all') {
-            $query->where('estado', $estado);
-        }
-
-        $search = trim((string) $request->query('search', ''));
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('orden_servicios.folio', 'like', "%{$search}%")
-                    ->orWhere('orden_servicios.estado', 'like', "%{$search}%")
-                    ->orWhereHas('user', function ($q2) use ($search) {
-                        $q2->where('name', 'like', "%{$search}%");
-                    })
-                    ->orWhereHas('equipo', function ($q3) use ($search) {
-                        $q3->where('marca', 'like', "%{$search}%")
-                            ->orWhere('modelo', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        $ordenes = $query->get();
+        $ordenes = $this
+            ->consultaExportacion($request, $estado)
+            ->get();
 
         $resumenPorEstado = $ordenes
             ->groupBy('estado')
-            ->map(function ($items, $estado) {
+            ->map(function ($items): array {
                 return [
                     'cantidad' => $items->count(),
-                    'total' => $items->sum(fn ($orden) => (float) ($orden->costo_final ?? 0)),
+                    'total' => $items->sum(
+                        fn (OrdenServicio $orden): float => (float) (
+                            $orden->costo_final ?? 0
+                        )
+                    ),
                 ];
             })
             ->sortKeys();
 
         $totalOrdenes = $ordenes->count();
-        $totalIngresos = $ordenes->sum(fn ($orden) => (float) ($orden->costo_final ?? 0));
+
+        $totalIngresos = $ordenes->sum(
+            fn (OrdenServicio $orden): float => (float) (
+                $orden->costo_final ?? 0
+            )
+        );
 
         $pdf = Pdf::loadView('pdf.ordenes-reporte', [
             'ordenes' => $ordenes,
@@ -512,9 +528,12 @@ class OrdenServicioController extends Controller
             'totalIngresos' => $totalIngresos,
         ])->setPaper('a4', 'landscape');
 
-        $filename = 'reporte-ordenes'.($estado !== 'all' ? '-'.Str::slug($estado) : '').'-'.now()->format('Y-m-d').'.pdf';
+        $nombreArchivo = 'reporte-ordenes'
+            .($estado !== 'all' ? '-'.Str::slug($estado) : '')
+            .'-'.now()->format('Y-m-d')
+            .'.pdf';
 
-        return $pdf->download($filename);
+        return $pdf->download($nombreArchivo);
     }
 
     public function pdf(
@@ -534,6 +553,98 @@ class OrdenServicioController extends Controller
 
         return $pdf->download(
             'orden-'.$orden->folio.'.pdf'
+        );
+    }
+
+    private function obtenerEstadoExportacion(Request $request): string
+    {
+        $estado = trim(
+            (string) $request->query('estado', 'all')
+        );
+
+        if (
+            $estado === ''
+            || $estado === 'all'
+            || ! in_array($estado, EstadoOrden::valores(), true)
+        ) {
+            return 'all';
+        }
+
+        return $estado;
+    }
+
+    private function consultaExportacion(
+        Request $request,
+        string $estado
+    ): Builder {
+        $query = OrdenServicio::query()
+            ->with([
+                'user:id,name',
+                'equipo:id,marca,modelo,numero_serie',
+            ])
+            ->orderByDesc('fecha_ingreso')
+            ->orderByDesc('id');
+
+        if ($estado !== 'all') {
+            $query->where(
+                'orden_servicios.estado',
+                $estado
+            );
+        }
+
+        $search = trim(
+            (string) $request->query('search', '')
+        );
+
+        if ($search === '') {
+            return $query;
+        }
+
+        return $query->where(
+            function (Builder $consulta) use ($search) {
+                $consulta
+                    ->where(
+                        'orden_servicios.folio',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhere(
+                        'orden_servicios.estado',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhereHas(
+                        'user',
+                        function (Builder $usuario) use ($search) {
+                            $usuario->where(
+                                'name',
+                                'like',
+                                "%{$search}%"
+                            );
+                        }
+                    )
+                    ->orWhereHas(
+                        'equipo',
+                        function (Builder $equipo) use ($search) {
+                            $equipo
+                                ->where(
+                                    'marca',
+                                    'like',
+                                    "%{$search}%"
+                                )
+                                ->orWhere(
+                                    'modelo',
+                                    'like',
+                                    "%{$search}%"
+                                )
+                                ->orWhere(
+                                    'numero_serie',
+                                    'like',
+                                    "%{$search}%"
+                                );
+                        }
+                    );
+            }
         );
     }
 }
