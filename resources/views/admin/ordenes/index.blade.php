@@ -134,7 +134,16 @@
                         <table id="ordenes-table" class="w-full text-left table-auto">
                             <thead class="bg-zinc-800 text-white">
                                 <tr>
-                                    <th class="p-4"><input id="ordenes-select-all" type="checkbox" class="h-4 w-4" aria-label="Seleccionar todas las órdenes visibles" /></th>
+                                    <th class="w-12 px-3 py-4 text-center">
+                                        <div class="flex items-center justify-center">
+                                            <input
+                                                id="ordenes-select-all"
+                                                type="checkbox"
+                                                class="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-offset-0"
+                                                aria-label="Seleccionar todas las órdenes visibles"
+                                            >
+                                        </div>
+                                    </th>
                                     <th class="p-4">Folio</th>
                                     <th class="p-4">Cliente</th>
                                     <th class="p-4">Equipo</th>
@@ -193,6 +202,13 @@
                                     },
                                     dom: "<'flex items-center justify-between mb-3'<'flex items-center' l>><'table-wrap't><'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
                                     columnDefs: [
+                                        {
+                                            targets: 0,
+                                            with: '48px',
+                                            className: 'text-center',
+                                            orderable: false,
+                                            searchable: false
+                                        },
                                         {
                                             targets: 4,
                                             render: function(data, type, row) {
