@@ -37,26 +37,7 @@
             font-weight: bold;
             color: #374151;
         }
-        .state-box {
-            display: inline-block;
-            width: 32%;
-            margin: 0 1% 8px 0;
-            padding: 8px 10px;
-            border: 1px solid #e5e7eb;
-            background: #ffffff;
-            box-sizing: border-box;
-        }
-        .state-name {
-            font-size: 11px;
-            color: #4b5563;
-            display: block;
-            margin-bottom: 4px;
-        }
-        .state-total {
-            font-weight: bold;
-            color: #111827;
-            font-size: 13px;
-        }
+        
         table {
             width: 100%;
             border-collapse: collapse;
@@ -84,15 +65,9 @@
             margin-top: 12px;
         }
 
-        .summary-title {
-            margin: 0 0 8px;
-            font-size: 12px;
-            font-weight: bold;
-            color: #1f2937;
-        }
-
         .summary-table {
             width: 100%;
+            margin: 0;
             border-collapse: separate;
             border-spacing: 8px 0;
             table-layout: fixed;
@@ -103,25 +78,6 @@
             padding: 0;
             vertical-align: top;
             border: 0;
-        }
-
-        .summary-card {
-            min-height: 42px;
-            padding: 9px 10px;
-            border: 1px solid #d1d5db;
-            background-color: #ffffff;
-        }
-
-        .summary-card-title {
-            margin-bottom: 5px;
-            font-size: 10px;
-            color: #4b5563;
-        }
-
-        .summary-card-value {
-            font-size: 11px;
-            font-weight: bold;
-            color: #111827;
         }
 
         .summary-spacer {
@@ -220,6 +176,7 @@
                 <th>Costo</th>
             </tr>
         </thead>
+        
         <tbody>
             @forelse ($ordenes as $orden)
                 <tr>
