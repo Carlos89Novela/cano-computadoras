@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EstadoOrden;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
+use App\Models\Servicio;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
-use App\Models\Servicio;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\Response;
-
 
 class OrdenServicioController extends Controller
 {
@@ -41,7 +41,7 @@ class OrdenServicioController extends Controller
                     'error',
                     'Primero debes registrar un equipo.'
                 );
-        
+
         }
 
         // Obtener los servicios disponibles
@@ -69,9 +69,9 @@ class OrdenServicioController extends Controller
                 'max:2000',
             ],
             'servicio_id' => [
-            'nullable',
-            'integer',
-            'exists:servicios,id',
+                'nullable',
+                'integer',
+                'exists:servicios,id',
             ],
         ]);
 
@@ -87,7 +87,7 @@ class OrdenServicioController extends Controller
             'user_id' => $request->user()->id,
             'equipo_id' => $equipo->id,
             'problema_reportado' => $datos['problema_reportado'],
-            'estado' => 'Recibido',
+            'estado' => EstadoOrden::RECIBIDO->value,
             'fecha_ingreso' => now()->toDateString(),
             'servicio_id' => $datos['servicio_id'] ?? null,
         ]);
@@ -95,7 +95,7 @@ class OrdenServicioController extends Controller
         // Crear el historial de la orden de servicio
         $orden->historial()->create([
             'user_id' => $request->user()->id,
-            'estado' => 'Recibido',
+            'estado' => EstadoOrden::RECIBIDO->value,
             'comentarios' => 'Solicitud de reparación registrada.',
         ]);
 
@@ -134,9 +134,9 @@ class OrdenServicioController extends Controller
     {
         do {
             $folio = 'REP-'
-                . now()->format('Ymd')
-                . '-'
-                . strtoupper(substr(uniqid(), -5));
+                .now()->format('Ymd')
+                .'-'
+                .strtoupper(substr(uniqid(), -5));
         } while (
             OrdenServicio::where('folio', $folio)->exists()
         );
@@ -174,7 +174,7 @@ class OrdenServicioController extends Controller
         ]);
 
         abort_unless(
-            $orden->estado === 'Esperando autorización',
+            $orden->estado === EstadoOrden::ESPERANDO_AUTORIZACION->value,
             422,
             'La reparación no está esperando autorización.'
         );
@@ -185,8 +185,8 @@ class OrdenServicioController extends Controller
             'autorizacion' => $datos['decision'],
             'fecha_autorizacion' => now(),
             'estado' => $autorizada
-                ? 'Esperando refacción'
-                : 'Cancelado',
+                ? EstadoOrden::ESPERANDO_REFACCION->value
+                : EstadoOrden::CANCELADO->value,
         ]);
 
         $orden->historial()->create([
