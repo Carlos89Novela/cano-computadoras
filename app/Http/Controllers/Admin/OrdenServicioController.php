@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\EstadoOrden;
 use App\Http\Controllers\Controller;
+use App\Models\Equipo;
 use App\Models\OrdenServicio;
+use App\Models\User;
 use App\Notifications\EstadoReparacionActualizado;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -35,86 +37,202 @@ class OrdenServicioController extends Controller
 
     public function data(Request $request)
     {
-        $columns = [
-            'folio',
-            'cliente',
-            'equipo',
-            'estado',
-            'fecha_ingreso',
-            'costo_final',
+        $columnasPermitidas = [
+            'folio' => 'orden_servicios.folio',
+            'estado' => 'orden_servicios.estado',
+            'fecha_ingreso' => 'orden_servicios.fecha_ingreso',
+            'costo_final' => 'orden_servicios.costo_final',
         ];
 
         $query = OrdenServicio::query()
-            ->with(['user', 'equipo'])
+            ->with([
+                'user:id,name',
+                'equipo:id,marca,modelo',
+            ])
             ->select('orden_servicios.*');
 
-        $estadoFiltro = $request->input('estado');
-        if (! empty($estadoFiltro) && $estadoFiltro !== 'all') {
-            $query->where('orden_servicios.estado', $estadoFiltro);
+        $recordsTotal = OrdenServicio::query()->count();
+
+        $estadoFiltro = $request->string('estado')->trim()->toString();
+
+        if (
+            $estadoFiltro !== ''
+            && $estadoFiltro !== 'all'
+            && in_array($estadoFiltro, EstadoOrden::valores(), true)
+        ) {
+            $query->where(
+                'orden_servicios.estado',
+                $estadoFiltro
+            );
         }
 
-        $total = $query->count();
-
-        // Filtering (global search)
         $search = $request->input('search.value');
-        if (! empty($search)) {
-            $query->where(function ($q) use ($search) {
-                $q->where('orden_servicios.folio', 'like', "%{$search}%")
-                    ->orWhereHas('user', function ($q2) use ($search) {
-                        $q2->where('name', 'like', "%{$search}%");
+
+        if (is_string($search) && trim($search) !== '') {
+            $search = trim($search);
+
+            $query->where(function ($consulta) use ($search) {
+                $consulta
+                    ->where(
+                        'orden_servicios.folio',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhere(
+                        'orden_servicios.estado',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhereHas('user', function ($usuario) use ($search) {
+                        $usuario->where(
+                            'name',
+                            'like',
+                            "%{$search}%"
+                        );
                     })
-                    ->orWhereHas('equipo', function ($q3) use ($search) {
-                        $q3->where('marca', 'like', "%{$search}%")
-                            ->orWhere('modelo', 'like', "%{$search}%");
-                    })
-                    ->orWhere('orden_servicios.estado', 'like', "%{$search}%");
+                    ->orWhereHas('equipo', function ($equipo) use ($search) {
+                        $equipo
+                            ->where(
+                                'marca',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'modelo',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'numero_serie',
+                                'like',
+                                "%{$search}%"
+                            );
+                    });
             });
         }
 
-        $filtered = $query->count();
+        $recordsFiltered = (clone $query)->count();
 
-        // Ordering
-        $orderColIndex = $request->input('order.0.column');
-        $orderDir = $request->input('order.0.dir', 'desc');
-        if ($orderColIndex !== null && isset($columns[$orderColIndex])) {
-            $col = $columns[$orderColIndex];
-            if ($col === 'cliente') {
-                $query->leftJoin('users', 'orden_servicios.user_id', '=', 'users.id')
-                    ->orderBy('users.name', $orderDir);
-            } elseif ($col === 'equipo') {
-                $query->leftJoin('equipos', 'orden_servicios.equipo_id', '=', 'equipos.id')
-                    ->orderBy('equipos.marca', $orderDir)
-                    ->orderBy('equipos.modelo', $orderDir);
-            } else {
-                $query->orderBy('orden_servicios.'.$col, $orderDir);
-            }
+        $orderColumnIndex = $request->integer('order.0.column');
+        $orderColumn = $request->input(
+            "columns.{$orderColumnIndex}.data"
+        );
+
+        $orderDirection = strtolower(
+            (string) $request->input('order.0.dir', 'desc')
+        );
+
+        if (! in_array($orderDirection, ['asc', 'desc'], true)) {
+            $orderDirection = 'desc';
+        }
+
+        if ($orderColumn === 'cliente') {
+            $query->orderBy(
+                User::query()
+                    ->select('name')
+                    ->whereColumn(
+                        'users.id',
+                        'orden_servicios.user_id'
+                    )
+                    ->limit(1),
+                $orderDirection
+            );
+        } elseif ($orderColumn === 'equipo') {
+            $query
+                ->orderBy(
+                    Equipo::query()
+                        ->select('marca')
+                        ->whereColumn(
+                            'equipos.id',
+                            'orden_servicios.equipo_id'
+                        )
+                        ->limit(1),
+                    $orderDirection
+                )
+                ->orderBy(
+                    Equipo::query()
+                        ->select('modelo')
+                        ->whereColumn(
+                            'equipos.id',
+                            'orden_servicios.equipo_id'
+                        )
+                        ->limit(1),
+                    $orderDirection
+                );
+        } elseif (
+            is_string($orderColumn)
+            && array_key_exists($orderColumn, $columnasPermitidas)
+        ) {
+            $query->orderBy(
+                $columnasPermitidas[$orderColumn],
+                $orderDirection
+            );
         } else {
             $query->latest('orden_servicios.id');
         }
 
-        // Pagination
-        $start = (int) $request->input('start', 0);
-        $length = (int) $request->input('length', 10);
+        $start = max(
+            $request->integer('start'),
+            0
+        );
 
-        $rows = $query->skip($start)->take($length)->get();
+        $requestedLength = $request->integer('length', 10);
 
-        $data = $rows->map(function ($orden) {
+        $length = min(
+            max($requestedLength, 1),
+            100
+        );
+
+        $rows = $query
+            ->skip($start)
+            ->take($length)
+            ->get();
+
+        $data = $rows->map(function (OrdenServicio $orden): array {
+
+            $equipo = trim(implode(' ', array_filter([
+                $orden->equipo?->marca,
+                $orden->equipo?->modelo,
+            ])));
+
             return [
-                'select' => '<input type="checkbox" class="orden-select" data-id="'.$orden->id.'">',
-                'folio' => '<a class="text-purple-500 font-semibold" href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'">'.$orden->folio.'</a>',
-                'cliente' => $orden->user?->name ?? '',
-                'equipo' => ($orden->equipo?->marca ?? '').' '.($orden->equipo?->modelo ?? ''),
-                'estado' => view('admin.ordenes.partials.estado-badge', ['estado' => $orden->estado])->render(),
-                'fecha_ingreso' => $orden->fecha_ingreso?->format('d/m/Y') ?? '',
-                'costo_final' => $orden->costo_final ?? 0,
-                'acciones' => '<div class="flex flex-wrap gap-2"><a href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'" class="rounded-md border border-purple-600 bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-500">Ver detalle</a><a href="'.route('admin.ordenes.edit', ['orden' => $orden->id]).'" class="rounded-md border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500">Administrar</a></div>',
+                'select' => sprintf(
+                    '<input type="checkbox" class="orden-select" data-id="%d" aria-label="Seleccionar orden %s">',
+                    $orden->id,
+                    e($orden->folio)
+                ),
+
+                'folio' => view(
+                    'admin.ordenes.partials.folio-link',
+                    ['orden' => $orden]
+                )->render(),
+
+                'cliente' => e($orden->user?->name ?? ''),
+
+                'equipo' => e($equipo),
+
+                'estado' => view(
+                    'admin.ordenes.partials.estado-badge',
+                    ['estado' => $orden->estado]
+                )->render(),
+
+                'fecha_ingreso' => $orden->fecha_ingreso?->format(
+                    'd/m/Y'
+                ) ?? '',
+
+                'costo_final' => (float) ($orden->costo_final ?? 0),
+
+                'acciones' => view(
+                    'admin.ordenes.partials.acciones',
+                    ['orden' => $orden]
+                )->render(),
             ];
-        })->toArray();
+        })->values();
 
         return response()->json([
-            'draw' => (int) $request->input('draw'),
-            'recordsTotal' => $total,
-            'recordsFiltered' => $filtered,
+            'draw' => $request->integer('draw'),
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
             'data' => $data,
         ]);
     }
