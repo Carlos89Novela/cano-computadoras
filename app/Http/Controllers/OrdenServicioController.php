@@ -8,6 +8,7 @@ use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\Servicio;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -16,6 +17,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class OrdenServicioController extends Controller
 {
+    use AuthorizesRequests;
+
     public function index(Request $request): View
     {
         // Obtener las órdenes de servicio del usuario autenticado
@@ -114,14 +117,9 @@ class OrdenServicioController extends Controller
     }
 
     public function show(
-        Request $request,
         OrdenServicio $orden
     ): View {
-        abort_unless(
-            (int) $orden->user_id === (int) $request->user()->id,
-            403,
-            'No tienes permiso para consultar esta reparación.'
-        );
+        $this->authorize('view', $orden);
         // Cargar las relaciones necesarias para la vista
         $orden->load([
             'equipo',
@@ -164,11 +162,7 @@ class OrdenServicioController extends Controller
         Request $request,
         OrdenServicio $orden
     ): RedirectResponse {
-        abort_unless(
-            (int) $orden->user_id === (int) $request->user()->id,
-            403,
-            'No tienes permiso para autorizar esta reparación.'
-        );
+        $this->authorize('view', $orden);
 
         $datos = $request->validate([
             'decision' => [
@@ -182,6 +176,12 @@ class OrdenServicioController extends Controller
             $orden->estado === EstadoOrden::ESPERANDO_AUTORIZACION->value,
             422,
             'La reparación no está esperando autorización.'
+        );
+
+        abort_unless(
+            $orden->autorizacion === EstadoAutorizacion::PENDIENTE->value,
+            422,
+            'El presupuesto ya fue autorizado o rechazado.'
         );
 
         $autorizada = $datos['decision'] === EstadoAutorizacion::AUTORIZADA->value;
@@ -216,11 +216,7 @@ class OrdenServicioController extends Controller
         Request $request,
         OrdenServicio $orden
     ): Response {
-        abort_unless(
-            (int) $orden->user_id === (int) $request->user()->id,
-            403,
-            'No tienes permiso para descargar esta orden.'
-        );
+        $this->authorize('downloadPdf', $orden);
 
         $orden->load([
             'user',
