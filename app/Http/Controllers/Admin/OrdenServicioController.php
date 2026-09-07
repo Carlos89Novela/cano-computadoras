@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\EstadoOrden;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\UpdateOrdenServicioRequest;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\User;
@@ -357,66 +358,11 @@ class OrdenServicioController extends Controller
     }
 
     public function update(
-        Request $request,
+        UpdateOrdenServicioRequest $request,
         OrdenServicio $orden
     ): RedirectResponse {
-        $datos = $request->validate([
-            'estado' => [
-                'required',
-                Rule::enum(EstadoOrden::class),
-                function (
-                    string $attribute,
-                    mixed $value,
-                    $fail
-                ) use ($orden): void {
-                    $estadoActual = EstadoOrden::tryFrom($orden->estado);
-                    $nuevoEstado = EstadoOrden::tryFrom((string) $value);
 
-                    if ($estadoActual === null || $nuevoEstado === null) {
-                        $fail('El estado seleccionado no es válido.');
-
-                        return;
-                    }
-
-                    if ($estadoActual === $nuevoEstado) {
-                        return;
-                    }
-
-                    if (! $estadoActual->permiteTransicionA($nuevoEstado)) {
-                        $fail(
-                            'No se permite cambiar de '
-                            .$estadoActual->value
-                            .' a '
-                            .$nuevoEstado->value
-                            .'.'
-                        );
-                    }
-                },
-            ],
-
-            'diagnostico' => [
-                'nullable',
-                'string',
-                'max:3000',
-            ],
-            'costo_estimado' => [
-                'nullable',
-                'numeric',
-                'min:0',
-                'max:99999999.99',
-            ],
-            'costo_final' => [
-                'nullable',
-                'numeric',
-                'min:0',
-                'max:99999999.99',
-            ],
-            'comentario' => [
-                'nullable',
-                'string',
-                'max:2000',
-            ],
-        ]);
+        $datos = $request->validated();
 
         $estadoAnterior = $orden->estado;
 
