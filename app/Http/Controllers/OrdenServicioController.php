@@ -73,7 +73,10 @@ class OrdenServicioController extends Controller
             'servicio_id' => [
                 'nullable',
                 'integer',
-                'exists:servicios,id',
+                Rule::exists('servicios', 'id')->where(
+                    'activo',
+                    true
+                ),
             ],
         ]);
 
