@@ -93,7 +93,11 @@
                 </div>
 
                 <label class="flex items-center gap-3">
-
+                    <input
+                        type="hidden"
+                        name="activo"
+                        value="0"
+                    >
                     <input
                         name="activo"
                         type="checkbox"
