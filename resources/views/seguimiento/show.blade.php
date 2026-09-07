@@ -84,9 +84,9 @@
                         Estado actual
                     </p>
 
-                    <span class="inline-block rounded-full bg-purple-950 px-5 py-2 font-semibold text-purple-200">
-                        {{ $orden->estado }}
-                    </span>
+                    @include('admin.ordenes.partials.estado-badge', [
+                        'estado' => $orden->estado,
+                    ])
                 </div>
 
             </div>
@@ -99,7 +99,7 @@
                     </p>
 
                     <p class="mt-1 font-semibold">
-                        {{ $orden->equipo->tipo }}
+                        {{ $orden->equipo?->tipo ?? 'Equipo no disponible' }}
                     </p>
                 </div>
 
@@ -109,8 +109,11 @@
                     </p>
 
                     <p class="mt-1 font-semibold">
-                        {{ $orden->equipo->marca }}
-                        {{ $orden->equipo->modelo }}
+                        {{ trim(
+                            ($orden->equipo?->marca ?? '')
+                            .' '
+                            .($orden->equipo?->modelo ?? '')
+                        ) ?: 'Información no disponible' }}
                     </p>
                 </div>
 
@@ -120,11 +123,7 @@
                     </p>
 
                     <p class="mt-1 font-semibold">
-                        @if ($orden->servicio)
-                            {{ $orden->servicio->nombre }}
-                        @else
-                            Diagnóstico general
-                        @endif
+                       {{ $orden->servicio?->nombre ?? 'Diagnóstico general' }}
                     </p>
                 </div>
 
@@ -134,7 +133,7 @@
                     </p>
 
                     <p class="mt-1 font-semibold">
-                        {{ $orden->fecha_ingreso->format('d/m/Y') }}
+                        {{ $orden->fecha_ingreso?->format('d/m/Y') ?? 'Fecha no disponible' }}
                     </p>
                 </div>
 
@@ -144,11 +143,7 @@
                     </p>
 
                     <p class="mt-1 font-semibold">
-                        @if ($orden->fecha_entrega)
-                            {{ $orden->fecha_entrega->format('d/m/Y') }}
-                        @else
-                            Pendiente
-                        @endif
+                        {{ $orden->fecha_entrega?->format('d/m/Y') ?? 'Pendiente' }}
                     </p>
                 </div>
 
@@ -230,26 +225,19 @@
 
                                     <div class="flex flex-col justify-between gap-2 md:flex-row md:items-center">
 
-                                        <h4 class="font-bold text-purple-300">
-                                            {{ $registro->estado }}
-                                        </h4>
+                                        <div>
+                                            @include('admin.ordenes.partials.estado-badge', [
+                                                'estado' => $registro->estado,
+                                            ])
+                                        </div>
 
                                         <span class="text-sm text-gray-400">
-                                            {{ $registro->created_at->format('d/m/Y H:i') }}
+                                            {{ $registro->created_at?->format('d/m/Y H:i') ?? 'Fecha no disponible' }}
                                         </span>
 
                                     </div>
 
-                                    @if ($registro->comentario)
-                                        <p class="mt-3 text-gray-200">
-                                            {{ $registro->comentario }}
-                                        </p>
-                                    @endif
-
                                 </div>
-
-                            </div>
-
                         @endforeach
 
                     </div>

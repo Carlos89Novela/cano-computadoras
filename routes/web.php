@@ -1,15 +1,15 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\EquipoController;
-use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioController;
-use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
-use App\Models\Servicio;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\NotificacionController;
+use App\Http\Controllers\OrdenServicioController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SeguimientoController;
+use App\Models\Servicio;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     $servicios = Servicio::query()
@@ -21,6 +21,7 @@ Route::get('/', function () {
 });
 
 Route::get('/seguimiento/{folio}', [SeguimientoController::class, 'show'])
+    ->middleware('throttle:30,1')
     ->name('seguimiento.show');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
@@ -45,18 +46,18 @@ Route::middleware('auth')->group(function () {
         ->only(['index', 'create', 'store', 'show']);
 
     Route::post(
-            '/ordenes/{orden}/autorizar',
-            [OrdenServicioController::class, 'autorizar']
-        )->name('ordenes.autorizar');
+        '/ordenes/{orden}/autorizar',
+        [OrdenServicioController::class, 'autorizar']
+    )->name('ordenes.autorizar');
 
     Route::get(
-            '/ordenes/{orden}/pdf',
-            [OrdenServicioController::class, 'pdf']
-        )->name('ordenes.pdf');
+        '/ordenes/{orden}/pdf',
+        [OrdenServicioController::class, 'pdf']
+    )->name('ordenes.pdf');
 
     Route::get(
-    '/notificaciones',
-    [NotificacionController::class, 'index']
+        '/notificaciones',
+        [NotificacionController::class, 'index']
     )->name('notificaciones.index');
 
     Route::post(
@@ -118,7 +119,6 @@ Route::middleware(['auth', 'administrador'])
             ->parameters(['servicios' => 'servicio'])
             ->except(['show']);
 
-        
     });
 
 require __DIR__.'/auth.php';
