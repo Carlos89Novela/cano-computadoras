@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
@@ -9,6 +10,7 @@ use App\Models\Servicio;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -169,7 +171,7 @@ class OrdenServicioController extends Controller
             'decision' => [
                 'required',
                 'string',
-                'in:autorizada,rechazada',
+                Rule::in(EstadoAutorizacion::decisiones()),
             ],
         ]);
 
@@ -179,7 +181,7 @@ class OrdenServicioController extends Controller
             'La reparación no está esperando autorización.'
         );
 
-        $autorizada = $datos['decision'] === 'autorizada';
+        $autorizada = $datos['decision'] === EstadoAutorizacion::AUTORIZADA->value;
 
         $orden->update([
             'autorizacion' => $datos['decision'],
