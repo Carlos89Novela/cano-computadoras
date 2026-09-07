@@ -343,6 +343,7 @@
                                             success: function (res) {
                                                 var actualizadas = Number(res.updated || 0);
                                                 var omitidas = Number(res.skipped || 0);
+                                                var fallidas = Number(res.failed || 0);
 
                                                 var mensaje = 'Se actualizaron '
                                                     + actualizadas

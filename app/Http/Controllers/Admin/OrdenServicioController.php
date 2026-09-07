@@ -14,9 +14,12 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class OrdenServicioController extends Controller
 {
@@ -251,6 +254,7 @@ class OrdenServicioController extends Controller
 
         $ordenesActualizadas = 0;
         $ordenesOmitidas = 0;
+        $ordenesFallidas = 0;
 
         foreach ($ordenes as $orden) {
             $estadoActual = EstadoOrden::tryFrom($orden->estado);
@@ -279,29 +283,65 @@ class OrdenServicioController extends Controller
                 continue;
             }
 
-            if ($estadoCambio) {
-                $orden->update([
-                    'estado' => $nuevoEstado->value,
-                    'fecha_entrega' => $nuevoEstado === EstadoOrden::ENTREGADO
-                        ? ($orden->fecha_entrega ?? now()->toDateString())
-                        : null,
-                ]);
+            try {
+                DB::transaction(function () use (
+                    $datos,
+                    $estadoCambio,
+                    $nuevoEstado,
+                    $orden,
+                    $request
+                ): void {
+                    if ($estadoCambio) {
+                        $orden->update([
+                            'estado' => $nuevoEstado->value,
+                            'fecha_entrega' => $nuevoEstado === EstadoOrden::ENTREGADO
+                                ? ($orden->fecha_entrega ?? now()->toDateString())
+                                : null,
+                        ]);
+                    }
+
+                    $orden->historial()->create([
+                        'user_id' => $request->user()->id,
+                        'estado' => $orden->estado,
+                        'comentarios' => $datos['comentario']
+                            ?? 'Cambio masivo de estado realizado por el administrador.',
+                    ]);
+                });
+            } catch (Throwable $exception) {
+                $ordenesFallidas++;
+
+                Log::error(
+                    'No fue posible actualizar una orden mediante la acción masiva.',
+                    [
+                        'orden_id' => $orden->id,
+                        'estado_solicitado' => $nuevoEstado->value,
+                        'exception' => $exception,
+                    ]
+                );
+
+                continue;
             }
 
-            $orden->historial()->create([
-                'user_id' => $request->user()->id,
-                'estado' => $orden->estado,
-                'comentarios' => $datos['comentario']
-                    ?? 'Cambio masivo de estado realizado por el administrador.',
-            ]);
+            $orden->refresh();
 
             if ($estadoCambio && $orden->user !== null) {
-                $orden->user->notify(
-                    new EstadoReparacionActualizado(
-                        $orden,
-                        $datos['comentario'] ?? null
-                    )
-                );
+                try {
+                    $orden->user->notify(
+                        new EstadoReparacionActualizado(
+                            $orden,
+                            $datos['comentario'] ?? null
+                        )
+                    );
+                } catch (Throwable $exception) {
+                    Log::warning(
+                        'La orden fue actualizada, pero no se pudo enviar la notificación.',
+                        [
+                            'orden_id' => $orden->id,
+                            'user_id' => $orden->user_id,
+                            'exception' => $exception,
+                        ]
+                    );
+                }
             }
 
             $ordenesActualizadas++;
@@ -311,6 +351,7 @@ class OrdenServicioController extends Controller
             'success' => true,
             'updated' => $ordenesActualizadas,
             'skipped' => $ordenesOmitidas,
+            'failed' => $ordenesFallidas,
         ]);
     }
 
@@ -341,34 +382,45 @@ class OrdenServicioController extends Controller
         UpdateOrdenServicioRequest $request,
         OrdenServicio $orden
     ): RedirectResponse {
-
         $datos = $request->validated();
-
+        $usuarioId = $request->user()->id;
         $estadoAnterior = $orden->estado;
 
-        $orden->update([
-            'estado' => $datos['estado'],
-            'diagnostico' => $datos['diagnostico'] ?? null,
-            'costo_estimado' => $datos['costo_estimado'] ?? null,
-            'costo_final' => $datos['costo_final'] ?? null,
-            'fecha_entrega' => $datos['estado'] === EstadoOrden::ENTREGADO->value
-                ? ($orden->fecha_entrega ?? now()->toDateString())
-                : null,
-        ]);
+        DB::transaction(function () use (
+            $datos,
+            $usuarioId,
+            $orden,
+            $estadoAnterior
+        ): void {
+            $orden->update([
+                'estado' => $datos['estado'],
+                'diagnostico' => $datos['diagnostico'] ?? null,
+                'costo_estimado' => $datos['costo_estimado'] ?? null,
+                'costo_final' => $datos['costo_final'] ?? null,
+                'fecha_entrega' => $datos['estado'] === EstadoOrden::ENTREGADO->value
+                    ? ($orden->fecha_entrega ?? now()->toDateString())
+                    : null,
+            ]);
+
+            $estadoCambio = $estadoAnterior !== $datos['estado'];
+            $tieneComentario = filled($datos['comentario'] ?? null);
+
+            if ($estadoCambio || $tieneComentario) {
+                $orden->historial()->create([
+                    'user_id' => $usuarioId,
+                    'estado' => $datos['estado'],
+                    'comentarios' => $datos['comentario']
+                        ?? 'Estado actualizado por el administrador.',
+                ]);
+            }
+        });
+
+        $orden->refresh();
 
         if (
-            $estadoAnterior !== $datos['estado'] ||
-            ! empty($datos['comentario'])
+            $estadoAnterior !== $orden->estado
+            && $orden->user !== null
         ) {
-            $orden->historial()->create([
-                'user_id' => $request->user()->id,
-                'estado' => $datos['estado'],
-                'comentarios' => $datos['comentario']
-                    ?? 'Estado actualizado por el administrador.',
-            ]);
-        }
-
-        if ($estadoAnterior !== $orden->estado) {
             $orden->user->notify(
                 new EstadoReparacionActualizado(
                     $orden,
