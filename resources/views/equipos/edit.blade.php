@@ -27,12 +27,14 @@
                         required
                         class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                     >
-                        @foreach (['Laptop', 'Computadora de escritorio', 'Todo en uno', 'Otro'] as $tipo)
+                        @foreach ($tiposEquipo as $tipoEquipo)
                             <option
-                                value="{{ $tipo }}"
-                                @selected(old('tipo', $equipo->tipo) === $tipo)
+                                value="{{ $tipoEquipo }}"
+                                @selected(
+                                    old('tipo', $equipo->tipo) === $tipoEquipo
+                                )
                             >
-                                {{ $tipo }}
+                                {{ $tipoEquipo }}
                             </option>
                         @endforeach
                     </select>

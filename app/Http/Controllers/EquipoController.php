@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TipoEquipo;
 use App\Http\Requests\StoreEquipoRequest;
 use App\Http\Requests\UpdateEquipoRequest;
 use App\Models\Equipo;
@@ -23,7 +24,12 @@ class EquipoController extends Controller
 
     public function create(): View
     {
-        return view('equipos.create');
+        $tiposEquipo = TipoEquipo::valores();
+
+        return view(
+            'equipos.create',
+            compact('tiposEquipo')
+        );
     }
 
     public function store(
@@ -41,11 +47,21 @@ class EquipoController extends Controller
             );
     }
 
-    public function edit(Request $request, Equipo $equipo): View
-    {
+    public function edit(
+        Request $request,
+        Equipo $equipo
+    ): View {
         $this->verificarPropietario($request, $equipo);
 
-        return view('equipos.edit', compact('equipo'));
+        $tiposEquipo = TipoEquipo::valores();
+
+        return view(
+            'equipos.edit',
+            compact(
+                'equipo',
+                'tiposEquipo'
+            )
+        );
     }
 
     public function update(

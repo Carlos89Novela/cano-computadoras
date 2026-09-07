@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\TipoEquipo;
 use App\Models\Equipo;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -38,12 +39,7 @@ class UpdateEquipoRequest extends FormRequest
             'tipo' => [
                 'required',
                 'string',
-                Rule::in([
-                    'Laptop',
-                    'Computadora de escritorio',
-                    'Todo en uno',
-                    'Otro',
-                ]),
+                Rule::in(TipoEquipo::valores()),
                 'max:100',
             ],
             'marca' => [
