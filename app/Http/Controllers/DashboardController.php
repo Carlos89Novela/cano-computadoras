@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\EstadoOrden;
-use App\Models\OrdenServicio;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -17,27 +16,40 @@ class DashboardController extends Controller
             ->equipos()
             ->count();
 
-        $reparacionesActivas = $usuario
+        $resumenReparaciones = $usuario
             ->ordenesServicio()
-            ->whereNotIn('estado', EstadoOrden::finalizados())
-            ->count();
+            ->selectRaw('COUNT(*) as total_reparaciones')
+            ->selectRaw(
+                'SUM(CASE WHEN estado NOT IN (?, ?) THEN 1 ELSE 0 END) as reparaciones_activas',
+                EstadoOrden::finalizados()
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN estado = ? THEN 1 ELSE 0 END) as reparaciones_terminadas',
+                [
+                    EstadoOrden::ENTREGADO->value,
+                ]
+            )
+            ->first();
 
-        $reparacionesTerminadas = $usuario
+        $totalReparaciones = (int) (
+            $resumenReparaciones?->total_reparaciones ?? 0
+        );
+
+        $reparacionesActivas = (int) (
+            $resumenReparaciones?->reparaciones_activas ?? 0
+        );
+
+        $reparacionesTerminadas = (int) (
+            $resumenReparaciones?->reparaciones_terminadas ?? 0
+        );
+
+        $ordenesRecientes = $usuario
             ->ordenesServicio()
-            ->where('estado', EstadoOrden::ENTREGADO->value)
-            ->count();
-
-        $totalReparaciones = $usuario
-            ->ordenesServicio()
-            ->count();
-
-        $ordenesRecientes = OrdenServicio::query()
             ->with([
-                'equipo',
-                'servicio',
+                'equipo:id,marca,modelo',
+                'servicio:id,nombre',
             ])
-            ->where('user_id', $usuario->id)
-            ->latest()
+            ->latest('id')
             ->limit(5)
             ->get();
 

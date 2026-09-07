@@ -239,8 +239,11 @@
                                             </td>
 
                                             <td class="p-4 text-gray-900 dark:text-white">
-                                                {{ $orden->equipo->marca }}
-                                                {{ $orden->equipo->modelo }}
+                                                {{ trim(
+                                                    ($orden->equipo?->marca ?? '')
+                                                    .' '
+                                                    .($orden->equipo?->modelo ?? '')
+                                                ) ?: 'Equipo no disponible' }}
                                             </td>
 
                                             <td class="p-4 text-gray-600 dark:text-gray-300">
@@ -248,13 +251,13 @@
                                             </td>
 
                                             <td class="p-4">
-                                                <span class="inline-block rounded-full bg-purple-950 px-3 py-1 text-sm text-purple-200">
-                                                    {{ $orden->estado }}
-                                                </span>
+                                                @include('admin.ordenes.partials.estado-badge', [
+                                                    'estado' => $orden->estado,
+                                                ])
                                             </td>
 
                                             <td class="p-4 text-gray-600 dark:text-gray-300">
-                                                {{ $orden->fecha_ingreso->format('d/m/Y') }}
+                                                {{ $orden->fecha_ingreso?->format('d/m/Y') ?? 'Fecha no disponible' }}
                                             </td>
 
                                             <td class="p-4">
