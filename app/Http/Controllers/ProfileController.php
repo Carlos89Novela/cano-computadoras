@@ -43,10 +43,19 @@ class ProfileController extends Controller
     public function destroy(Request $request): RedirectResponse
     {
         $request->validateWithBag('userDeletion', [
-            'password' => ['required', 'current_password'],
+            'password' => [
+                'required',
+                'current_password',
+            ],
         ]);
 
         $user = $request->user();
+
+        if ($user->ordenesServicio()->exists()) {
+            return back()->withErrors([
+                'password' => 'No puedes eliminar tu cuenta porque tienes órdenes de reparación registradas.',
+            ], 'userDeletion');
+        }
 
         Auth::logout();
 

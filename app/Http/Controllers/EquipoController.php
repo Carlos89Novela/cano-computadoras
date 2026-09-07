@@ -75,11 +75,23 @@ class EquipoController extends Controller
     ): RedirectResponse {
         $this->verificarPropietario($request, $equipo);
 
+        if ($equipo->ordenesServicio()->exists()) {
+            return redirect()
+                ->route('equipos.index')
+                ->with(
+                    'error',
+                    'No puedes eliminar un equipo que tiene órdenes de reparación registradas.'
+                );
+        }
+
         $equipo->delete();
 
         return redirect()
             ->route('equipos.index')
-            ->with('success', 'Equipo eliminado correctamente.');
+            ->with(
+                'success',
+                'Equipo eliminado correctamente.'
+            );
     }
 
     private function verificarPropietario(
