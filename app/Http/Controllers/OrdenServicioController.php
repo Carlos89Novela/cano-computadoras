@@ -4,16 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
+use App\Http\Requests\AutorizarOrdenServicioRequest;
+use App\Http\Requests\StoreOrdenServicioRequest;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\Servicio;
+use App\Services\GeneradorFolioOrden;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Http\Requests\AutorizarOrdenServicioRequest;
-use App\Http\Requests\StoreOrdenServicioRequest;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -61,17 +62,19 @@ class OrdenServicioController extends Controller
     }
 
     public function store(
-        StoreOrdenServicioRequest $request
+        StoreOrdenServicioRequest $request,
+        GeneradorFolioOrden $generadorFolio
     ): RedirectResponse {
         $datos = $request->validated();
         $usuarioId = $request->user()->id;
 
         $orden = DB::transaction(function () use (
             $datos,
+            $generadorFolio,
             $usuarioId
         ): OrdenServicio {
             $orden = OrdenServicio::query()->create([
-                'folio' => $this->generarFolio(),
+                'folio' => $generadorFolio->generar(),
                 'user_id' => $usuarioId,
                 'equipo_id' => $datos['equipo_id'],
                 'problema_reportado' => $datos['problema_reportado'],
@@ -114,20 +117,6 @@ class OrdenServicioController extends Controller
         ]);
 
         return view('ordenes.show', compact('orden'));
-    }
-
-    private function generarFolio(): string
-    {
-        do {
-            $folio = 'REP-'
-                .now()->format('Ymd')
-                .'-'
-                .strtoupper(substr(uniqid(), -5));
-        } while (
-            OrdenServicio::where('folio', $folio)->exists()
-        );
-
-        return $folio;
     }
 
     public function autorizar(
