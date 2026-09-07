@@ -6,12 +6,15 @@ use App\Enums\TipoEquipo;
 use App\Http\Requests\StoreEquipoRequest;
 use App\Http\Requests\UpdateEquipoRequest;
 use App\Models\Equipo;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class EquipoController extends Controller
 {
+    use AuthorizesRequests;
+
     public function index(Request $request): View
     {
         $equipos = $request->user()
@@ -48,10 +51,9 @@ class EquipoController extends Controller
     }
 
     public function edit(
-        Request $request,
         Equipo $equipo
     ): View {
-        $this->verificarPropietario($request, $equipo);
+        $this->authorize('view', $equipo);
 
         $tiposEquipo = TipoEquipo::valores();
 
@@ -81,10 +83,9 @@ class EquipoController extends Controller
     }
 
     public function destroy(
-        Request $request,
         Equipo $equipo
     ): RedirectResponse {
-        $this->verificarPropietario($request, $equipo);
+        $this->authorize('delete', $equipo);
 
         if ($equipo->ordenesServicio()->exists()) {
             return redirect()
@@ -103,16 +104,5 @@ class EquipoController extends Controller
                 'success',
                 'Equipo eliminado correctamente.'
             );
-    }
-
-    private function verificarPropietario(
-        Request $request,
-        Equipo $equipo
-    ): void {
-        abort_unless(
-            $equipo->user_id === $request->user()->id,
-            403,
-            'No tienes permiso para administrar este equipo.'
-        );
     }
 }

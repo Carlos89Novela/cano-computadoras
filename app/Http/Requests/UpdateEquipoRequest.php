@@ -14,8 +14,7 @@ class UpdateEquipoRequest extends FormRequest
         $equipo = $this->route('equipo');
 
         return $equipo instanceof Equipo
-            && $this->user() !== null
-            && (int) $equipo->user_id === (int) $this->user()->id;
+            && $this->user()?->can('update', $equipo) === true;
     }
 
     protected function prepareForValidation(): void
