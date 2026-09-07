@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreEquipoRequest;
+use App\Http\Requests\UpdateEquipoRequest;
 use App\Models\Equipo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,21 +26,19 @@ class EquipoController extends Controller
         return view('equipos.create');
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        $datos = $request->validate([
-            'tipo' => ['required', 'string', 'max:100'],
-            'marca' => ['required', 'string', 'max:100'],
-            'modelo' => ['required', 'string', 'max:100'],
-            'numero_serie' => ['nullable', 'string', 'max:150'],
-            'descripcion' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $request->user()->equipos()->create($datos);
+    public function store(
+        StoreEquipoRequest $request
+    ): RedirectResponse {
+        $request->user()
+            ->equipos()
+            ->create($request->validated());
 
         return redirect()
             ->route('equipos.index')
-            ->with('success', 'Equipo registrado correctamente.');
+            ->with(
+                'success',
+                'Equipo registrado correctamente.'
+            );
     }
 
     public function edit(Request $request, Equipo $equipo): View
@@ -49,24 +49,19 @@ class EquipoController extends Controller
     }
 
     public function update(
-        Request $request,
+        UpdateEquipoRequest $request,
         Equipo $equipo
     ): RedirectResponse {
-        $this->verificarPropietario($request, $equipo);
-
-        $datos = $request->validate([
-            'tipo' => ['required', 'string', 'max:100'],
-            'marca' => ['required', 'string', 'max:100'],
-            'modelo' => ['required', 'string', 'max:100'],
-            'numero_serie' => ['nullable', 'string', 'max:150'],
-            'descripcion' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $equipo->update($datos);
+        $equipo->update(
+            $request->validated()
+        );
 
         return redirect()
             ->route('equipos.index')
-            ->with('success', 'Equipo actualizado correctamente.');
+            ->with(
+                'success',
+                'Equipo actualizado correctamente.'
+            );
     }
 
     public function destroy(
