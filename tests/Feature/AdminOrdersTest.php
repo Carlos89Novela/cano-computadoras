@@ -610,7 +610,14 @@ test('users cannot create repair orders for equipment that belongs to another us
         'problema_reportado' => 'El equipo se cae de la red y tarda en responder.',
     ]);
 
-    $response->assertNotFound();
+    $response
+        ->assertRedirect()
+        ->assertSessionHasErrors('equipo_id');
+
+    $this->assertDatabaseMissing('orden_servicios', [
+        'user_id' => $intruder->id,
+        'equipo_id' => $equipo->id,
+    ]);
 });
 
 test('guests cannot access equipment management routes', function () {

@@ -8,10 +8,12 @@ use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\Servicio;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Http\Requests\AutorizarOrdenServicioRequest;
+use App\Http\Requests\StoreOrdenServicioRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -58,58 +60,39 @@ class OrdenServicioController extends Controller
         return view('ordenes.create', compact('equipos', 'servicios'));
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        // Validar los datos de la solicitud
-        $datos = $request->validate([
-            'equipo_id' => [
-                'required',
-                'integer',
-                'exists:equipos,id',
-            ],
-            'problema_reportado' => [
-                'required',
-                'string',
-                'min:10',
-                'max:2000',
-            ],
-            'servicio_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('servicios', 'id')->where(
-                    'activo',
-                    true
-                ),
-            ],
-        ]);
+    public function store(
+        StoreOrdenServicioRequest $request
+    ): RedirectResponse {
+        $datos = $request->validated();
+        $usuarioId = $request->user()->id;
 
-        // Verificar que el equipo pertenece al usuario autenticado
-        $equipo = Equipo::query()
-            ->where('id', $datos['equipo_id'])
-            ->where('user_id', $request->user()->id)
-            ->firstOrFail();
+        $orden = DB::transaction(function () use (
+            $datos,
+            $usuarioId
+        ): OrdenServicio {
+            $orden = OrdenServicio::query()->create([
+                'folio' => $this->generarFolio(),
+                'user_id' => $usuarioId,
+                'equipo_id' => $datos['equipo_id'],
+                'problema_reportado' => $datos['problema_reportado'],
+                'estado' => EstadoOrden::RECIBIDO->value,
+                'fecha_ingreso' => now()->toDateString(),
+                'servicio_id' => $datos['servicio_id'] ?? null,
+            ]);
 
-        // Crear la orden de servicio
-        $orden = OrdenServicio::create([
-            'folio' => $this->generarFolio(),
-            'user_id' => $request->user()->id,
-            'equipo_id' => $equipo->id,
-            'problema_reportado' => $datos['problema_reportado'],
-            'estado' => EstadoOrden::RECIBIDO->value,
-            'fecha_ingreso' => now()->toDateString(),
-            'servicio_id' => $datos['servicio_id'] ?? null,
-        ]);
+            $orden->historial()->create([
+                'user_id' => $usuarioId,
+                'estado' => EstadoOrden::RECIBIDO->value,
+                'comentarios' => 'Solicitud de reparación registrada.',
+            ]);
 
-        // Crear el historial de la orden de servicio
-        $orden->historial()->create([
-            'user_id' => $request->user()->id,
-            'estado' => EstadoOrden::RECIBIDO->value,
-            'comentarios' => 'Solicitud de reparación registrada.',
-        ]);
+            return $orden;
+        });
 
-        // Redirigir al usuario a la vista de la orden de servicio con un mensaje de éxito
         return redirect()
-            ->route('ordenes.show', ['orden' => $orden->id])
+            ->route('ordenes.show', [
+                'orden' => $orden->id,
+            ])
             ->with(
                 'success',
                 'Solicitud de reparación registrada correctamente.'
@@ -147,30 +130,11 @@ class OrdenServicioController extends Controller
         return $folio;
     }
 
-    private function verificarPropietario(
-        Request $request,
-        OrdenServicio $orden
-    ): void {
-        abort_unless(
-            $orden->user_id === $request->user()->id,
-            403,
-            'No tienes permiso para consultar esta reparación.'
-        );
-    }
-
     public function autorizar(
-        Request $request,
+        AutorizarOrdenServicioRequest $request,
         OrdenServicio $orden
     ): RedirectResponse {
-        $this->authorize('view', $orden);
-
-        $datos = $request->validate([
-            'decision' => [
-                'required',
-                'string',
-                Rule::in(EstadoAutorizacion::decisiones()),
-            ],
-        ]);
+        $datos = $request->validated();
 
         abort_unless(
             $orden->estado === EstadoOrden::ESPERANDO_AUTORIZACION->value,
@@ -184,26 +148,36 @@ class OrdenServicioController extends Controller
             'El presupuesto ya fue autorizado o rechazado.'
         );
 
-        $autorizada = $datos['decision'] === EstadoAutorizacion::AUTORIZADA->value;
+        $autorizada = $datos['decision']
+            === EstadoAutorizacion::AUTORIZADA->value;
 
-        $orden->update([
-            'autorizacion' => $datos['decision'],
-            'fecha_autorizacion' => now(),
-            'estado' => $autorizada
-                ? EstadoOrden::ESPERANDO_REFACCION->value
-                : EstadoOrden::CANCELADO->value,
-        ]);
+        DB::transaction(function () use (
+            $autorizada,
+            $datos,
+            $orden,
+            $request
+        ): void {
+            $orden->update([
+                'autorizacion' => $datos['decision'],
+                'fecha_autorizacion' => now(),
+                'estado' => $autorizada
+                    ? EstadoOrden::ESPERANDO_REFACCION->value
+                    : EstadoOrden::CANCELADO->value,
+            ]);
 
-        $orden->historial()->create([
-            'user_id' => $request->user()->id,
-            'estado' => $orden->estado,
-            'comentarios' => $autorizada
-                ? 'El cliente autorizó el presupuesto.'
-                : 'El cliente rechazó el presupuesto.',
-        ]);
+            $orden->historial()->create([
+                'user_id' => $request->user()->id,
+                'estado' => $orden->estado,
+                'comentarios' => $autorizada
+                    ? 'El cliente autorizó el presupuesto.'
+                    : 'El cliente rechazó el presupuesto.',
+            ]);
+        });
 
         return redirect()
-            ->route('ordenes.show', ['orden' => $orden->id])
+            ->route('ordenes.show', [
+                'orden' => $orden->id,
+            ])
             ->with(
                 'success',
                 $autorizada
@@ -213,7 +187,6 @@ class OrdenServicioController extends Controller
     }
 
     public function pdf(
-        Request $request,
         OrdenServicio $orden
     ): Response {
         $this->authorize('downloadPdf', $orden);
