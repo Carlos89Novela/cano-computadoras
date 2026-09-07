@@ -261,26 +261,47 @@ class OrdenServicioController extends Controller
             ],
         ]);
 
+        $nuevoEstado = EstadoOrden::from($datos['estado']);
+
         $ordenes = OrdenServicio::query()
             ->with('user')
             ->whereIn('id', $datos['ids'])
             ->get();
 
         $ordenesActualizadas = 0;
+        $ordenesOmitidas = 0;
 
         foreach ($ordenes as $orden) {
-            $estadoAnterior = $orden->estado;
-            $estadoCambio = $estadoAnterior !== $datos['estado'];
+            $estadoActual = EstadoOrden::tryFrom($orden->estado);
+
+            if ($estadoActual === null) {
+                $ordenesOmitidas++;
+
+                continue;
+            }
+
+            $estadoCambio = $estadoActual !== $nuevoEstado;
             $tieneComentario = filled($datos['comentario'] ?? null);
 
+            if (
+                $estadoCambio
+                && ! $estadoActual->permiteTransicionA($nuevoEstado)
+            ) {
+                $ordenesOmitidas++;
+
+                continue;
+            }
+
             if (! $estadoCambio && ! $tieneComentario) {
+                $ordenesOmitidas++;
+
                 continue;
             }
 
             if ($estadoCambio) {
                 $orden->update([
-                    'estado' => $datos['estado'],
-                    'fecha_entrega' => $datos['estado'] === EstadoOrden::ENTREGADO->value
+                    'estado' => $nuevoEstado->value,
+                    'fecha_entrega' => $nuevoEstado === EstadoOrden::ENTREGADO
                         ? ($orden->fecha_entrega ?? now()->toDateString())
                         : null,
                 ]);
@@ -293,7 +314,7 @@ class OrdenServicioController extends Controller
                     ?? 'Cambio masivo de estado realizado por el administrador.',
             ]);
 
-            if ($estadoCambio) {
+            if ($estadoCambio && $orden->user !== null) {
                 $orden->user->notify(
                     new EstadoReparacionActualizado(
                         $orden,
@@ -308,6 +329,7 @@ class OrdenServicioController extends Controller
         return response()->json([
             'success' => true,
             'updated' => $ordenesActualizadas,
+            'skipped' => $ordenesOmitidas,
         ]);
     }
 
@@ -319,7 +341,14 @@ class OrdenServicioController extends Controller
             'historial.usuario',
         ]);
 
-        $estados = EstadoOrden::valores();
+        $estadoActual = EstadoOrden::tryFrom($orden->estado);
+
+        $estados = $estadoActual
+            ? array_values(array_unique([
+                $estadoActual->value,
+                ...$estadoActual->valoresPermitidos(),
+            ]))
+            : [$orden->estado];
 
         return view(
             'admin.ordenes.edit',
@@ -335,7 +364,36 @@ class OrdenServicioController extends Controller
             'estado' => [
                 'required',
                 Rule::enum(EstadoOrden::class),
+                function (
+                    string $attribute,
+                    mixed $value,
+                    $fail
+                ) use ($orden): void {
+                    $estadoActual = EstadoOrden::tryFrom($orden->estado);
+                    $nuevoEstado = EstadoOrden::tryFrom((string) $value);
+
+                    if ($estadoActual === null || $nuevoEstado === null) {
+                        $fail('El estado seleccionado no es válido.');
+
+                        return;
+                    }
+
+                    if ($estadoActual === $nuevoEstado) {
+                        return;
+                    }
+
+                    if (! $estadoActual->permiteTransicionA($nuevoEstado)) {
+                        $fail(
+                            'No se permite cambiar de '
+                            .$estadoActual->value
+                            .' a '
+                            .$nuevoEstado->value
+                            .'.'
+                        );
+                    }
+                },
             ],
+
             'diagnostico' => [
                 'nullable',
                 'string',

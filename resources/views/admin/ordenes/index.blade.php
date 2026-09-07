@@ -341,7 +341,24 @@
                                             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
                                             data: { ids: ids, estado: estado },
                                             success: function (res) {
-                                                window.showToast('Se actualizaron ' + (res.updated || 0) + ' órdenes.', 'success');
+                                                var actualizadas = Number(res.updated || 0);
+                                                var omitidas = Number(res.skipped || 0);
+
+                                                var mensaje = 'Se actualizaron '
+                                                    + actualizadas
+                                                    + ' órdenes.';
+
+                                                if (omitidas > 0) {
+                                                    mensaje += ' Se omitieron '
+                                                        + omitidas
+                                                        + ' por transición inválida o falta de cambios.';
+                                                }
+
+                                                window.showToast(
+                                                    mensaje,
+                                                    omitidas > 0 ? 'error' : 'success'
+                                                );
+
                                                 table.draw(false);
                                                 $('#bulk-clear').click();
                                             },

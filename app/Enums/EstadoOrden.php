@@ -67,4 +67,74 @@ enum EstadoOrden: string
             self::CANCELADO->value => 'Cancelado',
         ];
     }
+
+    public function transicionesPermitidas(): array
+    {
+        return match ($this) {
+            self::RECIBIDO => [
+                self::EN_DIAGNOSTICO,
+                self::ESPERANDO_AUTORIZACION,
+                self::EN_REPARACION,
+                self::CANCELADO,
+            ],
+
+            self::EN_DIAGNOSTICO => [
+                self::ESPERANDO_AUTORIZACION,
+                self::ESPERANDO_REFACCION,
+                self::EN_REPARACION,
+                self::CANCELADO,
+            ],
+
+            self::ESPERANDO_AUTORIZACION => [
+                self::ESPERANDO_REFACCION,
+                self::EN_REPARACION,
+                self::CANCELADO,
+            ],
+
+            self::ESPERANDO_REFACCION => [
+                self::EN_REPARACION,
+                self::CANCELADO,
+            ],
+
+            self::EN_REPARACION => [
+                self::ESPERANDO_REFACCION,
+                self::EN_PRUEBAS,
+                self::LISTO_PARA_ENTREGA,
+                self::CANCELADO,
+            ],
+
+            self::EN_PRUEBAS => [
+                self::EN_REPARACION,
+                self::LISTO_PARA_ENTREGA,
+                self::CANCELADO,
+            ],
+
+            self::LISTO_PARA_ENTREGA => [
+                self::EN_REPARACION,
+                self::ENTREGADO,
+                self::CANCELADO,
+            ],
+
+            self::ENTREGADO => [],
+
+            self::CANCELADO => [],
+        };
+    }
+
+    public function valoresPermitidos(): array
+    {
+        return array_map(
+            fn (self $estado): string => $estado->value,
+            $this->transicionesPermitidas()
+        );
+    }
+
+    public function permiteTransicionA(self $nuevoEstado): bool
+    {
+        return in_array(
+            $nuevoEstado,
+            $this->transicionesPermitidas(),
+            true
+        );
+    }
 }
