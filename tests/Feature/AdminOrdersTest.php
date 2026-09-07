@@ -474,6 +474,8 @@ test('the public tracking page shows the order by folio', function () {
         ->assertSee('El equipo no prende.');
 });
 
+
+
 test('users cannot view orders that belong to another user', function () {
     $owner = User::factory()->create();
     $intruder = User::factory()->create();
