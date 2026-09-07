@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\EstadoOrden;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\BulkUpdateOrdenServicioRequest;
 use App\Http\Requests\Admin\UpdateOrdenServicioRequest;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
@@ -14,7 +15,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -238,29 +238,9 @@ class OrdenServicioController extends Controller
         ]);
     }
 
-    public function bulkUpdate(Request $request)
+    public function bulkUpdate(BulkUpdateOrdenServicioRequest $request)
     {
-        $datos = $request->validate([
-            'ids' => [
-                'required',
-                'array',
-                'min:1',
-            ],
-            'ids.*' => [
-                'integer',
-                'distinct',
-                'exists:orden_servicios,id',
-            ],
-            'estado' => [
-                'required',
-                Rule::enum(EstadoOrden::class),
-            ],
-            'comentario' => [
-                'nullable',
-                'string',
-                'max:2000',
-            ],
-        ]);
+        $datos = $request->validated();
 
         $nuevoEstado = EstadoOrden::from($datos['estado']);
 
