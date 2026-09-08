@@ -11,7 +11,7 @@ return new class extends Migration
         // Corrige el nombre antiguo creado por Laravel.
         if (
             Schema::hasTable('historial_reparacions') &&
-            !Schema::hasTable('historial_reparaciones')
+            ! Schema::hasTable('historial_reparaciones')
         ) {
             Schema::rename(
                 'historial_reparacions',
@@ -22,7 +22,7 @@ return new class extends Migration
         // Agrega user_id solamente si todavía no existe.
         if (
             Schema::hasTable('historial_reparaciones') &&
-            !Schema::hasColumn('historial_reparaciones', 'user_id')
+            ! Schema::hasColumn('historial_reparaciones', 'user_id')
         ) {
             Schema::table('historial_reparaciones', function (Blueprint $table) {
                 $table->foreignId('user_id')
@@ -48,7 +48,7 @@ return new class extends Migration
 
         if (
             Schema::hasTable('historial_reparaciones') &&
-            !Schema::hasTable('historial_reparacions')
+            ! Schema::hasTable('historial_reparacions')
         ) {
             Schema::rename(
                 'historial_reparaciones',

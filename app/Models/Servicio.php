@@ -24,6 +24,10 @@ class Servicio extends Model
         ];
     }
 
+    /**
+     * Órdenes de servicio relacionadas con el servicio.
+     * @return HasMany<OrdenServicio, $this>
+     */
     public function ordenesServicio(): HasMany
     {
         return $this->hasMany(OrdenServicio::class);

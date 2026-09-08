@@ -17,14 +17,21 @@ class Equipo extends Model
         'descripcion',
     ];
 
+    /**
+     * Usuario relacionado con el equipo.
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Órdenes de servicio relacionadas con el equipo.
+     * @return HasMany<OrdenServicio, $this>
+     */
     public function ordenesServicio(): HasMany
     {
         return $this->hasMany(OrdenServicio::class);
     }
-
 }

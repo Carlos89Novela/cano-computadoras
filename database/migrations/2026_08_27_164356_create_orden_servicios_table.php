@@ -24,7 +24,7 @@ return new class extends Migration
             $table->text('diagnostico')->nullable();
 
             $table->decimal('costo_estimado', 10, 2)->nullable();
-            $table->decimal('costo_final',10,2)->nullable();
+            $table->decimal('costo_final', 10, 2)->nullable();
 
             $table->string('estado')->default('Recibido');
             $table->date('fecha_ingreso');

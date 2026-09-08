@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\EstadoReparacionActualizado;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -193,6 +194,7 @@ class OrdenServicioController extends Controller
             ->take($length)
             ->get();
 
+        /** @var EloquentCollection<int, OrdenServicio> $rows */
         $data = $rows->map(function (OrdenServicio $orden): array {
 
             $equipo = trim(implode(' ', array_filter([
@@ -211,7 +213,7 @@ class OrdenServicioController extends Controller
                     ['orden' => $orden]
                 )->render(),
 
-                'cliente' => e($orden->user?->name ?? ''),
+                'cliente' => e($orden->user->name),
 
                 'equipo' => e($equipo),
 
@@ -220,9 +222,9 @@ class OrdenServicioController extends Controller
                     ['estado' => $orden->estado]
                 )->render(),
 
-                'fecha_ingreso' => $orden->fecha_ingreso?->format(
+                'fecha_ingreso' => $orden->fecha_ingreso->format(
                     'd/m/Y'
-                ) ?? '',
+                ),
 
                 'costo_final' => (float) ($orden->costo_final ?? 0),
 
@@ -473,10 +475,10 @@ class OrdenServicioController extends Controller
 
             $filas[] = [
                 $orden->folio,
-                $orden->user?->name ?? '-',
+                $orden->user->name,
                 $equipo !== '' ? $equipo : '-',
                 $orden->estado ?? '-',
-                $orden->fecha_ingreso?->format('d/m/Y') ?? '-',
+                $orden->fecha_ingreso->format('d/m/Y'),
                 '$'.number_format(
                     (float) ($orden->costo_final ?? 0),
                     2,
@@ -616,6 +618,7 @@ class OrdenServicioController extends Controller
         return $estado;
     }
 
+    /** @return Builder<OrdenServicio> */
     private function consultaExportacion(
         Request $request,
         string $estado

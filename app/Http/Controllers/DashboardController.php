@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\EstadoOrden;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -16,8 +17,8 @@ class DashboardController extends Controller
             ->equipos()
             ->count();
 
-        $resumenReparaciones = $usuario
-            ->ordenesServicio()
+        $resumenReparaciones = DB::table('orden_servicios')
+            ->where('user_id', $usuario->id)
             ->selectRaw('COUNT(*) as total_reparaciones')
             ->selectRaw(
                 'SUM(CASE WHEN estado NOT IN (?, ?) THEN 1 ELSE 0 END) as reparaciones_activas',
@@ -32,15 +33,15 @@ class DashboardController extends Controller
             ->first();
 
         $totalReparaciones = (int) (
-            $resumenReparaciones?->total_reparaciones ?? 0
+            $resumenReparaciones->total_reparaciones ?? 0
         );
 
         $reparacionesActivas = (int) (
-            $resumenReparaciones?->reparaciones_activas ?? 0
+            $resumenReparaciones->reparaciones_activas ?? 0
         );
 
         $reparacionesTerminadas = (int) (
-            $resumenReparaciones?->reparaciones_terminadas ?? 0
+            $resumenReparaciones->reparaciones_terminadas ?? 0
         );
 
         $ordenesRecientes = $usuario
@@ -53,12 +54,15 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
-        return view('dashboard', compact(
-            'totalEquipos',
-            'reparacionesActivas',
-            'reparacionesTerminadas',
-            'totalReparaciones',
-            'ordenesRecientes'
-        ));
+        return view(
+            'dashboard',
+            compact(
+                'totalEquipos',
+                'reparacionesActivas',
+                'reparacionesTerminadas',
+                'totalReparaciones',
+                'ordenesRecientes'
+            )
+        );
     }
 }

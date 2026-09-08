@@ -3,9 +3,9 @@
 namespace App\Livewire;
 
 use App\Models\Servicio;
+use Illuminate\Database\Eloquent\Builder;
 use Rappasoft\LaravelLivewireTables\DataTableComponent;
 use Rappasoft\LaravelLivewireTables\Views\Column;
-use Illuminate\Database\Eloquent\Builder;
 
 class ServiciosTable extends DataTableComponent
 {

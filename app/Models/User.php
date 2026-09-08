@@ -2,20 +2,18 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
-    
+    use HasFactory, HasRoles, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -51,13 +49,22 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Equipos relacionados con el usuario.
+     *
+     * @return HasMany<Equipo, $this>
+     */
     public function equipos(): HasMany
     {
         return $this->hasMany(Equipo::class);
     }
 
+    /**
+     * Órdenes de servicio relacionadas con el usuario.
+     *
+     * @return HasMany<OrdenServicio, $this>
+     */
     public function ordenesServicio(): HasMany
-
     {
         return $this->hasMany(OrdenServicio::class);
     }

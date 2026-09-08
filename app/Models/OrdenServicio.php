@@ -5,22 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
+/**
+ * @property Carbon $fecha_ingreso
+ * @property Carbon|null $fecha_entrega
+ * @property Carbon|null $fecha_autorizacion
+ */
 class OrdenServicio extends Model
 {
-    /**
-     * Nombre de la tabla asociada al modelo.
-     *
-     * @var string
-     */
     protected $table = 'orden_servicios';
 
-    /**
-     * Atributos permitidos para asignación masiva.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'folio',
         'token_seguimiento',
@@ -65,6 +61,8 @@ class OrdenServicio extends Model
 
     /**
      * Usuario relacionado con la orden.
+     *
+     * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
@@ -73,6 +71,8 @@ class OrdenServicio extends Model
 
     /**
      * Equipo relacionado con la orden.
+     *
+     * @return BelongsTo<Equipo, $this>
      */
     public function equipo(): BelongsTo
     {
@@ -81,6 +81,8 @@ class OrdenServicio extends Model
 
     /**
      * Servicio relacionado con la orden.
+     *
+     * @return BelongsTo<Servicio, $this>
      */
     public function servicio(): BelongsTo
     {
@@ -89,6 +91,8 @@ class OrdenServicio extends Model
 
     /**
      * Registros del historial de reparación.
+     *
+     * @return HasMany<HistorialReparacion, $this>
      */
     public function historial(): HasMany
     {

@@ -7,18 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class HistorialReparacion extends Model
 {
-    /**
-     * Nombre de la tabla asociada al modelo.
-     *
-     * @var string
-     */
     protected $table = 'historial_reparaciones';
 
-    /**
-     * Atributos permitidos para asignación masiva.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'orden_servicio_id',
         'user_id',
@@ -29,6 +19,8 @@ class HistorialReparacion extends Model
 
     /**
      * Orden de servicio relacionada con el historial.
+     *
+     * @return BelongsTo<OrdenServicio, $this>
      */
     public function ordenServicio(): BelongsTo
     {
@@ -40,6 +32,8 @@ class HistorialReparacion extends Model
 
     /**
      * Usuario que registró el cambio.
+     *
+     * @return BelongsTo<User, $this>
      */
     public function usuario(): BelongsTo
     {
