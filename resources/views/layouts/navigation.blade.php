@@ -10,6 +10,13 @@
                     </a>
                 </div>
 
+                @php
+                    $cantidadNotificacionesNoLeidas = auth()
+                        ->user()
+                        ->unreadNotifications()
+                        ->count();
+                @endphp
+
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
@@ -36,9 +43,12 @@
                     >
                         Notificaciones
 
-                        @if (auth()->user()->unreadNotifications()->count() > 0)
-                            <span class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white">
-                                {{ auth()->user()->unreadNotifications()->count() }}
+                        @if ($cantidadNotificacionesNoLeidas > 0)
+                            <span
+                                class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white"
+                                aria-label="{{ $cantidadNotificacionesNoLeidas }} notificaciones no leídas"
+                            >
+                                {{ $cantidadNotificacionesNoLeidas }}
                             </span>
                         @endif
                     </x-nav-link>

@@ -10,14 +10,23 @@ class NotificacionController extends Controller
 {
     public function index(Request $request): View
     {
-        $notificaciones = $request->user()
+        $usuario = $request->user();
+
+        $notificaciones = $usuario
             ->notifications()
             ->latest()
             ->paginate(10);
 
+        $notificacionesNoLeidas = $usuario
+            ->unreadNotifications()
+            ->count();
+
         return view(
             'notificaciones.index',
-            compact('notificaciones')
+            compact(
+                'notificaciones',
+                'notificacionesNoLeidas'
+            )
         );
     }
 
@@ -27,16 +36,27 @@ class NotificacionController extends Controller
     ): RedirectResponse {
         $registro = $request->user()
             ->notifications()
-            ->findOrFail($notificacion);
+            ->whereKey($notificacion)
+            ->firstOrFail();
 
-        $registro->markAsRead();
+        if ($registro->unread()) {
+            $registro->markAsRead();
+        }
 
         $ordenId = $registro->data['orden_id'] ?? null;
 
-        if ($ordenId) {
+        if (
+            is_numeric($ordenId)
+            && $request->user()
+                ->ordenesServicio()
+                ->whereKey((int) $ordenId)
+                ->exists()
+        ) {
             return redirect()->route(
                 'ordenes.show',
-                ['orden' => $ordenId]
+                [
+                    'orden' => (int) $ordenId,
+                ]
             );
         }
 

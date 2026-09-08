@@ -14,8 +14,7 @@ class EstadoReparacionActualizado extends Notification
     public function __construct(
         public OrdenServicio $orden,
         public ?string $comentario = null
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -43,14 +42,6 @@ class EstadoReparacionActualizado extends Notification
             ->line(
                 'Estado actual: '.$this->orden->estado
             )
-            ->when(
-                !empty($this->comentario),
-                function (MailMessage $mensaje) {
-                    return $mensaje->line(
-                        'Comentario: '.$this->comentario
-                    );
-                }
-            )
             ->action(
                 'Consultar reparación',
                 route('ordenes.show', [
@@ -68,7 +59,6 @@ class EstadoReparacionActualizado extends Notification
             'orden_id' => $this->orden->id,
             'folio' => $this->orden->folio,
             'estado' => $this->orden->estado,
-            'comentario' => $this->comentario,
             'mensaje' => 'Tu reparación fue actualizada a: '
                 .$this->orden->estado,
         ];

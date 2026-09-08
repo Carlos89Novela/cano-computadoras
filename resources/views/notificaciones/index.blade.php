@@ -4,21 +4,20 @@
             <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
                 Notificaciones
             </h2>
-            <form
-                method="POST"
-                action="{{ route('notificaciones.leer-todas') }}"
-            >   
-            @if (auth()->user()->unreadNotifications->isNotEmpty())
-                @csrf
-
-                <button
-                    type="submit"
-                    class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-600"
+            @if ($notificacionesNoLeidas > 0)
+                <form
+                    method="POST"
+                    action="{{ route('notificaciones.leer-todas') }}"
                 >
-                    Marcar todas como leídas
-                </button>
+                    @csrf
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-600"
+                    >
+                        Marcar todas como leídas
+                    </button>
+                </form>
             @endif
-            </form>
         </div>
     </x-slot>
 
@@ -41,22 +40,16 @@
                     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                         <div>
                             <p class="font-bold text-white">
-                                {{ $notificacion->data['mensaje'] }}
+                                {{ $notificacion->data['mensaje']?? 'Tienes una actualización de reparación.' }}
                             </p>
-
-                            @if (!empty($notificacion->data['comentario']))
-                                <p class="mt-2 text-gray-300">
-                                    {{ $notificacion->data['comentario'] }}
-                                </p>
-                            @endif
 
                             <p class="mt-2 text-sm text-gray-400">
                                 Folio:
-                                {{ $notificacion->data['folio'] }}
+                                {{ $notificacion->data['folio'] ?? 'No disponible' }}
                             </p>
 
                             <p class="mt-1 text-xs text-gray-500">
-                                {{ $notificacion->created_at->format('d/m/Y H:i') }}
+                                {{ $notificacion->created_at?->format('d/m/Y H:i') ?? 'Fecha no disponible' }}
                             </p>
                         </div>
 
