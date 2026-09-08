@@ -427,10 +427,7 @@ class OrdenServicioController extends Controller
         $debeNotificar = $estadoAnterior !== $orden->estado
             || filled($datos['mensaje_cliente'] ?? null);
 
-        if (
-            $estadoAnterior !== $orden->estado
-            && $orden->user !== null
-        ) {
+        if ($debeNotificar && $orden->user !== null) {
             $orden->user->notify(
                 new EstadoReparacionActualizado(
                     $orden,
