@@ -4,17 +4,20 @@ namespace App\Notifications;
 
 use App\Models\OrdenServicio;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class EstadoReparacionActualizado extends Notification
+class EstadoReparacionActualizado extends Notification implements ShouldQueue
 {
     use Queueable;
 
     public function __construct(
         public OrdenServicio $orden,
         public ?string $comentario = null
-    ) {}
+    ) {
+        $this->afterCommit();
+    }
 
     public function via(object $notifiable): array
     {
