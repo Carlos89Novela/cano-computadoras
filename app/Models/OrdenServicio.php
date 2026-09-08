@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class OrdenServicio extends Model
 {
@@ -22,6 +23,7 @@ class OrdenServicio extends Model
      */
     protected $fillable = [
         'folio',
+        'token_seguimiento',
         'user_id',
         'equipo_id',
         'servicio_id',
@@ -35,6 +37,15 @@ class OrdenServicio extends Model
         'fecha_ingreso',
         'fecha_entrega',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (OrdenServicio $orden): void {
+            if (blank($orden->token_seguimiento)) {
+                $orden->token_seguimiento = (string) Str::ulid();
+            }
+        });
+    }
 
     /**
      * Conversiones automáticas de atributos.

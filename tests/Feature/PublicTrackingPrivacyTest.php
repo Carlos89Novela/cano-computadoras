@@ -7,6 +7,7 @@ use App\Models\OrdenServicio;
 use App\Models\Servicio;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -40,6 +41,7 @@ function crearOrdenParaSeguimientoPublico(): array
 
     $orden = OrdenServicio::query()->create([
         'folio' => 'REP-PRIVACY-001',
+        'token_seguimiento' => (string) Str::ulid(),
         'user_id' => $cliente->id,
         'equipo_id' => $equipo->id,
         'servicio_id' => $servicio->id,
@@ -71,7 +73,7 @@ test('public tracking displays only necessary repair information', function () {
 
     $response = $this->get(
         route('seguimiento.show', [
-            'folio' => $datos['orden']->folio,
+            'token' => $datos['orden']->token_seguimiento,
         ])
     );
 
@@ -92,7 +94,7 @@ test('public tracking does not expose customer information', function () {
 
     $response = $this->get(
         route('seguimiento.show', [
-            'folio' => $datos['orden']->folio,
+            'token' => $datos['orden']->token_seguimiento,
         ])
     );
 
@@ -107,7 +109,7 @@ test('public tracking does not expose equipment private information', function (
 
     $response = $this->get(
         route('seguimiento.show', [
-            'folio' => $datos['orden']->folio,
+            'token' => $datos['orden']->token_seguimiento,
         ])
     );
 
@@ -122,7 +124,7 @@ test('public tracking does not expose internal history information', function ()
 
     $response = $this->get(
         route('seguimiento.show', [
-            'folio' => $datos['orden']->folio,
+            'token' => $datos['orden']->token_seguimiento,
         ])
     );
 
@@ -136,12 +138,20 @@ test('public tracking does not expose internal history information', function ()
         ->assertDontSee($datos['tecnico']->email);
 });
 
-test('public tracking returns not found for an unknown folio', function () {
+test('public tracking returns not found for an unknown token', function () {
     $this
         ->get(
             route('seguimiento.show', [
-                'folio' => 'REP-NO-EXISTE-000',
+                'token' => '01J00000000000000000000000',
             ])
         )
+        ->assertNotFound();
+});
+
+test('public tracking cannot be accessed using only the order folio', function () {
+    $datos = crearOrdenParaSeguimientoPublico();
+
+    $this
+        ->get('/seguimiento/'.$datos['orden']->folio)
         ->assertNotFound();
 });

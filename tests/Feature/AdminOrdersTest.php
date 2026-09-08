@@ -454,6 +454,7 @@ test('the public tracking page shows the order by folio', function () {
 
     $orden = OrdenServicio::create([
         'folio' => 'REP-TRACK-1234',
+        'token_seguimiento' => (string) Str::ulid(),
         'user_id' => $user->id,
         'equipo_id' => $equipo->id,
         'problema_reportado' => 'El equipo no prende.',
@@ -467,14 +468,12 @@ test('the public tracking page shows the order by folio', function () {
         'comentarios' => 'Solicitud de reparación registrada.',
     ]);
 
-    $response = $this->get('/seguimiento/REP-TRACK-1234');
+    $response = $this->get(route('seguimiento.show', ['token' => $orden->token_seguimiento]));
 
     $response->assertOk()
         ->assertSee('REP-TRACK-1234')
         ->assertSee('El equipo no prende.');
 });
-
-
 
 test('users cannot view orders that belong to another user', function () {
     $owner = User::factory()->create();

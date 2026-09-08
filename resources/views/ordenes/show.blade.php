@@ -221,7 +221,7 @@
                                     ->margin(1)
                                     ->generate(
                                         route('seguimiento.show', [
-                                            'folio' => $orden->folio
+                                            'token' => $orden->token_seguimiento,
                                         ])
                                     )
                             !!}
@@ -237,7 +237,7 @@
                             </p>
 
                             <a
-                                href="{{ route('seguimiento.show', ['folio' => $orden->folio]) }}"
+                                href="{{ route('seguimiento.show', ['token' => $orden->token_seguimiento,]) }}"
                                 class="mt-2 inline-block rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500">
                                 Abrir seguimiento público
                             </a>

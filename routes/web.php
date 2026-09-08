@@ -20,7 +20,11 @@ Route::get('/', function () {
     return view('welcome', compact('servicios'));
 });
 
-Route::get('/seguimiento/{folio}', [SeguimientoController::class, 'show'])
+Route::get('/seguimiento/{token}', [SeguimientoController::class, 'show'])
+    ->where(
+        'token',
+        '[0-9A-HJKMNP-TV-Z]{26}'
+    )
     ->middleware('throttle:30,1')
     ->name('seguimiento.show');
 

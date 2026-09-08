@@ -7,12 +7,13 @@ use Illuminate\View\View;
 
 class SeguimientoController extends Controller
 {
-    public function show(string $folio): View
+    public function show(string $token): View
     {
         $orden = OrdenServicio::query()
             ->select([
                 'id',
                 'folio',
+                'token_seguimiento',
                 'equipo_id',
                 'servicio_id',
                 'estado',
@@ -37,7 +38,7 @@ class SeguimientoController extends Controller
                         ->oldest('created_at');
                 },
             ])
-            ->where('folio', $folio)
+            ->where('token_seguimiento', $token)
             ->firstOrFail();
 
         return view(
