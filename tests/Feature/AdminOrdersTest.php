@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\EstadoAutorizacion;
+use App\Enums\EstadoOrden;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\Servicio;
@@ -963,4 +965,92 @@ test('logged in users can access their own order detail page', function () {
     $response->assertOk()
         ->assertSee('REP-OWN-DETAIL')
         ->assertSee('El equipo tarda en arrancar.');
+});
+
+test('a processed budget cannot receive a second decision', function () {
+    $usuario = User::factory()->create();
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $usuario->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude autorización',
+        'numero_serie' => 'AUTH-SECOND-DECISION-001',
+        'descripcion' => 'Equipo para comprobar decisiones duplicadas.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-SECOND-DECISION-001',
+        'user_id' => $usuario->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia correctamente.',
+        'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+        'autorizacion' => EstadoAutorizacion::PENDIENTE->value,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $primeraRespuesta = $this
+        ->actingAs($usuario)
+        ->post(
+            route('ordenes.autorizar', [
+                'orden' => $orden->id,
+            ]),
+            [
+                'decision' => EstadoAutorizacion::AUTORIZADA->value,
+            ]
+        );
+
+    $primeraRespuesta
+        ->assertRedirect(
+            route('ordenes.show', [
+                'orden' => $orden->id,
+            ])
+        )
+        ->assertSessionHas(
+            'success',
+            'Presupuesto autorizado correctamente.'
+        );
+
+    $segundaRespuesta = $this
+        ->actingAs($usuario)
+        ->post(
+            route('ordenes.autorizar', [
+                'orden' => $orden->id,
+            ]),
+            [
+                'decision' => EstadoAutorizacion::RECHAZADA->value,
+            ]
+        );
+
+    $segundaRespuesta->assertStatus(422);
+
+    $this->assertDatabaseHas('orden_servicios', [
+        'id' => $orden->id,
+        'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
+        'estado' => EstadoOrden::ESPERANDO_REFACCION->value,
+    ]);
+
+    $this->assertDatabaseMissing('orden_servicios', [
+        'id' => $orden->id,
+        'autorizacion' => EstadoAutorizacion::RECHAZADA->value,
+    ]);
+
+    expect(
+        $orden->historial()
+            ->where(
+                'comentarios',
+                'El cliente autorizó el presupuesto.'
+            )
+            ->count()
+    )->toBe(1);
+
+    expect(
+        $orden->historial()
+            ->where(
+                'comentarios',
+                'El cliente rechazó el presupuesto.'
+            )
+            ->count()
+    )->toBe(0);
 });

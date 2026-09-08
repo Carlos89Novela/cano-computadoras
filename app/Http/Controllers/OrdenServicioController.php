@@ -124,48 +124,62 @@ class OrdenServicioController extends Controller
         OrdenServicio $orden
     ): RedirectResponse {
         $datos = $request->validated();
+        $usuarioId = $request->user()->id;
 
-        abort_unless(
-            $orden->estado === EstadoOrden::ESPERANDO_AUTORIZACION->value,
-            422,
-            'La reparación no está esperando autorización.'
+        $ordenActualizada = DB::transaction(
+            function () use (
+                $datos,
+                $orden,
+                $usuarioId
+            ): OrdenServicio {
+                $ordenBloqueada = OrdenServicio::query()
+                    ->lockForUpdate()
+                    ->findOrFail($orden->id);
+
+                abort_unless(
+                    $ordenBloqueada->estado
+                        === EstadoOrden::ESPERANDO_AUTORIZACION->value,
+                    422,
+                    'La reparación no está esperando autorización.'
+                );
+
+                abort_unless(
+                    $ordenBloqueada->autorizacion
+                        === EstadoAutorizacion::PENDIENTE->value,
+                    422,
+                    'El presupuesto ya fue autorizado o rechazado.'
+                );
+
+                $autorizada = $datos['decision']
+                    === EstadoAutorizacion::AUTORIZADA->value;
+
+                $ordenBloqueada->update([
+                    'autorizacion' => $datos['decision'],
+                    'fecha_autorizacion' => now(),
+                    'estado' => $autorizada
+                        ? EstadoOrden::ESPERANDO_REFACCION->value
+                        : EstadoOrden::CANCELADO->value,
+                ]);
+
+                $ordenBloqueada->historial()->create([
+                    'user_id' => $usuarioId,
+                    'estado' => $ordenBloqueada->estado,
+                    'comentarios' => $autorizada
+                        ? 'El cliente autorizó el presupuesto.'
+                        : 'El cliente rechazó el presupuesto.',
+                    'mensaje_cliente' => null,
+                ]);
+
+                return $ordenBloqueada;
+            }
         );
 
-        abort_unless(
-            $orden->autorizacion === EstadoAutorizacion::PENDIENTE->value,
-            422,
-            'El presupuesto ya fue autorizado o rechazado.'
-        );
-
-        $autorizada = $datos['decision']
+        $autorizada = $ordenActualizada->autorizacion
             === EstadoAutorizacion::AUTORIZADA->value;
-
-        DB::transaction(function () use (
-            $autorizada,
-            $datos,
-            $orden,
-            $request
-        ): void {
-            $orden->update([
-                'autorizacion' => $datos['decision'],
-                'fecha_autorizacion' => now(),
-                'estado' => $autorizada
-                    ? EstadoOrden::ESPERANDO_REFACCION->value
-                    : EstadoOrden::CANCELADO->value,
-            ]);
-
-            $orden->historial()->create([
-                'user_id' => $request->user()->id,
-                'estado' => $orden->estado,
-                'comentarios' => $autorizada
-                    ? 'El cliente autorizó el presupuesto.'
-                    : 'El cliente rechazó el presupuesto.',
-            ]);
-        });
 
         return redirect()
             ->route('ordenes.show', [
-                'orden' => $orden->id,
+                'orden' => $ordenActualizada->id,
             ])
             ->with(
                 'success',
