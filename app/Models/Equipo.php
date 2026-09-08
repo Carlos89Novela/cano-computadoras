@@ -19,6 +19,7 @@ class Equipo extends Model
 
     /**
      * Usuario relacionado con el equipo.
+     *
      * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
@@ -28,6 +29,7 @@ class Equipo extends Model
 
     /**
      * Órdenes de servicio relacionadas con el equipo.
+     *
      * @return HasMany<OrdenServicio, $this>
      */
     public function ordenesServicio(): HasMany
