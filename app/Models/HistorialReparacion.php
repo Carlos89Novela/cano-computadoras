@@ -24,6 +24,7 @@ class HistorialReparacion extends Model
         'user_id',
         'estado',
         'comentarios',
+        'mensaje_cliente',
     ];
 
     /**

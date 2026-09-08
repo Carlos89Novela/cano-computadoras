@@ -43,6 +43,12 @@
                                 {{ $notificacion->data['mensaje']?? 'Tienes una actualización de reparación.' }}
                             </p>
 
+                            @if (filled($notificacion->data['mensaje_cliente'] ?? null))
+                                <p class="mt-2 text-gray-300">
+                                    {{ $notificacion->data['mensaje_cliente'] }}
+                                </p>
+                            @endif
+
                             <p class="mt-2 text-sm text-gray-400">
                                 Folio:
                                 {{ $notificacion->data['folio'] ?? 'No disponible' }}

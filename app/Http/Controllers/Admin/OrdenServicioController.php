@@ -267,6 +267,7 @@ class OrdenServicioController extends Controller
 
             $estadoCambio = $estadoActual !== $nuevoEstado;
             $tieneComentario = filled($datos['comentario'] ?? null);
+            $tieneMensajeCliente = filled($datos['mensaje_cliente'] ?? null);
 
             if (
                 $estadoCambio
@@ -277,7 +278,7 @@ class OrdenServicioController extends Controller
                 continue;
             }
 
-            if (! $estadoCambio && ! $tieneComentario) {
+            if (! $estadoCambio && ! $tieneComentario && ! $tieneMensajeCliente) {
                 $ordenesOmitidas++;
 
                 continue;
@@ -304,7 +305,8 @@ class OrdenServicioController extends Controller
                         'user_id' => $request->user()->id,
                         'estado' => $orden->estado,
                         'comentarios' => $datos['comentario']
-                            ?? 'Cambio masivo de estado realizado por el administrador.',
+                            ?? ($estadoCambio ? 'Cambio masivo de estado realizado por el Administrador.' : null),
+                        'mensaje_cliente' => $datos['mensaje_cliente'] ?? null,
                     ]);
                 });
             } catch (Throwable $exception) {
@@ -324,12 +326,15 @@ class OrdenServicioController extends Controller
 
             $orden->refresh();
 
-            if ($estadoCambio && $orden->user !== null) {
+            $debeNotificar = $estadoCambio
+                || filled($datos['mensaje_cliente'] ?? null);
+
+            if ($debeNotificar && $orden->user !== null) {
                 try {
                     $orden->user->notify(
                         new EstadoReparacionActualizado(
                             $orden,
-                            $datos['comentario'] ?? null
+                            $datos['mensaje_cliente'] ?? null
                         )
                     );
                 } catch (Throwable $exception) {
@@ -404,18 +409,23 @@ class OrdenServicioController extends Controller
 
             $estadoCambio = $estadoAnterior !== $datos['estado'];
             $tieneComentario = filled($datos['comentario'] ?? null);
+            $tieneMensajeCliente = filled($datos['mensaje_cliente'] ?? null);
 
-            if ($estadoCambio || $tieneComentario) {
+            if ($estadoCambio || $tieneComentario || $tieneMensajeCliente) {
                 $orden->historial()->create([
                     'user_id' => $usuarioId,
                     'estado' => $datos['estado'],
                     'comentarios' => $datos['comentario']
-                        ?? 'Estado actualizado por el administrador.',
+                        ?? ($estadoCambio ? 'Estado Actualizado por el Administrador.' : null),
+                    'mensaje_cliente' => $datos['mensaje_cliente'] ?? null,
                 ]);
             }
         });
 
         $orden->refresh();
+
+        $debeNotificar = $estadoAnterior !== $orden->estado
+            || filled($datos['mensaje_cliente'] ?? null);
 
         if (
             $estadoAnterior !== $orden->estado
@@ -424,7 +434,7 @@ class OrdenServicioController extends Controller
             $orden->user->notify(
                 new EstadoReparacionActualizado(
                     $orden,
-                    $datos['comentario'] ?? null
+                    $datos['mensaje_cliente'] ?? null
                 )
             );
         }

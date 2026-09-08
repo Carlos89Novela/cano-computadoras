@@ -45,6 +45,11 @@ class UpdateOrdenServicioRequest extends FormRequest
                 'string',
                 'max:2000',
             ],
+            'mensaje_cliente' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ];
     }
 
@@ -60,6 +65,7 @@ class UpdateOrdenServicioRequest extends FormRequest
             'costo_final.min' => 'El costo final no puede ser negativo.',
             'costo_final.max' => 'El costo final supera el importe permitido.',
             'comentario.max' => 'El comentario no puede superar los 2000 caracteres.',
+            'mensaje_cliente.max' => 'El mensaje para el cliente no puede superar los 2000 caracteres.',
         ];
     }
 

@@ -18,7 +18,7 @@ class EstadoReparacionActualizado extends Notification implements ShouldQueue
 
     public function __construct(
         public OrdenServicio $orden,
-        public ?string $comentario = null
+        public ?string $mensajeCliente = null
     ) {
         $this->afterCommit();
     }
@@ -49,6 +49,14 @@ class EstadoReparacionActualizado extends Notification implements ShouldQueue
             ->line(
                 'Estado actual: '.$this->orden->estado
             )
+            ->when(
+                filled($this->mensajeCliente),
+                function (MailMessage $mensaje) {
+                    return $mensaje->line(
+                        'Mensaje: '.$this->mensajeCliente
+                    );
+                }
+            )
             ->action(
                 'Consultar reparación',
                 route('ordenes.show', [
@@ -66,6 +74,7 @@ class EstadoReparacionActualizado extends Notification implements ShouldQueue
             'orden_id' => $this->orden->id,
             'folio' => $this->orden->folio,
             'estado' => $this->orden->estado,
+            'mensaje_cliente' => $this->mensajeCliente,
             'mensaje' => 'Tu reparación fue actualizada a: '
                 .$this->orden->estado,
         ];

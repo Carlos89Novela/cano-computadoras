@@ -294,9 +294,9 @@
                                             </span>
                                         </div>
 
-                                        @if ($registro->comentarios)
+                                        @if (filled($registro->mensaje_cliente))
                                             <p class="mt-3 text-white">
-                                                {{ $registro->comentarios }}
+                                                {{ $registro->mensaje_cliente }}
                                             </p>
                                         @endif
 

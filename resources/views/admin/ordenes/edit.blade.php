@@ -292,7 +292,7 @@
                         for="comentario"
                         class="mb-2 block font-medium text-gray-700 dark:text-gray-200"
                     >
-                        Comentario del avance
+                        Comentario interno
                     </label>
 
                     <textarea
@@ -312,13 +312,53 @@
                         id="comentario-ayuda"
                         class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
                     >
-                        Opcional. Se registrará en el historial de la reparación.
+                        Opcional. Solo será visible para el personal administrativo.
                         Máximo 2000 caracteres.
                     </p>
 
                     @error('comentario')
                         <p
                             id="comentario-error"
+                            class="mt-2 text-sm text-red-500"
+                            role="alert"
+                        >
+                            {{ $message }}
+                        </p>
+                    @enderror
+                </div>
+
+                <div>
+                    <label
+                        for="mensaje_cliente"
+                        class="mb-2 block font-medium text-gray-700 dark:text-gray-200"
+                    >
+                        Mensaje para el cliente
+                    </label>
+
+                    <textarea
+                        id="mensaje_cliente"
+                        name="mensaje_cliente"
+                        rows="3"
+                        maxlength="2000"
+                        aria-describedby="mensaje-cliente-ayuda mensaje-cliente-error"
+                        aria-invalid="{{ $errors->has('mensaje_cliente') ? 'true' : 'false' }}"
+                        @class([
+                            'admin-form-control',
+                            'admin-form-control--error' => $errors->has('mensaje_cliente'),
+                        ])
+                        placeholder="Este mensaje será enviado al cliente."
+                    >{{ old('mensaje_cliente') }}</textarea>
+                    <p
+                        id="mensaje-cliente-ayuda"
+                        class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
+                    >
+                        Opcional. Este mensaje será enviado al cliente por correo electrónico.
+                        Máximo 2000 caracteres.
+                    </p>
+
+                    @error('mensaje_cliente')
+                        <p
+                            id="mensaje-cliente-error"
                             class="mt-2 text-sm text-red-500"
                             role="alert"
                         >
@@ -397,9 +437,38 @@
                                         </span>
                                     </div>
 
-                                    <p class="mt-2 text-sm text-zinc-300">
-                                        {{ $registro->comentarios ?? 'Sin comentarios adicionales.' }}
-                                    </p>
+                                    @if (filled($registro->comentarios))
+                                        <div class="mt-3">
+                                            <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                                                Comentario interno
+                                            </p>
+
+                                            <p class="mt-1 text-sm text-zinc-300">
+                                                {{ $registro->comentarios }}
+                                            </p>
+                                        </div>
+                                    @endif
+
+                                    @if (filled($registro->mensaje_cliente))
+                                        <div class="mt-3 rounded-lg border border-blue-800 bg-blue-950/40 p-3">
+                                            <p class="text-xs font-semibold uppercase tracking-wide text-blue-300">
+                                                Mensaje para el cliente
+                                            </p>
+
+                                            <p class="mt-1 text-sm text-blue-100">
+                                                {{ $registro->mensaje_cliente }}
+                                            </p>
+                                        </div>
+                                    @endif
+
+                                    @if (
+                                        blank($registro->comentarios)
+                                        && blank($registro->mensaje_cliente)
+                                    )
+                                        <p class="mt-2 text-sm text-zinc-400">
+                                            Sin comentarios adicionales.
+                                        </p>
+                                    @endif
 
                                     <p class="mt-2 text-xs text-zinc-400">
                                         Por {{ $registro->usuario?->name ?? 'Usuario no disponible' }}

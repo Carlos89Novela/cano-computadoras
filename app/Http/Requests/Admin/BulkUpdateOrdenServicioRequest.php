@@ -36,6 +36,11 @@ class BulkUpdateOrdenServicioRequest extends FormRequest
                 'string',
                 'max:2000',
             ],
+            'mensaje_cliente' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ];
     }
 
@@ -51,6 +56,7 @@ class BulkUpdateOrdenServicioRequest extends FormRequest
             'ids.*.exists' => 'Una de las órdenes seleccionadas ya no existe.',
             'estado.required' => 'Debes seleccionar un estado.',
             'comentario.max' => 'El comentario no puede superar los 2000 caracteres.',
+            'mensaje_cliente.max' => 'El mensaje para el cliente no puede superar los 2000 caracteres.',
         ];
     }
 
@@ -61,6 +67,7 @@ class BulkUpdateOrdenServicioRequest extends FormRequest
             'ids.*' => 'orden seleccionada',
             'estado' => 'estado',
             'comentario' => 'comentario',
+            'mensaje_cliente' => 'mensaje para el cliente',
         ];
     }
 }
