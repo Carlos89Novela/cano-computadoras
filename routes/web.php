@@ -1,13 +1,16 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioController;
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SeguimientoController;
+use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
 use App\Models\Servicio;
 use Illuminate\Support\Facades\Route;
 
@@ -80,6 +83,11 @@ Route::middleware(['auth', 'administrador'])
     ->name('admin.')
     ->group(function () {
         Route::get(
+            '/',
+            [AdminDashboardController::class, 'index']
+        )->name('dashboard');
+
+        Route::get(
             '/ordenes',
             [AdminOrdenServicioController::class, 'index']
         )->name('ordenes.index');
@@ -123,6 +131,34 @@ Route::middleware(['auth', 'administrador'])
             ->parameters(['servicios' => 'servicio'])
             ->except(['show']);
 
+    });
+
+Route::middleware([
+    'auth',
+    'verified',
+    'role:supervisor',
+])
+    ->prefix('supervisor')
+    ->name('supervisor.')
+    ->group(function () {
+        Route::get(
+            '/',
+            [SupervisorDashboardController::class, 'index']
+        )->name('dashboard');
+    });
+
+Route::middleware([
+    'auth',
+    'verified',
+    'role:empleado',
+])
+    ->prefix('empleado')
+    ->name('empleado.')
+    ->group(function () {
+        Route::get(
+            '/',
+            [EmpleadoDashboardController::class, 'index']
+        )->name('dashboard');
     });
 
 require __DIR__.'/auth.php';
