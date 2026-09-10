@@ -68,4 +68,30 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(OrdenServicio::class);
     }
+
+    /**
+     * Asignaciones en las que el usuario participa como empleado.
+     *
+     * @return HasMany<OrdenAsignacion, $this>
+     */
+    public function asignacionesComoEmpleado(): HasMany
+    {
+        return $this->hasMany(
+            OrdenAsignacion::class,
+            'empleado_id'
+        );
+    }
+
+    /**
+     * Asignaciones realizadas por el usuario.
+     *
+     * @return HasMany<OrdenAsignacion, $this>
+     */
+    public function asignacionesRealizadas(): HasMany
+    {
+        return $this->hasMany(
+            OrdenAsignacion::class,
+            'asignado_por_id'
+        );
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -100,5 +101,29 @@ class OrdenServicio extends Model
             HistorialReparacion::class,
             'orden_servicio_id'
         )->latest('created_at');
+    }
+
+    /**
+     * @return HasMany<OrdenAsignacion, $this>
+     */
+    public function asignaciones(): HasMany
+    {
+        return $this->hasMany(
+            OrdenAsignacion::class,
+            'orden_servicio_id'
+        );
+    }
+
+    /**
+     * @return HasOne<OrdenAsignacion, $this>
+     */
+    public function asignacionActiva(): HasOne
+    {
+        return $this->hasOne(
+            OrdenAsignacion::class,
+            'orden_servicio_id'
+        )
+            ->where('activo', true)
+            ->latestOfMany('asignado_at');
     }
 }
