@@ -10,6 +10,7 @@ use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SeguimientoController;
+use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
 use App\Models\Servicio;
 use Illuminate\Support\Facades\Route;
@@ -159,6 +160,20 @@ Route::middleware([
             '/',
             [EmpleadoDashboardController::class, 'index']
         )->name('dashboard');
+    });
+
+Route::middleware([
+    'auth',
+    'verified',
+    'role:administrador|supervisor',
+])
+    ->prefix('operacion')
+    ->name('operacion.')
+    ->group(function () {
+        Route::post(
+            '/ordenes/{orden}/asignar',
+            [AsignacionController::class, 'store']
+        )->name('ordenes.asignar');
     });
 
 require __DIR__.'/auth.php';
