@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Supervisor;
 
 use App\Enums\EstadoOrden;
+use App\Enums\EstadoRevisionCotizacion;
 use App\Http\Controllers\Controller;
 use App\Models\OrdenServicio;
 use App\Models\User;
@@ -37,6 +38,13 @@ class DashboardController extends Controller
             ->count();
 
         $cierresPendientes = 0;
+
+        $cotizacionesPendientes = OrdenServicio::query()
+            ->where(
+                'estado_revision_cotizacion',
+                EstadoRevisionCotizacion::PENDIENTE->value
+            )
+            ->count();
 
         $empleados = User::role('empleado')
             ->withCount([
@@ -99,6 +107,7 @@ class DashboardController extends Controller
                 'totalOrdenes',
                 'ordenesActivas',
                 'ordenesSinAsignar',
+                'cotizacionesPendientes',
                 'cierresPendientes',
                 'empleados',
                 'ordenesPendientes',

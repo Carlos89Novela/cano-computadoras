@@ -66,14 +66,219 @@
 
                 <div class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        Cierres pendientes
+                        Cotizaciones pendientes
                     </p>
 
                     <p class="mt-3 text-4xl font-bold text-red-500">
-                        {{ $cierresPendientes }}
+                        {{ $cotizacionesPendientes }}
                     </p>
                 </div>
             </section>
+
+            <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
+                <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+                            Cotizaciones pendientes de revisión
+                        </h3>
+
+                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            Diagnósticos y costos estimados enviados por el personal técnico.
+                        </p>
+                    </div>
+
+                    <div class="w-full md:max-w-sm">
+                        <label
+                            for="cotizaciones-pendientes-search"
+                            class="sr-only"
+                        >
+                            Buscar cotizaciones pendientes
+                        </label>
+
+                        <input
+                            id="cotizaciones-pendientes-search"
+                            type="search"
+                            placeholder="Buscar por folio, cliente, empleado o equipo"
+                            class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white placeholder:text-zinc-500 focus:border-blue-500 focus:ring-blue-500"
+                        >
+                    </div>
+                </div>
+
+                <div class="mt-6 overflow-x-auto">
+                    <table
+                        id="cotizaciones-pendientes-table"
+                        class="w-full table-auto text-left"
+                    >
+                        <thead class="bg-zinc-800 text-white">
+                            <tr>
+                                <th class="p-4">
+                                    Folio
+                                </th>
+
+                                <th class="p-4">
+                                    Empleado
+                                </th>
+
+                                <th class="p-4">
+                                    Cliente
+                                </th>
+
+                                <th class="p-4">
+                                    Equipo
+                                </th>
+
+                                <th class="p-4">
+                                    Diagnóstico
+                                </th>
+
+                                <th class="p-4">
+                                    Costo estimado
+                                </th>
+
+                                <th class="p-4">
+                                    Fecha de solicitud
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <script>
+                (function waitForSupervisorQuoteTable(callback) {
+                    if (
+                        window.jQuery
+                        && window.jQuery.fn
+                        && window.jQuery.fn.DataTable
+                    ) {
+                        callback();
+
+                        return;
+                    }
+
+                    window.setTimeout(function () {
+                        waitForSupervisorQuoteTable(callback);
+                    }, 50);
+                })(function () {
+                    var tableSelector = '#cotizaciones-pendientes-table';
+
+                    if (
+                        window.jQuery.fn.DataTable.isDataTable(
+                            tableSelector
+                        )
+                    ) {
+                        return;
+                    }
+
+                    var table = window.jQuery(tableSelector).DataTable({
+                        serverSide: true,
+                        processing: true,
+                        responsive: true,
+                        pageLength: 10,
+                        order: [
+                            [6, 'desc']
+                        ],
+                        ajax: {
+                            url: @json(route('supervisor.cotizaciones.data')),
+                            type: 'GET'
+                        },
+                        columns: [
+                            {
+                                data: 'folio',
+                                name: 'folio'
+                            },
+                            {
+                                data: 'empleado',
+                                name: 'empleado',
+                                orderable: false
+                            },
+                            {
+                                data: 'cliente',
+                                name: 'cliente',
+                                orderable: false
+                            },
+                            {
+                                data: 'equipo',
+                                name: 'equipo',
+                                orderable: false
+                            },
+                            {
+                                data: 'diagnostico',
+                                name: 'diagnostico',
+                                orderable: false
+                            },
+                            {
+                                data: 'costo_estimado',
+                                name: 'costo_estimado'
+                            },
+                            {
+                                data: 'fecha_solicitud',
+                                name: 'fecha_solicitud'
+                            }
+                        ],
+                        language: {
+                            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json',
+                            processing: 'Cargando cotizaciones pendientes...',
+                            emptyTable: 'No existen cotizaciones pendientes de revisión.',
+                            zeroRecords: 'No se encontraron cotizaciones con ese criterio.'
+                        },
+                        dom: "<'flex items-center justify-between mb-3'<'flex items-center'l>>"
+                            + "<'table-wrap't>"
+                            + "<'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>",
+                        columnDefs: [
+                            {
+                                targets: 4,
+                                render: function (data, type) {
+                                    if (type !== 'display') {
+                                        return data;
+                                    }
+
+                                    var limite = 90;
+
+                                    if (data.length <= limite) {
+                                        return data;
+                                    }
+
+                                    return data.substring(0, limite) + '...';
+                                }
+                            },
+                            {
+                                targets: 5,
+                                className: 'whitespace-nowrap',
+                                render: function (data, type) {
+                                    var costo = Number(data || 0);
+
+                                    if (type !== 'display') {
+                                        return costo;
+                                    }
+
+                                    return costo.toLocaleString(
+                                        'es-MX',
+                                        {
+                                            style: 'currency',
+                                            currency: 'MXN',
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        }
+                                    );
+                                }
+                            },
+                            {
+                                targets: 6,
+                                className: 'whitespace-nowrap'
+                            }
+                        ]
+                    });
+
+                    window.jQuery('#cotizaciones-pendientes-search')
+                        .on('input', function () {
+                            table.search(this.value).draw();
+                        });
+                });
+            </script>
 
             <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                 <div class="flex flex-col justify-between gap-3 md:flex-row md:items-center">

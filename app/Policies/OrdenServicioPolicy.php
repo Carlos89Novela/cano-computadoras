@@ -91,6 +91,37 @@ class OrdenServicioPolicy
         );
     }
 
+    public function viewQuoteReview(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        $puedeRevisar =
+            $user->can('ordenes.aprobar_cotizacion')
+            || $user->can('ordenes.rechazar_cotizacion');
+
+        return $puedeRevisar
+            && $orden->estado_revision_cotizacion ===
+                EstadoRevisionCotizacion::PENDIENTE;
+    }
+
+    public function approveQuoteReview(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        return $user->can('ordenes.aprobar_cotizacion')
+            && $orden->estado_revision_cotizacion ===
+                EstadoRevisionCotizacion::PENDIENTE;
+    }
+
+    public function rejectQuoteReview(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        return $user->can('ordenes.rechazar_cotizacion')
+            && $orden->estado_revision_cotizacion ===
+                EstadoRevisionCotizacion::PENDIENTE;
+    }
+
     public function authorizeBudget(
         User $user,
         OrdenServicio $orden

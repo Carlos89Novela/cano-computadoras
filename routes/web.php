@@ -13,6 +13,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
+use App\Http\Controllers\Supervisor\RevisionCotizacionController;
 use App\Models\Servicio;
 use Illuminate\Support\Facades\Route;
 
@@ -147,6 +148,16 @@ Route::middleware([
             '/',
             [SupervisorDashboardController::class, 'index']
         )->name('dashboard');
+
+        Route::get(
+            '/cotizaciones/data',
+            [RevisionCotizacionController::class, 'data']
+        )->name('cotizaciones.data');
+
+        Route::get(
+            '/cotizaciones/{orden}',
+            [RevisionCotizacionController::class, 'show']
+        )->name('cotizaciones.show');
     });
 
 Route::middleware([
@@ -195,6 +206,16 @@ Route::middleware([
             '/ordenes/{orden}/asignar',
             [AsignacionController::class, 'store']
         )->name('ordenes.asignar');
+
+        Route::post(
+            '/ordenes/{orden}/cotizacion/aprobar',
+            [RevisionCotizacionController::class, 'approve']
+        )->name('cotizaciones.aprobar');
+
+        Route::post(
+            '/ordenes/{orden}/cotizacion/rechazar',
+            [RevisionCotizacionController::class, 'reject']
+        )->name('cotizaciones.rechazar');
     });
 
 require __DIR__.'/auth.php';
