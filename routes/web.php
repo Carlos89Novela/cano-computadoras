@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioCont
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
+use App\Http\Controllers\Empleado\OrdenAsignadaController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
@@ -160,6 +161,16 @@ Route::middleware([
             '/',
             [EmpleadoDashboardController::class, 'index']
         )->name('dashboard');
+
+        Route::get(
+            '/ordenes/data',
+            [OrdenAsignadaController::class, 'data']
+        )->name('ordenes.data');
+
+        Route::get(
+            '/ordenes/{orden}',
+            [OrdenAsignadaController::class, 'show']
+        )->name('ordenes.show');
     });
 
 Route::middleware([

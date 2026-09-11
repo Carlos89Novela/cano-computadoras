@@ -16,6 +16,21 @@ class OrdenServicioPolicy
         return $this->esPropietario($user, $orden);
     }
 
+    public function viewAssigned(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        if (! $user->can('ordenes.ver_asignadas')) {
+            return false;
+        }
+
+        return $orden
+            ->asignaciones()
+            ->where('empleado_id', $user->id)
+            ->where('activo', true)
+            ->exists();
+    }
+
     public function authorizeBudget(
         User $user,
         OrdenServicio $orden
