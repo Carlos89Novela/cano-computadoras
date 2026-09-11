@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
+use App\Enums\EstadoRevisionCotizacion;
 use App\Models\OrdenServicio;
 use App\Models\User;
 
@@ -50,6 +51,42 @@ class OrdenServicioPolicy
         return ! in_array(
             $orden->estado,
             EstadoOrden::finalizados(),
+            true
+        );
+    }
+
+    public function requestQuoteReview(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        if (! $this->viewAssigned($user, $orden)) {
+            return false;
+        }
+
+        if (
+            ! $user->can(
+                'ordenes.solicitar_revision_cotizacion'
+            )
+        ) {
+            return false;
+        }
+
+        if (
+            in_array(
+                $orden->estado,
+                EstadoOrden::finalizados(),
+                true
+            )
+        ) {
+            return false;
+        }
+
+        return in_array(
+            $orden->estado_revision_cotizacion,
+            [
+                EstadoRevisionCotizacion::SIN_SOLICITAR,
+                EstadoRevisionCotizacion::RECHAZADA,
+            ],
             true
         );
     }

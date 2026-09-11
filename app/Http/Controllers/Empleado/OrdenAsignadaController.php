@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Empleado;
 
 use App\Actions\Ordenes\ActualizarTrabajoTecnico;
+use App\Actions\Ordenes\SolicitarRevisionCotizacion;
 use App\Enums\EstadoOrden;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Empleado\UpdateOrdenTecnicaRequest;
@@ -219,6 +220,48 @@ class OrdenAsignadaController extends Controller
             ->with(
                 'success',
                 'La información técnica fue actualizada correctamente.'
+            );
+    }
+
+    public function requestQuoteReview(
+        Request $request,
+        OrdenServicio $orden,
+        SolicitarRevisionCotizacion $solicitarRevisionCotizacion
+    ): RedirectResponse {
+        Gate::authorize(
+            'requestQuoteReview',
+            $orden
+        );
+
+        $empleado = $request->user();
+
+        abort_unless(
+            $empleado instanceof User,
+            403
+        );
+
+        try {
+            $solicitarRevisionCotizacion->ejecutar(
+                $orden,
+                $empleado
+            );
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('empleado.ordenes.show', [
+                    'orden' => $orden->id,
+                ])
+                ->withErrors([
+                    'cotizacion' => $exception->getMessage(),
+                ]);
+        }
+
+        return redirect()
+            ->route('empleado.ordenes.show', [
+                'orden' => $orden->id,
+            ])
+            ->with(
+                'success',
+                'La cotizacion fue enviada a revision del supervisor.'
             );
     }
 

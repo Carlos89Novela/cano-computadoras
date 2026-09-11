@@ -136,7 +136,7 @@
 
                         <div>
                             <dt class="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                                NÃºmero de serie
+                                Número de serie
                             </dt>
 
                             <dd class="mt-1 text-gray-900 dark:text-white">
@@ -248,7 +248,7 @@
 
                 @if ($orden->historial->isEmpty())
                     <div class="mt-6 rounded-lg border border-dashed border-zinc-700 bg-zinc-800 p-6 text-center text-gray-300">
-                        TodavÃ­a no hay avances registrados.
+                        Todavía no hay avances registrados.
                     </div>
                 @else
                     <div class="mt-6 space-y-4">
@@ -289,6 +289,166 @@
             </section>
 
             <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
+                <div class="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                    <div>
+                        <p class="text-sm font-semibold uppercase tracking-wide text-blue-500">
+                            Cotización
+                        </p>
+
+                        <h3 class="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+                            Revisión interna de la cotización
+                        </h3>
+
+                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            El supervisor debe revisar el diagnóstico y el costo estimado
+                            antes de enviar el presupuesto al cliente.
+                        </p>
+                    </div>
+
+                    @php
+                        $claseEstadoRevision = match (
+                            $orden->estado_revision_cotizacion
+                        ) {
+                            App\Enums\EstadoRevisionCotizacion::SIN_SOLICITAR =>
+                                'bg-gray-200 text-gray-700 dark:bg-zinc-800 dark:text-gray-200',
+
+                            App\Enums\EstadoRevisionCotizacion::PENDIENTE =>
+                                'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200',
+
+                            App\Enums\EstadoRevisionCotizacion::APROBADA =>
+                                'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-200',
+
+                            App\Enums\EstadoRevisionCotizacion::RECHAZADA =>
+                                'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200',
+                        };
+                    @endphp
+
+                    <span
+                        class="inline-flex rounded-full px-4 py-2 text-sm font-semibold {{ $claseEstadoRevision }}"
+                    >
+                        {{ $orden->estado_revision_cotizacion->etiqueta() }}
+                    </span>
+                </div>
+
+                @if (
+                    $orden->estado_revision_cotizacion ===
+                    App\Enums\EstadoRevisionCotizacion::PENDIENTE
+                )
+                    <div class="mt-6 rounded-lg border border-amber-700 bg-amber-950 p-5">
+                        <p class="font-semibold text-amber-200">
+                            Cotización pendiente de revisión
+                        </p>
+
+                        <p class="mt-2 text-sm text-amber-100">
+                            El supervisor revisará el diagnóstico y el costo estimado.
+                            No es necesario enviar otra solicitud.
+                        </p>
+                    </div>
+                @elseif (
+                    $orden->estado_revision_cotizacion ===
+                    App\Enums\EstadoRevisionCotizacion::APROBADA
+                )
+                    <div class="mt-6 rounded-lg border border-green-700 bg-green-950 p-5">
+                        <p class="font-semibold text-green-200">
+                            Cotización aprobada internamente
+                        </p>
+
+                        <p class="mt-2 text-sm text-green-100">
+                            La revisión del supervisor fue aprobada.
+                            El siguiente paso será presentar el presupuesto al cliente.
+                        </p>
+
+                        @if ($orden->cotizacion_revisada_at !== null)
+                            <p class="mt-3 text-xs text-green-300">
+                                Revisada el
+                                {{ $orden->cotizacion_revisada_at->format('d/m/Y H:i') }}.
+                            </p>
+                        @endif
+                    </div>
+                @elseif (
+                    $orden->estado_revision_cotizacion ===
+                    App\Enums\EstadoRevisionCotizacion::RECHAZADA
+                )
+                    <div class="mt-6 rounded-lg border border-red-700 bg-red-950 p-5">
+                        <p class="font-semibold text-red-200">
+                            Cotización devuelta para corrección
+                        </p>
+
+                        <p class="mt-2 text-sm text-red-100">
+                            Corrige el diagnóstico o el costo estimado y vuelve a solicitar
+                            la revisión.
+                        </p>
+
+                        @if (filled($orden->observacion_revision_cotizacion))
+                            <div class="mt-4 rounded-lg bg-red-900 p-4">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-red-300">
+                                    Observación del supervisor
+                                </p>
+
+                                <p class="mt-2 text-sm text-red-100">
+                                    {{ $orden->observacion_revision_cotizacion }}
+                                </p>
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
+                @can('requestQuoteReview', $orden)
+                    @php
+                        $cotizacionCompleta =
+                            filled($orden->diagnostico)
+                            && $orden->costo_estimado !== null;
+                    @endphp
+
+                    @if (! $cotizacionCompleta)
+                        <div class="mt-6 rounded-lg border border-amber-700 bg-amber-950 p-5">
+                            <p class="font-semibold text-amber-200">
+                                Información incompleta
+                            </p>
+
+                            <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-100">
+                                @if (blank($orden->diagnostico))
+                                    <li>
+                                        Debes registrar un diagnóstico.
+                                    </li>
+                                @endif
+
+                                @if ($orden->costo_estimado === null)
+                                    <li>
+                                        Debes registrar el costo estimado.
+                                    </li>
+                                @endif
+                            </ul>
+
+                            <p class="mt-3 text-sm text-amber-100">
+                                Guarda primero el trabajo técnico y después solicita
+                                la revisión.
+                            </p>
+                        </div>
+                    @endif
+
+                    {{ route('empleado.ordenes.cotizacion.revision', ['orden' => $orden->id]) }}
+                        @csrf
+
+                        <button
+                            type="submit"
+                            class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                            @disabled(! $cotizacionCompleta)
+                        >
+                            @if (
+                                $orden->estado_revision_cotizacion ===
+                                App\Enums\EstadoRevisionCotizacion::RECHAZADA
+                            )
+                                Volver a solicitar revisión
+                            @else
+                                Solicitar revisión de cotización
+                            @endif
+                        </button>
+                    </form>
+                @endcan
+            </section>
+
+            <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                 <div>
                     <p class="text-sm font-semibold uppercase tracking-wide text-green-500">
                         Trabajo técnico
@@ -299,7 +459,7 @@
                     </h3>
 
                     <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Esta información es interna y no se enviarÃ¡ directamente al cliente.
+                        Esta información es interna y no se enviará directamente al cliente.
                     </p>
                 </div>
 
@@ -328,7 +488,7 @@
                         >{{ old('diagnostico', $orden->diagnostico) }}</textarea>
 
                         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            MÃ¡ximo 3000 caracteres.
+                            Máximo 3000 caracteres.
                         </p>
 
                         @error('diagnostico')
@@ -388,8 +548,8 @@
                         >{{ old('comentario') }}</textarea>
 
                         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            Este comentario solo serÃ¡ visible para el personal autorizado.
-                            MÃ¡ximo 2000 caracteres.
+                            Este comentario solo será visible para el personal autorizado.
+                            Máximo 2000 caracteres.
                         </p>
 
                         @error('comentario')

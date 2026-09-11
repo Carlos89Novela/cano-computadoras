@@ -172,6 +172,11 @@ Route::middleware([
             [OrdenAsignadaController::class, 'updateTechnical']
         )->name('ordenes.tecnica.update');
 
+        Route::post(
+            '/ordenes/{orden}/cotizacion/revision',
+            [OrdenAsignadaController::class, 'requestQuoteReview']
+        )->name('ordenes.cotizacion.revision');
+
         Route::get(
             '/ordenes/{orden}',
             [OrdenAsignadaController::class, 'show']
