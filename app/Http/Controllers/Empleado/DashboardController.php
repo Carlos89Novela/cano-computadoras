@@ -53,15 +53,6 @@ class DashboardController extends Controller
 
         $cierresDevueltos = 0;
 
-        $asignaciones = (clone $consultaAsignaciones)
-            ->with([
-                'ordenServicio.user:id,name',
-                'ordenServicio.equipo:id,marca,modelo',
-                'ordenServicio.servicio:id,nombre',
-            ])
-            ->latest('asignado_at')
-            ->get();
-
         return view(
             'empleado.dashboard',
             compact(
@@ -69,8 +60,7 @@ class DashboardController extends Controller
                 'reparacionesAsignadas',
                 'reparacionesEnProceso',
                 'reparacionesEnPruebas',
-                'cierresDevueltos',
-                'asignaciones'
+                'cierresDevueltos'
             )
         );
     }
