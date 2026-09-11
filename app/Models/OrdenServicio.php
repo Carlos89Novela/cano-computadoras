@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EstadoRevisionCotizacion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,6 +14,8 @@ use Illuminate\Support\Str;
  * @property Carbon $fecha_ingreso
  * @property Carbon|null $fecha_entrega
  * @property Carbon|null $fecha_autorizacion
+ * @property EstadoRevisionCotizacion $estado_revision_cotizacion
+ * @property Carbon|null $cotizacion_revisada_at
  */
 class OrdenServicio extends Model
 {
@@ -27,12 +30,17 @@ class OrdenServicio extends Model
         'problema_reportado',
         'diagnostico',
         'costo_estimado',
+        'estado_revision_cotizacion',
+        'cotizacion_revisada_por_id',
+        'cotizacion_revisada_at',
+        'observacion_revision_cotizacion',
         'costo_final',
         'estado',
         'autorizacion',
         'fecha_autorizacion',
         'fecha_ingreso',
         'fecha_entrega',
+
     ];
 
     protected static function booted(): void
@@ -56,6 +64,8 @@ class OrdenServicio extends Model
             'fecha_ingreso' => 'date',
             'fecha_entrega' => 'date',
             'costo_estimado' => 'decimal:2',
+            'estado_revision_cotizacion' => EstadoRevisionCotizacion::class,
+            'cotizacion_revisada_at' => 'datetime',
             'costo_final' => 'decimal:2',
         ];
     }
@@ -88,6 +98,16 @@ class OrdenServicio extends Model
     public function servicio(): BelongsTo
     {
         return $this->belongsTo(Servicio::class);
+    }
+
+    /**
+     * Ususario que realizó la revisión interna de la cotización.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function cotizacionRevisadaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cotizacion_revisada_por_id');
     }
 
     /**
