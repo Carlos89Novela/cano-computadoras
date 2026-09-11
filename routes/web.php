@@ -167,6 +167,11 @@ Route::middleware([
             [OrdenAsignadaController::class, 'data']
         )->name('ordenes.data');
 
+        Route::patch(
+            '/ordenes/{orden}/tecnica',
+            [OrdenAsignadaController::class, 'updateTechnical']
+        )->name('ordenes.tecnica.update');
+
         Route::get(
             '/ordenes/{orden}',
             [OrdenAsignadaController::class, 'show']

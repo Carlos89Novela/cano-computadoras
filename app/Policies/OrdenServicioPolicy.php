@@ -31,6 +31,29 @@ class OrdenServicioPolicy
             ->exists();
     }
 
+    public function updateTechnical(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        if (! $this->viewAssigned($user, $orden)) {
+            return false;
+        }
+
+        if (
+            ! $user->can('ordenes.registrar_diagnostico')
+            || ! $user->can('ordenes.registrar_avance')
+            || ! $user->can('ordenes.actualizar_costos')
+        ) {
+            return false;
+        }
+
+        return ! in_array(
+            $orden->estado,
+            EstadoOrden::finalizados(),
+            true
+        );
+    }
+
     public function authorizeBudget(
         User $user,
         OrdenServicio $orden

@@ -1,4 +1,4 @@
-<x-app-layout>
+﻿<x-app-layout>
     <x-slot name="header">
         <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
@@ -19,6 +19,31 @@
 
     <div class="py-12">
         <div class="mx-auto max-w-6xl space-y-8 px-6">
+            @if (session('success'))
+                <div
+                    class="rounded-lg border border-green-700 bg-green-950 p-4 text-green-200"
+                    role="status"
+                >
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            @if ($errors->any())
+                <div
+                    class="rounded-lg border border-red-700 bg-red-950 p-4 text-red-200"
+                    role="alert"
+                >
+                    <p class="font-semibold">
+                        No fue posible guardar la información técnica.
+                    </p>
+
+                    <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
             <section class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
                 <div class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                     <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -111,7 +136,7 @@
 
                         <div>
                             <dt class="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                                Número de serie
+                                NÃºmero de serie
                             </dt>
 
                             <dd class="mt-1 text-gray-900 dark:text-white">
@@ -223,7 +248,7 @@
 
                 @if ($orden->historial->isEmpty())
                     <div class="mt-6 rounded-lg border border-dashed border-zinc-700 bg-zinc-800 p-6 text-center text-gray-300">
-                        Todavía no hay avances registrados.
+                        TodavÃ­a no hay avances registrados.
                     </div>
                 @else
                     <div class="mt-6 space-y-4">
@@ -263,15 +288,145 @@
                 @endif
             </section>
 
-            <section class="rounded-xl border border-amber-800 bg-amber-950 p-6">
-                <h3 class="font-bold text-amber-200">
-                    Controles técnicos
-                </h3>
+            <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-wide text-green-500">
+                        Trabajo técnico
+                    </p>
 
-                <p class="mt-2 text-sm text-amber-100">
-                    El registro de diagnóstico y avances se habilitará en la siguiente etapa.
-                    El cierre definitivo seguirá reservado para supervisión.
-                </p>
+                    <h3 class="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+                        Actualizar diagnóstico y avance
+                    </h3>
+
+                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        Esta información es interna y no se enviarÃ¡ directamente al cliente.
+                    </p>
+                </div>
+
+                <form
+                    action="{{ route('empleado.ordenes.tecnica.update', ['orden' => $orden->id]) }}"
+                    method="POST"
+                >
+                    @csrf
+                    @method('PATCH')
+
+                    <div>
+                        <label
+                            for="diagnostico"
+                            class="mb-2 block font-semibold text-gray-700 dark:text-gray-200"
+                        >
+                            Diagnóstico
+                        </label>
+
+                        <textarea
+                            id="diagnostico"
+                            name="diagnostico"
+                            rows="6"
+                            maxlength="3000"
+                            class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:ring-green-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500"
+                            placeholder="Describe las fallas encontradas y las pruebas realizadas."
+                        >{{ old('diagnostico', $orden->diagnostico) }}</textarea>
+
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            MÃ¡ximo 3000 caracteres.
+                        </p>
+
+                        @error('diagnostico')
+                            <p class="mt-2 text-sm text-red-500">
+                                {{ $message }}
+                            </p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label
+                            for="costo_estimado"
+                            class="mb-2 block font-semibold text-gray-700 dark:text-gray-200"
+                        >
+                            Costo estimado
+                        </label>
+
+                        <input
+                            id="costo_estimado"
+                            name="costo_estimado"
+                            type="number"
+                            inputmode="decimal"
+                            min="0"
+                            max="99999999.99"
+                            step="0.01"
+                            value="{{ old('costo_estimado', $orden->costo_estimado) }}"
+                            class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 focus:border-green-500 focus:ring-green-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                            placeholder="0.00"
+                        >
+
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Importe preliminar sujeto a revisión y autorización.
+                        </p>
+
+                        @error('costo_estimado')
+                            <p class="mt-2 text-sm text-red-500">
+                                {{ $message }}
+                            </p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label
+                            for="comentario"
+                            class="mb-2 block font-semibold text-gray-700 dark:text-gray-200"
+                        >
+                            Comentario interno del avance
+                        </label>
+
+                        <textarea
+                            id="comentario"
+                            name="comentario"
+                            rows="4"
+                            maxlength="2000"
+                            class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:ring-green-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500"
+                            placeholder="Registra las pruebas, acciones o avances realizados."
+                        >{{ old('comentario') }}</textarea>
+
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Este comentario solo serÃ¡ visible para el personal autorizado.
+                            MÃ¡ximo 2000 caracteres.
+                        </p>
+
+                        @error('comentario')
+                            <p class="mt-2 text-sm text-red-500">
+                                {{ $message }}
+                            </p>
+                        @enderror
+                    </div>
+
+                    <div class="rounded-lg border border-amber-800 bg-amber-950 p-4">
+                        <p class="font-semibold text-amber-200">
+                            Acciones restringidas
+                        </p>
+
+                        <p class="mt-2 text-sm text-amber-100">
+                            Este formulario no permite cambiar el estado, el costo final,
+                            la autorización del presupuesto, la asignación ni el cierre
+                            de la reparación.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <button
+                            type="submit"
+                            class="inline-flex items-center justify-center rounded-lg bg-green-600 px-6 py-3 font-semibold text-white transition hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
+                        >
+                            Guardar trabajo técnico
+                        </button>
+
+                        <a
+                            href="{{ route('empleado.dashboard') }}"
+                            class="inline-flex items-center justify-center rounded-lg border border-zinc-600 px-6 py-3 font-semibold text-gray-700 transition hover:bg-zinc-100 dark:text-gray-200 dark:hover:bg-zinc-800 dark:focus:ring-offset-zinc-900"
+                        >
+                            Volver a mis reparaciones
+                        </a>
+                    </div>
+                </form>
             </section>
         </div>
     </div>

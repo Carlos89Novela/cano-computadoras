@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Empleado;
 
+use App\Actions\Ordenes\ActualizarTrabajoTecnico;
 use App\Enums\EstadoOrden;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Empleado\UpdateOrdenTecnicaRequest;
 use App\Models\OrdenAsignacion;
 use App\Models\OrdenServicio;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -189,6 +192,34 @@ class OrdenAsignadaController extends Controller
             'recordsFiltered' => $recordsFiltered,
             'data' => $data,
         ]);
+    }
+
+    public function updateTechnical(
+        UpdateOrdenTecnicaRequest $request,
+        OrdenServicio $orden,
+        ActualizarTrabajoTecnico $actualizarTrabajoTecnico
+    ): RedirectResponse {
+        $empleado = $request->user();
+
+        abort_unless(
+            $empleado instanceof User,
+            403
+        );
+
+        $actualizarTrabajoTecnico->ejecutar(
+            $orden,
+            $empleado,
+            $request->validated()
+        );
+
+        return redirect()
+            ->route('empleado.ordenes.show', [
+                'orden' => $orden->id,
+            ])
+            ->with(
+                'success',
+                'La información técnica fue actualizada correctamente.'
+            );
     }
 
     public function show(
