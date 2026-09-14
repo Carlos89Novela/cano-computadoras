@@ -190,6 +190,10 @@ class RevisionCotizacionController extends Controller
                     'fecha_solicitud' => $orden
                         ->updated_at
                         ->format('d/m/Y H:i'),
+                    'acciones' => view(
+                        'supervisor.cotizaciones.partials.acciones',
+                        compact('orden')
+                    )->render(),
                     'orden_id' => $orden->id,
                 ];
             })

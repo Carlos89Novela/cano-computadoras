@@ -138,6 +138,9 @@
                                 <th class="p-4">
                                     Fecha de solicitud
                                 </th>
+                                <th class="p-4 text-center">
+                                    Acciones
+                                </th>
                             </tr>
                         </thead>
 
@@ -217,6 +220,12 @@
                             {
                                 data: 'fecha_solicitud',
                                 name: 'fecha_solicitud'
+                            },
+                            {
+                                data: 'acciones',
+                                name: 'acciones',
+                                orderable: false,
+                                searchable: false
                             }
                         ],
                         language: {
@@ -269,6 +278,12 @@
                             {
                                 targets: 6,
                                 className: 'whitespace-nowrap'
+                            },
+                            {
+                                targets: 7,
+                                className: 'whitespace-nowrap text-center',
+                                orderable: false,
+                                searchable: false
                             }
                         ]
                     });
