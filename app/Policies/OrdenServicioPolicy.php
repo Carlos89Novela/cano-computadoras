@@ -127,8 +127,12 @@ class OrdenServicioPolicy
         OrdenServicio $orden
     ): bool {
         return $this->esPropietario($user, $orden)
-            && $orden->estado === EstadoOrden::ESPERANDO_AUTORIZACION->value
-            && $orden->autorizacion === EstadoAutorizacion::PENDIENTE->value;
+            && $orden->estado_revision_cotizacion ===
+                EstadoRevisionCotizacion::APROBADA
+            && $orden->estado ===
+                EstadoOrden::ESPERANDO_AUTORIZACION->value
+            && $orden->autorizacion ===
+                EstadoAutorizacion::PENDIENTE->value;
     }
 
     public function downloadPdf(

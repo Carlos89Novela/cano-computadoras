@@ -95,9 +95,11 @@ test('supervisor can approve a pending quote through the endpoint', function () 
         ->and($orden->observacion_revision_cotizacion)
         ->toBeNull()
         ->and($orden->estado)
-        ->toBe(EstadoOrden::EN_DIAGNOSTICO->value)
+        ->toBe(EstadoOrden::ESPERANDO_AUTORIZACION->value)
         ->and($orden->autorizacion)
         ->toBe(EstadoAutorizacion::PENDIENTE->value)
+        ->and($orden->fecha_autorizacion)
+        ->toBeNull()
         ->and((float) $orden->costo_estimado)
         ->toBe(850.0);
 

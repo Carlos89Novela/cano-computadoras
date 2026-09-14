@@ -34,7 +34,9 @@ class NotificacionController extends Controller
         Request $request,
         string $notificacion
     ): RedirectResponse {
-        $registro = $request->user()
+        $usuario = $request->user();
+
+        $registro = $usuario
             ->notifications()
             ->whereKey($notificacion)
             ->firstOrFail();
@@ -43,11 +45,52 @@ class NotificacionController extends Controller
             $registro->markAsRead();
         }
 
+        $url = $registro->data['url'] ?? null;
+
+        if (is_string($url) && $url !== '') {
+            $ruta = parse_url(
+                $url,
+                PHP_URL_PATH
+            );
+
+            $consulta = parse_url(
+                $url,
+                PHP_URL_QUERY
+            );
+
+            if (is_string($ruta)) {
+                $destinosPermitidos = [
+                    '/supervisor/cotizaciones/',
+                    '/empleado/ordenes/',
+                    '/ordenes/',
+                ];
+
+                $esDestinoPermitido = collect(
+                    $destinosPermitidos
+                )->contains(
+                    fn (string $prefijo): bool => str_starts_with($ruta, $prefijo)
+                );
+
+                if ($esDestinoPermitido) {
+                    $destino = $ruta;
+
+                    if (
+                        is_string($consulta)
+                        && $consulta !== ''
+                    ) {
+                        $destino .= '?'.$consulta;
+                    }
+
+                    return redirect()->to($destino);
+                }
+            }
+        }
+
         $ordenId = $registro->data['orden_id'] ?? null;
 
         if (
             is_numeric($ordenId)
-            && $request->user()
+            && $usuario
                 ->ordenesServicio()
                 ->whereKey((int) $ordenId)
                 ->exists()
@@ -61,7 +104,10 @@ class NotificacionController extends Controller
         }
 
         return redirect()
-            ->route('notificaciones.index');
+            ->route('notificaciones.index')
+            ->withErrors([
+                'notificacion' => 'La notificación no contiene un destino disponible.',
+            ]);
     }
 
     public function leerTodas(

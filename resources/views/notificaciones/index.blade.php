@@ -40,13 +40,25 @@
                     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                         <div>
                             <p class="font-bold text-white">
-                                {{ $notificacion->data['mensaje']?? 'Tienes una actualización de reparación.' }}
+                                {{ $notificacion->data['mensaje'] ?? 'Tienes una actualización de reparación.' }}
                             </p>
 
                             @if (filled($notificacion->data['mensaje_cliente'] ?? null))
                                 <p class="mt-2 text-gray-300">
                                     {{ $notificacion->data['mensaje_cliente'] }}
                                 </p>
+                            @endif
+
+                            @if (filled($notificacion->data['observacion'] ?? null))
+                                <div class="mt-3 rounded-lg border border-red-800 bg-red-950 p-3">
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-red-300">
+                                        Observación del supervisor
+                                    </p>
+
+                                    <p class="mt-2 text-sm text-red-100">
+                                        {{ $notificacion->data['observacion'] }}
+                                    </p>
+                                </div>
                             @endif
 
                             <p class="mt-2 text-sm text-gray-400">
@@ -59,7 +71,7 @@
                             </p>
                         </div>
 
-                         <form
+                        <form
                             action="{{ route('notificaciones.leer', ['notificacion' => $notificacion->id]) }}"
                             method="POST"
                         >
@@ -69,7 +81,7 @@
                                 type="submit"
                                 class="rounded-lg bg-purple-600 px-4 py-2 font-semibold text-white hover:bg-purple-700"
                             >
-                                Ver reparación
+                                Ver notificación
                             </button>
                         </form>
                     </div>

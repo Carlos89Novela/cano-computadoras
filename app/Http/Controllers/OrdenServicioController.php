@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
+use App\Enums\EstadoRevisionCotizacion;
 use App\Http\Requests\AutorizarOrdenServicioRequest;
 use App\Http\Requests\StoreOrdenServicioRequest;
 use App\Models\Equipo;
@@ -135,6 +136,13 @@ class OrdenServicioController extends Controller
                 $ordenBloqueada = OrdenServicio::query()
                     ->lockForUpdate()
                     ->findOrFail($orden->id);
+
+                abort_unless(
+                    $ordenBloqueada->estado_revision_cotizacion
+                        === EstadoRevisionCotizacion::APROBADA,
+                    422,
+                    'La cotización no cuenta con aprobación interna.'
+                );
 
                 abort_unless(
                     $ordenBloqueada->estado

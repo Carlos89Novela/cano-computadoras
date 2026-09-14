@@ -6,8 +6,10 @@ use App\Enums\EstadoOrden;
 use App\Enums\EstadoRevisionCotizacion;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Notifications\CotizacionPendienteRevision;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use RuntimeException;
 
 class SolicitarRevisionCotizacion
@@ -26,7 +28,7 @@ class SolicitarRevisionCotizacion
             );
         }
 
-        return DB::transaction(function () use (
+        $ordenActualizada = DB::transaction(function () use (
             $orden,
             $empleado
         ): OrdenServicio {
@@ -107,5 +109,17 @@ class SolicitarRevisionCotizacion
 
             return $ordenBloqueada->refresh();
         });
+
+        $supervisores = User::role('supervisor')
+            ->get();
+
+        Notification::send(
+            $supervisores,
+            new CotizacionPendienteRevision(
+                $ordenActualizada
+            )
+        );
+
+        return $ordenActualizada;
     }
 }

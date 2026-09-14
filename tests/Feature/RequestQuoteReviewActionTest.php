@@ -8,9 +8,11 @@ use App\Models\Equipo;
 use App\Models\OrdenAsignacion;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Notifications\CotizacionPendienteRevision;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
@@ -503,3 +505,128 @@ test('finalized order cannot request quote review', function (
     'orden entregada' => EstadoOrden::ENTREGADO->value,
     'orden cancelada' => EstadoOrden::CANCELADO->value,
 ]);
+
+test('requesting quote review notifies every supervisor', function () {
+    Notification::fake();
+
+    $cliente = crearUsuarioParaRevisionCotizacion(
+        'cliente'
+    );
+
+    $supervisorUno = crearUsuarioParaRevisionCotizacion(
+        'supervisor'
+    );
+
+    $supervisorDos = crearUsuarioParaRevisionCotizacion(
+        'supervisor'
+    );
+
+    $administrador = crearUsuarioParaRevisionCotizacion(
+        'administrador'
+    );
+
+    $empleado = crearUsuarioParaRevisionCotizacion(
+        'empleado'
+    );
+
+    $orden = crearOrdenParaRevisionCotizacion(
+        $cliente,
+        'REP-QUOTE-NOTIFICATION-001'
+    );
+
+    crearAsignacionParaRevisionCotizacion(
+        $orden,
+        $empleado,
+        $supervisorUno
+    );
+
+    app(SolicitarRevisionCotizacion::class)->ejecutar(
+        $orden,
+        $empleado
+    );
+
+    Notification::assertSentTo(
+        $supervisorUno,
+        CotizacionPendienteRevision::class,
+        function (
+            CotizacionPendienteRevision $notificacion
+        ) use ($orden): bool {
+            return $notificacion->orden->is($orden)
+                && $notificacion->orden
+                    ->estado_revision_cotizacion ===
+                    EstadoRevisionCotizacion::PENDIENTE;
+        }
+    );
+
+    Notification::assertSentTo(
+        $supervisorDos,
+        CotizacionPendienteRevision::class
+    );
+
+    Notification::assertNotSentTo(
+        $administrador,
+        CotizacionPendienteRevision::class
+    );
+
+    Notification::assertNotSentTo(
+        $cliente,
+        CotizacionPendienteRevision::class
+    );
+
+    Notification::assertNotSentTo(
+        $empleado,
+        CotizacionPendienteRevision::class
+    );
+
+    Notification::assertCount(2);
+});
+
+test('failed quote review request does not send notifications', function () {
+    Notification::fake();
+
+    $cliente = crearUsuarioParaRevisionCotizacion(
+        'cliente'
+    );
+
+    $supervisor = crearUsuarioParaRevisionCotizacion(
+        'supervisor'
+    );
+
+    $empleado = crearUsuarioParaRevisionCotizacion(
+        'empleado'
+    );
+
+    $orden = crearOrdenParaRevisionCotizacion(
+        $cliente,
+        'REP-QUOTE-NOTIFICATION-FAILED-001',
+        EstadoOrden::EN_DIAGNOSTICO->value,
+        null,
+        850
+    );
+
+    crearAsignacionParaRevisionCotizacion(
+        $orden,
+        $empleado,
+        $supervisor
+    );
+
+    expect(
+        fn () => app(
+            SolicitarRevisionCotizacion::class
+        )->ejecutar(
+            $orden,
+            $empleado
+        )
+    )->toThrow(RuntimeException::class);
+
+    Notification::assertNothingSent();
+
+    $orden->refresh();
+
+    expect($orden->estado_revision_cotizacion)
+        ->toBe(
+            EstadoRevisionCotizacion::SIN_SOLICITAR
+        )
+        ->and($orden->historial()->count())
+        ->toBe(0);
+});

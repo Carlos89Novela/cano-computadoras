@@ -2,6 +2,7 @@
 
 use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
+use App\Enums\EstadoRevisionCotizacion;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\Servicio;
@@ -814,6 +815,7 @@ test('admin order updates create repair history and a user notification', functi
 
 test('users can authorize their own repair only while it is waiting authorization', function () {
     $usuario = User::factory()->create();
+
     $equipo = Equipo::create([
         'user_id' => $usuario->id,
         'tipo' => 'Desktop',
@@ -826,25 +828,54 @@ test('users can authorize their own repair only while it is waiting authorizatio
         'user_id' => $usuario->id,
         'equipo_id' => $equipo->id,
         'problema_reportado' => 'Falla al iniciar el sistema.',
-        'estado' => 'Esperando autorización',
+        'diagnostico' => 'Se detectó una falla durante el arranque.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+        'autorizacion' => EstadoAutorizacion::PENDIENTE->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => null,
         'fecha_ingreso' => now()->toDateString(),
     ]);
 
-    $response = $this->actingAs($usuario)->post('/ordenes/'.$orden->id.'/autorizar', [
-        'decision' => 'autorizada',
-    ]);
+    $response = $this
+        ->actingAs($usuario)
+        ->post(
+            route('ordenes.autorizar', [
+                'orden' => $orden->id,
+            ]),
+            [
+                'decision' => EstadoAutorizacion::AUTORIZADA->value,
+            ]
+        );
 
-    $response->assertRedirect(route('ordenes.show', ['orden' => $orden->id]))
-        ->assertSessionHas('success', 'Presupuesto autorizado correctamente.');
+    $response
+        ->assertRedirect(
+            route('ordenes.show', [
+                'orden' => $orden->id,
+            ])
+        )
+        ->assertSessionHas(
+            'success',
+            'Presupuesto autorizado correctamente.'
+        );
 
     $this->assertDatabaseHas('orden_servicios', [
         'id' => $orden->id,
-        'estado' => 'Esperando refacción',
-        'autorizacion' => 'autorizada',
+        'estado' => EstadoOrden::ESPERANDO_REFACCION->value,
+        'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA->value,
     ]);
 
     $orden->refresh();
-    $this->assertNotNull($orden->fecha_autorizacion);
+
+    expect($orden->fecha_autorizacion)
+        ->not->toBeNull()
+        ->and($orden->estado_revision_cotizacion)
+        ->toBe(EstadoRevisionCotizacion::APROBADA)
+        ->and($orden->estado)
+        ->toBe(EstadoOrden::ESPERANDO_REFACCION->value)
+        ->and($orden->autorizacion)
+        ->toBe(EstadoAutorizacion::AUTORIZADA->value);
 });
 
 test('users cannot authorize a repair unless it is waiting authorization', function () {
@@ -869,7 +900,7 @@ test('users cannot authorize a repair unless it is waiting authorization', funct
         'decision' => 'autorizada',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertForbidden();
 });
 
 test('admin invalid status values are rejected during order update', function () {
@@ -985,8 +1016,12 @@ test('a processed budget cannot receive a second decision', function () {
         'equipo_id' => $equipo->id,
         'servicio_id' => null,
         'problema_reportado' => 'El equipo no inicia correctamente.',
+        'diagnostico' => 'Se detectó una falla durante el arranque.',
+        'costo_estimado' => 850,
         'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
         'autorizacion' => EstadoAutorizacion::PENDIENTE->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => null,
         'fecha_ingreso' => now()->toDateString(),
     ]);
 
@@ -1012,6 +1047,17 @@ test('a processed budget cannot receive a second decision', function () {
             'Presupuesto autorizado correctamente.'
         );
 
+    $orden->refresh();
+
+    expect($orden->autorizacion)
+        ->toBe(EstadoAutorizacion::AUTORIZADA->value)
+        ->and($orden->estado)
+        ->toBe(EstadoOrden::ESPERANDO_REFACCION->value)
+        ->and($orden->estado_revision_cotizacion)
+        ->toBe(EstadoRevisionCotizacion::APROBADA)
+        ->and($orden->fecha_autorizacion)
+        ->not->toBeNull();
+
     $segundaRespuesta = $this
         ->actingAs($usuario)
         ->post(
@@ -1023,12 +1069,13 @@ test('a processed budget cannot receive a second decision', function () {
             ]
         );
 
-    $segundaRespuesta->assertStatus(422);
+    $segundaRespuesta->assertForbidden();
 
     $this->assertDatabaseHas('orden_servicios', [
         'id' => $orden->id,
         'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
         'estado' => EstadoOrden::ESPERANDO_REFACCION->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA->value,
     ]);
 
     $this->assertDatabaseMissing('orden_servicios', [

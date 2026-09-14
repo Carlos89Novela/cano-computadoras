@@ -5,6 +5,7 @@ namespace App\Actions\Ordenes;
 use App\Enums\EstadoRevisionCotizacion;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Notifications\CotizacionRechazadaInternamente;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -41,7 +42,7 @@ class RechazarRevisionCotizacion
             );
         }
 
-        return DB::transaction(function () use (
+        $ordenActualizada = DB::transaction(function () use (
             $orden,
             $revisor,
             $observacion
@@ -78,5 +79,20 @@ class RechazarRevisionCotizacion
 
             return $ordenBloqueada->refresh();
         });
+        $asignacionActiva = $ordenActualizada
+            ->asignacionActiva()
+            ->with('empleado')
+            ->first();
+
+        if ($asignacionActiva !== null) {
+            $asignacionActiva->empleado->notify(
+                new CotizacionRechazadaInternamente(
+                    $ordenActualizada,
+                    $observacion
+                )
+            );
+        }
+
+        return $ordenActualizada;
     }
 }

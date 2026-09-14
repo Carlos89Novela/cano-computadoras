@@ -8,9 +8,12 @@ use App\Enums\EstadoRevisionCotizacion;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Notifications\CotizacionAprobadaInternamente;
+use App\Notifications\CotizacionRechazadaInternamente;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
@@ -87,16 +90,18 @@ test('supervisor can approve a pending quote review', function () {
         ->and($ordenActualizada->observacion_revision_cotizacion)
         ->toBeNull()
         ->and($ordenActualizada->estado)
-        ->toBe(EstadoOrden::EN_DIAGNOSTICO->value)
+        ->toBe(EstadoOrden::ESPERANDO_AUTORIZACION->value)
         ->and($ordenActualizada->autorizacion)
         ->toBe(EstadoAutorizacion::PENDIENTE->value)
+        ->and($ordenActualizada->fecha_autorizacion)
+        ->toBeNull()
         ->and((float) $ordenActualizada->costo_estimado)
         ->toBe(850.0);
 
     $this->assertDatabaseHas('historial_reparaciones', [
         'orden_servicio_id' => $orden->id,
         'user_id' => $supervisor->id,
-        'estado' => EstadoOrden::EN_DIAGNOSTICO->value,
+        'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
         'comentarios' => 'Cotizacion aprobada por supervision.',
         'mensaje_cliente' => null,
     ]);
@@ -309,4 +314,183 @@ test('employee cannot approve or reject a quote review', function () {
         ->toBe(EstadoRevisionCotizacion::PENDIENTE)
         ->and($orden->historial()->count())
         ->toBe(0);
+});
+
+test('approving a quote notifies only the active assigned employee', function () {
+    Notification::fake();
+
+    $cliente = crearUsuarioParaRevisionSupervisor(
+        'cliente'
+    );
+
+    $supervisor = crearUsuarioParaRevisionSupervisor(
+        'supervisor'
+    );
+
+    $empleado = crearUsuarioParaRevisionSupervisor(
+        'empleado'
+    );
+
+    $otroEmpleado = crearUsuarioParaRevisionSupervisor(
+        'empleado'
+    );
+
+    $orden = crearOrdenPendienteParaRevisionSupervisor(
+        $cliente,
+        'REP-APPROVED-NOTIFY-001'
+    );
+
+    $orden->asignaciones()->create([
+        'empleado_id' => $empleado->id,
+        'asignado_por_id' => $supervisor->id,
+        'asignado_at' => now(),
+        'finalizado_at' => null,
+        'activo' => true,
+        'observaciones' => 'Revisar el equipo.',
+    ]);
+
+    app(AprobarRevisionCotizacion::class)->ejecutar(
+        $orden,
+        $supervisor
+    );
+
+    Notification::assertSentTo(
+        $empleado,
+        CotizacionAprobadaInternamente::class,
+        function (
+            CotizacionAprobadaInternamente $notificacion
+        ) use ($orden): bool {
+            return $notificacion->orden->is($orden)
+                && $notificacion->orden
+                    ->estado_revision_cotizacion ===
+                    EstadoRevisionCotizacion::APROBADA;
+        }
+    );
+
+    Notification::assertNotSentTo(
+        $otroEmpleado,
+        CotizacionAprobadaInternamente::class
+    );
+
+    Notification::assertNotSentTo(
+        $cliente,
+        CotizacionAprobadaInternamente::class
+    );
+
+    Notification::assertNotSentTo(
+        $supervisor,
+        CotizacionAprobadaInternamente::class
+    );
+
+    Notification::assertCount(1);
+});
+
+test('rejecting a quote notifies the assigned employee with the observation', function () {
+    Notification::fake();
+
+    $cliente = crearUsuarioParaRevisionSupervisor(
+        'cliente'
+    );
+
+    $supervisor = crearUsuarioParaRevisionSupervisor(
+        'supervisor'
+    );
+
+    $empleado = crearUsuarioParaRevisionSupervisor(
+        'empleado'
+    );
+
+    $orden = crearOrdenPendienteParaRevisionSupervisor(
+        $cliente,
+        'REP-REJECTED-NOTIFY-001'
+    );
+
+    $orden->asignaciones()->create([
+        'empleado_id' => $empleado->id,
+        'asignado_por_id' => $supervisor->id,
+        'asignado_at' => now(),
+        'finalizado_at' => null,
+        'activo' => true,
+        'observaciones' => 'Revisar el equipo.',
+    ]);
+
+    $observacion = 'Corregir el costo de la refacción.';
+
+    app(RechazarRevisionCotizacion::class)->ejecutar(
+        $orden,
+        $supervisor,
+        $observacion
+    );
+
+    Notification::assertSentTo(
+        $empleado,
+        CotizacionRechazadaInternamente::class,
+        function (
+            CotizacionRechazadaInternamente $notificacion
+        ) use ($orden, $observacion): bool {
+            return $notificacion->orden->is($orden)
+                && $notificacion->observacion ===
+                    $observacion
+                && $notificacion->orden
+                    ->estado_revision_cotizacion ===
+                    EstadoRevisionCotizacion::RECHAZADA;
+        }
+    );
+
+    Notification::assertNotSentTo(
+        $cliente,
+        CotizacionRechazadaInternamente::class
+    );
+
+    Notification::assertNotSentTo(
+        $supervisor,
+        CotizacionRechazadaInternamente::class
+    );
+
+    Notification::assertCount(1);
+});
+
+test('failed supervisor review does not notify the assigned employee', function () {
+    Notification::fake();
+
+    $cliente = crearUsuarioParaRevisionSupervisor(
+        'cliente'
+    );
+
+    $supervisor = crearUsuarioParaRevisionSupervisor(
+        'supervisor'
+    );
+
+    $empleado = crearUsuarioParaRevisionSupervisor(
+        'empleado'
+    );
+
+    $orden = crearOrdenPendienteParaRevisionSupervisor(
+        $cliente,
+        'REP-FAILED-REVIEW-NOTIFY-001'
+    );
+
+    $orden->asignaciones()->create([
+        'empleado_id' => $empleado->id,
+        'asignado_por_id' => $supervisor->id,
+        'asignado_at' => now(),
+        'finalizado_at' => null,
+        'activo' => true,
+        'observaciones' => 'Revisar el equipo.',
+    ]);
+
+    $orden->update([
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+    ]);
+
+    expect(
+        fn () => app(
+            AprobarRevisionCotizacion::class
+        )->ejecutar(
+            $orden,
+            $supervisor
+        )
+    )->toThrow(RuntimeException::class);
+
+    Notification::assertNothingSent();
 });

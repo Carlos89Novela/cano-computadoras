@@ -14,7 +14,10 @@ class AutorizarOrdenServicioRequest extends FormRequest
         $orden = $this->route('orden');
 
         return $orden instanceof OrdenServicio
-            && $this->user()?->can('view', $orden) === true;
+            && $this->user()?->can(
+                'authorizeBudget',
+                $orden
+            ) === true;
     }
 
     public function rules(): array

@@ -2,9 +2,12 @@
 
 namespace App\Actions\Ordenes;
 
+use App\Enums\EstadoAutorizacion;
+use App\Enums\EstadoOrden;
 use App\Enums\EstadoRevisionCotizacion;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Notifications\CotizacionAprobadaInternamente;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -25,7 +28,7 @@ class AprobarRevisionCotizacion
             );
         }
 
-        return DB::transaction(function () use (
+        $ordenActualizada = DB::transaction(function () use (
             $orden,
             $revisor
         ): OrdenServicio {
@@ -59,6 +62,9 @@ class AprobarRevisionCotizacion
                 'cotizacion_revisada_por_id' => $revisor->id,
                 'cotizacion_revisada_at' => now(),
                 'observacion_revision_cotizacion' => null,
+                'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+                'autorizacion' => EstadoAutorizacion::PENDIENTE->value,
+                'fecha_autorizacion' => null,
             ]);
 
             $ordenBloqueada
@@ -72,5 +78,19 @@ class AprobarRevisionCotizacion
 
             return $ordenBloqueada->refresh();
         });
+        $asignacionActiva = $ordenActualizada
+            ->asignacionActiva()
+            ->with('empleado')
+            ->first();
+
+        if ($asignacionActiva !== null) {
+            $asignacionActiva->empleado->notify(
+                new CotizacionAprobadaInternamente(
+                    $ordenActualizada
+                )
+            );
+        }
+
+        return $ordenActualizada;
     }
 }
