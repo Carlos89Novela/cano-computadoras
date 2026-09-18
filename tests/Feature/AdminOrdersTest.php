@@ -814,6 +814,11 @@ test('admin order updates create repair history and a user notification', functi
 });
 
 test('users can authorize their own repair only while it is waiting authorization', function () {
+    Role::findOrCreate(
+        'supervisor',
+        'web'
+    );
+
     $usuario = User::factory()->create();
 
     $equipo = Equipo::create([
@@ -999,6 +1004,12 @@ test('logged in users can access their own order detail page', function () {
 });
 
 test('a processed budget cannot receive a second decision', function () {
+
+    Role::findOrCreate(
+        'supervisor',
+        'web'
+    );
+
     $usuario = User::factory()->create();
 
     $equipo = Equipo::query()->create([

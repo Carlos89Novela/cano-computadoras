@@ -10,12 +10,16 @@ use App\Http\Requests\StoreOrdenServicioRequest;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\Servicio;
+use App\Models\User;
+use App\Notifications\PresupuestoAutorizadoPorCliente;
+use App\Notifications\PresupuestoRechazadoPorCliente;
 use App\Services\GeneradorFolioOrden;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -184,6 +188,42 @@ class OrdenServicioController extends Controller
 
         $autorizada = $ordenActualizada->autorizacion
             === EstadoAutorizacion::AUTORIZADA->value;
+
+        $notificacion = $autorizada
+            ? new PresupuestoAutorizadoPorCliente(
+                $ordenActualizada
+            )
+            : new PresupuestoRechazadoPorCliente(
+                $ordenActualizada
+            );
+
+        $destinatarios = collect();
+
+        $asignacionActiva = $ordenActualizada
+            ->asignacionActiva()
+            ->with('empleado')
+            ->first();
+
+        if ($asignacionActiva !== null) {
+            $destinatarios->push(
+                $asignacionActiva->empleado
+            );
+        }
+
+        $supervisores = User::role('supervisor')
+            ->get();
+
+        $destinatarios = $destinatarios
+            ->concat($supervisores)
+            ->unique(
+                fn (User $usuario): int => $usuario->id
+            )
+            ->values();
+
+        Notification::send(
+            $destinatarios,
+            $notificacion
+        );
 
         return redirect()
             ->route('ordenes.show', [

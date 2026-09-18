@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
 use App\Enums\EstadoRevisionCotizacion;
 use App\Models\Equipo;
@@ -9,10 +10,19 @@ use App\Notifications\CotizacionAprobadaInternamente;
 use App\Notifications\CotizacionListaParaAutorizar;
 use App\Notifications\CotizacionPendienteRevision;
 use App\Notifications\CotizacionRechazadaInternamente;
+use App\Notifications\PresupuestoAutorizadoPorCliente;
+use App\Notifications\PresupuestoRechazadoPorCliente;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\Messages\MailMessage;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(
+        RolesAndPermissionsSeeder::class
+    );
+});
 
 test('pending quote review notification contains expected database data', function () {
     $cliente = User::factory()->create();
@@ -486,5 +496,269 @@ test('client quote mail includes diagnosis and estimated cost', function () {
         )
         ->toContain(
             'Costo estimado: $1,250.50'
+        );
+});
+
+test('authorized budget notification points employee to assigned order', function () {
+    $cliente = User::factory()->create();
+    $empleado = User::factory()->create();
+
+    $empleado->assignRole('empleado');
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude Authorized Budget',
+        'numero_serie' => 'SERIE-AUTHORIZED-BUDGET-001',
+        'descripcion' => 'Equipo para probar autorización.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-AUTHORIZED-BUDGET-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia.',
+        'diagnostico' => 'Se detectó una falla en la fuente.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::ESPERANDO_REFACCION->value,
+        'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => now(),
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $notificacion = new PresupuestoAutorizadoPorCliente(
+        $orden
+    );
+
+    expect($notificacion->toDatabase($empleado))
+        ->toMatchArray([
+            'tipo' => 'presupuesto_autorizado_por_cliente',
+            'orden_id' => $orden->id,
+            'folio' => 'REP-AUTHORIZED-BUDGET-001',
+            'estado' => EstadoOrden::ESPERANDO_REFACCION->value,
+            'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
+            'mensaje' => 'El cliente autorizó el presupuesto de la reparación '
+                .'REP-AUTHORIZED-BUDGET-001.',
+            'url' => route(
+                'empleado.ordenes.show',
+                [
+                    'orden' => $orden->id,
+                ],
+                false
+            ),
+        ]);
+});
+
+test('authorized budget notification points supervisor to dashboard', function () {
+    $cliente = User::factory()->create();
+    $supervisor = User::factory()->create();
+
+    $supervisor->assignRole('supervisor');
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude Supervisor Budget',
+        'numero_serie' => 'SERIE-SUPERVISOR-BUDGET-001',
+        'descripcion' => 'Equipo para probar aviso al supervisor.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-SUPERVISOR-BUDGET-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia.',
+        'diagnostico' => 'Se detectó una falla en la fuente.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::ESPERANDO_REFACCION->value,
+        'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => now(),
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $notificacion = new PresupuestoAutorizadoPorCliente(
+        $orden
+    );
+
+    expect($notificacion->toDatabase($supervisor))
+        ->toMatchArray([
+            'tipo' => 'presupuesto_autorizado_por_cliente',
+            'orden_id' => $orden->id,
+            'folio' => 'REP-SUPERVISOR-BUDGET-001',
+            'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
+            'url' => route(
+                'supervisor.dashboard',
+                [],
+                false
+            ),
+        ]);
+});
+
+test('rejected budget notification points employee to assigned order', function () {
+    $cliente = User::factory()->create();
+    $empleado = User::factory()->create();
+
+    $empleado->assignRole('empleado');
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude Rejected Budget',
+        'numero_serie' => 'SERIE-REJECTED-BUDGET-001',
+        'descripcion' => 'Equipo para probar rechazo del cliente.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-REJECTED-BUDGET-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia.',
+        'diagnostico' => 'Se detectó una falla en la fuente.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::CANCELADO->value,
+        'autorizacion' => EstadoAutorizacion::RECHAZADA->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => now(),
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $notificacion = new PresupuestoRechazadoPorCliente(
+        $orden
+    );
+
+    expect($notificacion->toDatabase($empleado))
+        ->toMatchArray([
+            'tipo' => 'presupuesto_rechazado_por_cliente',
+            'orden_id' => $orden->id,
+            'folio' => 'REP-REJECTED-BUDGET-001',
+            'estado' => EstadoOrden::CANCELADO->value,
+            'autorizacion' => EstadoAutorizacion::RECHAZADA->value,
+            'mensaje' => 'El cliente rechazó el presupuesto de la reparación '
+                .'REP-REJECTED-BUDGET-001.',
+            'url' => route(
+                'empleado.ordenes.show',
+                [
+                    'orden' => $orden->id,
+                ],
+                false
+            ),
+        ]);
+});
+
+test('rejected budget notification points supervisor to dashboard', function () {
+    $cliente = User::factory()->create();
+    $supervisor = User::factory()->create();
+
+    $supervisor->assignRole('supervisor');
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude Supervisor Rejection',
+        'numero_serie' => 'SERIE-SUPERVISOR-REJECTION-001',
+        'descripcion' => 'Equipo para probar aviso de rechazo.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-SUPERVISOR-REJECTION-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia.',
+        'diagnostico' => 'Se detectó una falla en la fuente.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::CANCELADO->value,
+        'autorizacion' => EstadoAutorizacion::RECHAZADA->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => now(),
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $notificacion = new PresupuestoRechazadoPorCliente(
+        $orden
+    );
+
+    expect($notificacion->toDatabase($supervisor))
+        ->toMatchArray([
+            'tipo' => 'presupuesto_rechazado_por_cliente',
+            'orden_id' => $orden->id,
+            'folio' => 'REP-SUPERVISOR-REJECTION-001',
+            'estado' => EstadoOrden::CANCELADO->value,
+            'autorizacion' => EstadoAutorizacion::RECHAZADA->value,
+            'url' => route(
+                'supervisor.dashboard',
+                [],
+                false
+            ),
+        ]);
+});
+
+test('rejected budget notification creates expected mail message', function () {
+    $cliente = User::factory()->create();
+
+    $empleado = User::factory()->create([
+        'name' => 'Empleado de prueba',
+    ]);
+
+    $empleado->assignRole('empleado');
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude Rejection Mail',
+        'numero_serie' => 'SERIE-REJECTION-MAIL-001',
+        'descripcion' => 'Equipo para probar correo de rechazo.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-REJECTION-MAIL-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia.',
+        'diagnostico' => 'Se detectó una falla en la fuente.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::CANCELADO->value,
+        'autorizacion' => EstadoAutorizacion::RECHAZADA->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => now(),
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $mensaje = (new PresupuestoRechazadoPorCliente(
+        $orden
+    ))->toMail($empleado);
+
+    expect($mensaje)
+        ->toBeInstanceOf(MailMessage::class)
+        ->and($mensaje->subject)
+        ->toBe(
+            'Presupuesto rechazado REP-REJECTION-MAIL-001'
+        )
+        ->and($mensaje->actionText)
+        ->toBe('Consultar reparación')
+        ->and($mensaje->actionUrl)
+        ->toBe(
+            route('empleado.ordenes.show', [
+                'orden' => $orden->id,
+            ])
+        )
+        ->and($mensaje->introLines)
+        ->toContain(
+            'El cliente rechazó el presupuesto de la reparación.'
+        )
+        ->toContain(
+            'La orden quedó en estado: '
+            .EstadoOrden::CANCELADO->value
         );
 });
