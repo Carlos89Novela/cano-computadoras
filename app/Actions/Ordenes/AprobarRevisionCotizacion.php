@@ -8,6 +8,7 @@ use App\Enums\EstadoRevisionCotizacion;
 use App\Models\OrdenServicio;
 use App\Models\User;
 use App\Notifications\CotizacionAprobadaInternamente;
+use App\Notifications\CotizacionListaParaAutorizar;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -78,6 +79,7 @@ class AprobarRevisionCotizacion
 
             return $ordenBloqueada->refresh();
         });
+
         $asignacionActiva = $ordenActualizada
             ->asignacionActiva()
             ->with('empleado')
@@ -86,6 +88,18 @@ class AprobarRevisionCotizacion
         if ($asignacionActiva !== null) {
             $asignacionActiva->empleado->notify(
                 new CotizacionAprobadaInternamente(
+                    $ordenActualizada
+                )
+            );
+        }
+
+        $cliente = $ordenActualizada
+            ->user()
+            ->first();
+
+        if ($cliente !== null) {
+            $cliente->notify(
+                new CotizacionListaParaAutorizar(
                     $ordenActualizada
                 )
             );

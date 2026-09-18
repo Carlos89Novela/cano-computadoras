@@ -9,6 +9,7 @@ use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\User;
 use App\Notifications\CotizacionAprobadaInternamente;
+use App\Notifications\CotizacionListaParaAutorizar;
 use App\Notifications\CotizacionRechazadaInternamente;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -316,7 +317,7 @@ test('employee cannot approve or reject a quote review', function () {
         ->toBe(0);
 });
 
-test('approving a quote notifies only the active assigned employee', function () {
+test('approving a quote notifies the assigned employee and the client', function () {
     Notification::fake();
 
     $cliente = crearUsuarioParaRevisionSupervisor(
@@ -367,6 +368,23 @@ test('approving a quote notifies only the active assigned employee', function ()
         }
     );
 
+    Notification::assertSentTo(
+        $cliente,
+        CotizacionListaParaAutorizar::class,
+        function (
+            CotizacionListaParaAutorizar $notificacion
+        ) use ($orden): bool {
+            return $notificacion->orden->is($orden)
+                && $notificacion->orden->estado ===
+                    EstadoOrden::ESPERANDO_AUTORIZACION->value
+                && $notificacion->orden->autorizacion ===
+                    EstadoAutorizacion::PENDIENTE->value
+                && $notificacion->orden
+                    ->estado_revision_cotizacion ===
+                    EstadoRevisionCotizacion::APROBADA;
+        }
+    );
+
     Notification::assertNotSentTo(
         $otroEmpleado,
         CotizacionAprobadaInternamente::class
@@ -382,7 +400,22 @@ test('approving a quote notifies only the active assigned employee', function ()
         CotizacionAprobadaInternamente::class
     );
 
-    Notification::assertCount(1);
+    Notification::assertNotSentTo(
+        $empleado,
+        CotizacionListaParaAutorizar::class
+    );
+
+    Notification::assertNotSentTo(
+        $otroEmpleado,
+        CotizacionListaParaAutorizar::class
+    );
+
+    Notification::assertNotSentTo(
+        $supervisor,
+        CotizacionListaParaAutorizar::class
+    );
+
+    Notification::assertCount(2);
 });
 
 test('rejecting a quote notifies the assigned employee with the observation', function () {
@@ -450,7 +483,7 @@ test('rejecting a quote notifies the assigned employee with the observation', fu
     Notification::assertCount(1);
 });
 
-test('failed supervisor review does not notify the assigned employee', function () {
+test('failed supervisor review does not send notifications', function () {
     Notification::fake();
 
     $cliente = crearUsuarioParaRevisionSupervisor(

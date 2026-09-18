@@ -6,6 +6,7 @@ use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\User;
 use App\Notifications\CotizacionAprobadaInternamente;
+use App\Notifications\CotizacionListaParaAutorizar;
 use App\Notifications\CotizacionPendienteRevision;
 use App\Notifications\CotizacionRechazadaInternamente;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -342,5 +343,148 @@ test('rejected quote mail includes the review observation', function () {
     expect($mensaje->introLines)
         ->toContain(
             'Motivo: Verificar el precio de la pieza.'
+        );
+});
+
+test('client quote notification contains expected database data', function () {
+    $cliente = User::factory()->create();
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude Client Notification',
+        'numero_serie' => 'SERIE-CLIENTE-NOTIFICACION-001',
+        'descripcion' => 'Equipo para probar notificación al cliente.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-CLIENTE-NOTIFICACION-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia.',
+        'diagnostico' => 'Se detectó una falla en la fuente.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+        'autorizacion' => 'pendiente',
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $notificacion = new CotizacionListaParaAutorizar(
+        $orden
+    );
+
+    expect($notificacion->via($cliente))
+        ->toBe([
+            'mail',
+            'database',
+        ])
+        ->and($notificacion->toDatabase($cliente))
+        ->toMatchArray([
+            'tipo' => 'cotizacion_lista_para_autorizar',
+            'orden_id' => $orden->id,
+            'folio' => 'REP-CLIENTE-NOTIFICACION-001',
+            'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+            'estado_revision' => 'aprobada',
+            'autorizacion' => 'pendiente',
+            'mensaje' => 'El presupuesto de la reparación '
+                .'REP-CLIENTE-NOTIFICACION-001 '
+                .'está listo para tu decisión.',
+            'url' => route(
+                'ordenes.show',
+                [
+                    'orden' => $orden->id,
+                ],
+                false
+            ),
+        ]);
+});
+
+test('client quote notification creates a mail message', function () {
+    $cliente = User::factory()->create([
+        'name' => 'Cliente de prueba',
+    ]);
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude Client Mail',
+        'numero_serie' => 'SERIE-CLIENTE-CORREO-001',
+        'descripcion' => 'Equipo para probar correo al cliente.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-CLIENTE-CORREO-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia.',
+        'diagnostico' => 'Se detectó una falla en la fuente.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+        'autorizacion' => 'pendiente',
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $mensaje = (new CotizacionListaParaAutorizar(
+        $orden
+    ))->toMail($cliente);
+
+    expect($mensaje)
+        ->toBeInstanceOf(MailMessage::class)
+        ->and($mensaje->subject)
+        ->toBe(
+            'Presupuesto disponible REP-CLIENTE-CORREO-001'
+        )
+        ->and($mensaje->actionText)
+        ->toBe('Revisar presupuesto')
+        ->and($mensaje->actionUrl)
+        ->toBe(
+            route('ordenes.show', [
+                'orden' => $orden->id,
+            ])
+        );
+});
+
+test('client quote mail includes diagnosis and estimated cost', function () {
+    $cliente = User::factory()->create();
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude Client Content',
+        'numero_serie' => 'SERIE-CLIENTE-CONTENIDO-001',
+        'descripcion' => 'Equipo para probar contenido del correo.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-CLIENTE-CONTENIDO-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia.',
+        'diagnostico' => 'Se detectó una falla en la tarjeta principal.',
+        'costo_estimado' => 1250.50,
+        'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+        'autorizacion' => 'pendiente',
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $mensaje = (new CotizacionListaParaAutorizar(
+        $orden
+    ))->toMail($cliente);
+
+    expect($mensaje->introLines)
+        ->toContain(
+            'Diagnóstico: Se detectó una falla en la tarjeta principal.'
+        )
+        ->toContain(
+            'Costo estimado: $1,250.50'
         );
 });
