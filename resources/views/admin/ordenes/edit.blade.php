@@ -68,6 +68,101 @@
                 </div>
             </div>
 
+            @can('deliver', $orden)
+                <section
+                    class="mb-6 rounded-xl border border-emerald-700 bg-emerald-950 p-6"
+                >
+                    <div>
+                        <p class="text-sm font-semibold uppercase text-emerald-300">
+                            Equipo listo para entrega
+                        </p>
+
+                        <h3 class="mt-1 text-xl font-bold text-emerald-100">
+                            Confirmar entrega al cliente
+                        </h3>
+
+                        <p class="mt-2 text-sm text-emerald-200">
+                            Esta acción marcará la orden como entregada y registrará
+                            la fecha actual como fecha de entrega.
+                        </p>
+
+                        <dl class="mt-5 grid gap-4 sm:grid-cols-3">
+                            <div class="rounded-lg bg-emerald-900 p-4">
+                                <dt class="text-xs font-semibold uppercase text-emerald-300">
+                                    Folio
+                                </dt>
+
+                                <dd class="mt-1 font-semibold text-white">
+                                    {{ $orden->folio }}
+                                </dd>
+                            </div>
+
+                            <div class="rounded-lg bg-emerald-900 p-4">
+                                <dt class="text-xs font-semibold uppercase text-emerald-300">
+                                    Estado
+                                </dt>
+
+                                <dd class="mt-1 font-semibold text-white">
+                                    {{ $orden->estado }}
+                                </dd>
+                            </div>
+
+                            <div class="rounded-lg bg-emerald-900 p-4">
+                                <dt class="text-xs font-semibold uppercase text-emerald-300">
+                                    Costo final
+                                </dt>
+
+                                <dd class="mt-1 font-semibold text-white">
+                                    ${{ number_format((float) $orden->costo_final, 2) }}
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <form action="{{ route('operacion.ordenes.entregar', [
+                        'orden' => $orden->id,
+                        ]) }}" method="POST" class="mt-6 space-y-4">
+                        @csrf
+
+                        <div>
+                            <label
+                                for="comentario_entrega_admin"
+                                class="block font-semibold text-emerald-100"
+                            >
+                                Comentario de entrega opcional
+                            </label>
+
+                            <textarea
+                                id="comentario_entrega_admin"
+                                name="comentario"
+                                rows="3"
+                                maxlength="2000"
+                                class="mt-2 w-full rounded-lg border border-emerald-300 bg-white p-3 text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-emerald-500"
+                                placeholder="Por ejemplo: equipo recibido y revisado por el cliente."
+                            >{{ old('comentario') }}</textarea>
+
+                            <p class="mt-2 text-xs text-emerald-300">
+                                Máximo 2000 caracteres.
+                            </p>
+
+                            @error('comentario')
+                                <p class="mt-2 text-sm text-red-300">
+                                    {{ $message }}
+                                </p>
+                            @enderror
+                        </div>
+
+                        <button
+                            type="submit"
+                            class="rounded-lg bg-emerald-600 px-6 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            onclick="return confirm('¿Confirmas que el equipo fue entregado al cliente?');"
+                        >
+                            Confirmar entrega
+                        </button>
+                    </form>
+                </section>
+            @endcan
+
             <form
                 action="{{ route('admin.ordenes.update', ['orden' => $orden->id]) }}"
                 method="POST"

@@ -13,6 +13,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
+use App\Http\Controllers\Supervisor\EntregaOrdenController;
 use App\Http\Controllers\Supervisor\RevisionCotizacionController;
 use App\Models\Servicio;
 use Illuminate\Support\Facades\Route;
@@ -192,6 +193,21 @@ Route::middleware([
             '/ordenes/{orden}',
             [OrdenAsignadaController::class, 'show']
         )->name('ordenes.show');
+
+        Route::post(
+            '/ordenes/{orden}/iniciar',
+            [OrdenAsignadaController::class, 'startRepair']
+        )->name('ordenes.iniciar');
+
+        Route::post(
+            '/ordenes/{orden}/pruebas',
+            [OrdenAsignadaController::class, 'sendToTesting']
+        )->name('ordenes.pruebas');
+
+        Route::post(
+            '/ordenes/{orden}/lista-para-entrega',
+            [OrdenAsignadaController::class, 'markReadyForDelivery']
+        )->name('ordenes.lista-para-entrega');
     });
 
 Route::middleware([
@@ -216,6 +232,11 @@ Route::middleware([
             '/ordenes/{orden}/cotizacion/rechazar',
             [RevisionCotizacionController::class, 'reject']
         )->name('cotizaciones.rechazar');
+
+        Route::post(
+            '/ordenes/{orden}/entregar',
+            [EntregaOrdenController::class, 'store']
+        )->name('ordenes.entregar');
     });
 
 require __DIR__.'/auth.php';

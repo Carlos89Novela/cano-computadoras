@@ -3,9 +3,14 @@
 namespace App\Http\Controllers\Empleado;
 
 use App\Actions\Ordenes\ActualizarTrabajoTecnico;
+use App\Actions\Ordenes\EnviarReparacionAPruebas;
+use App\Actions\Ordenes\IniciarReparacionAutorizada;
+use App\Actions\Ordenes\MarcarReparacionListaParaEntrega;
 use App\Actions\Ordenes\SolicitarRevisionCotizacion;
 use App\Enums\EstadoOrden;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Empleado\EnviarReparacionAPruebasRequest;
+use App\Http\Requests\Empleado\MarcarReparacionListaParaEntregaRequest;
 use App\Http\Requests\Empleado\UpdateOrdenTecnicaRequest;
 use App\Models\OrdenAsignacion;
 use App\Models\OrdenServicio;
@@ -262,6 +267,113 @@ class OrdenAsignadaController extends Controller
             ->with(
                 'success',
                 'La cotizacion fue enviada a revision del supervisor.'
+            );
+    }
+
+    public function startRepair(
+        Request $request,
+        OrdenServicio $orden,
+        IniciarReparacionAutorizada $iniciarReparacion
+    ): RedirectResponse {
+        Gate::authorize(
+            'startAuthorizedRepair',
+            $orden
+        );
+
+        $empleado = $request->user();
+
+        abort_unless(
+            $empleado instanceof User,
+            403
+        );
+
+        $iniciarReparacion->ejecutar(
+            $orden,
+            $empleado
+        );
+
+        return redirect()
+            ->route(
+                'empleado.ordenes.show',
+                [
+                    'orden' => $orden->id,
+                ]
+            )
+            ->with(
+                'success',
+                'La reparación fue iniciada correctamente.'
+            );
+    }
+
+    public function sendToTesting(
+        EnviarReparacionAPruebasRequest $request,
+        OrdenServicio $orden,
+        EnviarReparacionAPruebas $enviarReparacionAPruebas
+    ): RedirectResponse {
+        $empleado = $request->user();
+
+        abort_unless(
+            $empleado instanceof User,
+            403
+        );
+
+        $datos = $request->validated();
+
+        $comentario = $datos['comentario'] ?? null;
+
+        $enviarReparacionAPruebas->ejecutar(
+            $orden,
+            $empleado,
+            is_string($comentario)
+                ? $comentario
+                : null
+        );
+
+        return redirect()
+            ->route(
+                'empleado.ordenes.show',
+                [
+                    'orden' => $orden->id,
+                ]
+            )
+            ->with(
+                'success',
+                'La reparación fue enviada a pruebas correctamente.'
+            );
+    }
+
+    public function markReadyForDelivery(
+        MarcarReparacionListaParaEntregaRequest $request,
+        OrdenServicio $orden,
+        MarcarReparacionListaParaEntrega $marcarListaParaEntrega
+    ): RedirectResponse {
+        $empleado = $request->user();
+
+        abort_unless(
+            $empleado instanceof User,
+            403
+        );
+
+        $datos = $request->validated();
+
+        $costoFinal = (float) $datos['costo_final'];
+
+        $comentario = $datos['comentario'] ?? null;
+
+        $marcarListaParaEntrega->ejecutar(
+            $orden,
+            $empleado,
+            $costoFinal,
+            is_string($comentario)
+                ? $comentario
+                : null
+        );
+
+        return redirect()
+            ->route('empleado.dashboard')
+            ->with(
+                'success',
+                'La reparación quedó lista para entrega.'
             );
     }
 

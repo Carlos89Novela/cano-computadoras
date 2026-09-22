@@ -55,6 +55,66 @@ class OrdenServicioPolicy
         );
     }
 
+    public function startAuthorizedRepair(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        $tieneAsignacionActiva = $orden
+            ->asignaciones()
+            ->where('empleado_id', $user->id)
+            ->where('activo', true)
+            ->exists();
+
+        return $user->can('ordenes.registrar_avance')
+            && $tieneAsignacionActiva
+            && $orden->estado_revision_cotizacion ===
+                EstadoRevisionCotizacion::APROBADA
+            && $orden->autorizacion ===
+                EstadoAutorizacion::AUTORIZADA->value
+            && $orden->estado ===
+                EstadoOrden::ESPERANDO_REFACCION->value;
+    }
+
+    public function sendRepairToTesting(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        $tieneAsignacionActiva = $orden
+            ->asignaciones()
+            ->where('empleado_id', $user->id)
+            ->where('activo', true)
+            ->exists();
+
+        return $user->can('ordenes.registrar_avance')
+            && $tieneAsignacionActiva
+            && $orden->estado_revision_cotizacion ===
+                EstadoRevisionCotizacion::APROBADA
+            && $orden->autorizacion ===
+                EstadoAutorizacion::AUTORIZADA->value
+            && $orden->estado ===
+                EstadoOrden::EN_REPARACION->value;
+    }
+
+    public function markRepairReadyForDelivery(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        $tieneAsignacionActiva = $orden
+            ->asignaciones()
+            ->where('empleado_id', $user->id)
+            ->where('activo', true)
+            ->exists();
+
+        return $user->can('ordenes.registrar_avance')
+            && $tieneAsignacionActiva
+            && $orden->estado_revision_cotizacion ===
+                EstadoRevisionCotizacion::APROBADA
+            && $orden->autorizacion ===
+                EstadoAutorizacion::AUTORIZADA->value
+            && $orden->estado ===
+                EstadoOrden::EN_PRUEBAS->value;
+    }
+
     public function requestQuoteReview(
         User $user,
         OrdenServicio $orden
@@ -133,6 +193,21 @@ class OrdenServicioPolicy
                 EstadoOrden::ESPERANDO_AUTORIZACION->value
             && $orden->autorizacion ===
                 EstadoAutorizacion::PENDIENTE->value;
+    }
+
+    public function deliver(
+        User $user,
+        OrdenServicio $orden
+    ): bool {
+        return $user->can('ordenes.actualizar')
+            && $orden->estado_revision_cotizacion ===
+                EstadoRevisionCotizacion::APROBADA
+            && $orden->autorizacion ===
+                EstadoAutorizacion::AUTORIZADA->value
+            && $orden->estado ===
+                EstadoOrden::LISTO_PARA_ENTREGA->value
+            && $orden->costo_final !== null
+            && $orden->fecha_entrega === null;
     }
 
     public function downloadPdf(

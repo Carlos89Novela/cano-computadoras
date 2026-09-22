@@ -22,7 +22,7 @@
             @if ($errors->any())
                 <div class="rounded-lg border border-red-700 bg-red-950 p-4 text-red-200">
                     <p class="font-semibold">
-                        No fue posible completar la asignación.
+                        No fue posible completar la operación.
                     </p>
 
                     <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
@@ -75,7 +75,91 @@
                 </div>
             </section>
 
-            <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
+            <nav
+                class="rounded-xl border border-zinc-800 bg-zinc-900 p-2 shadow"
+                aria-label="Secciones del panel del supervisor"
+            >
+                <div
+                    class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+                    role="tablist"
+                >
+                    <button
+                        type="button"
+                        id="tab-cotizaciones"
+                        class="supervisor-tab rounded-lg px-4 py-3 text-left font-semibold transition"
+                        data-supervisor-tab="cotizaciones"
+                        role="tab"
+                        aria-controls="panel-cotizaciones"
+                    >
+                        <span class="block text-sm">
+                            Cotizaciones pendientes
+                        </span>
+
+                        <span class="mt-1 block text-xs opacity-75">
+                            {{ $cotizacionesPendientes }} pendientes
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        id="tab-sin-asignar"
+                        class="supervisor-tab rounded-lg px-4 py-3 text-left font-semibold transition"
+                        data-supervisor-tab="sin-asignar"
+                        role="tab"
+                        aria-controls="panel-sin-asignar"
+                    >
+                        <span class="block text-sm">
+                            Sin asignar
+                        </span>
+
+                        <span class="mt-1 block text-xs opacity-75">
+                            {{ $ordenesSinAsignar }} pendientes
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        id="tab-asignadas"
+                        class="supervisor-tab rounded-lg px-4 py-3 text-left font-semibold transition"
+                        data-supervisor-tab="asignadas"
+                        role="tab"
+                        aria-controls="panel-asignadas"
+                    >
+                        <span class="block text-sm">
+                            Reparaciones asignadas
+                        </span>
+
+                        <span class="mt-1 block text-xs opacity-75">
+                            {{ $ordenesAsignadas->count() }} mostradas
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        id="tab-entregas"
+                        class="supervisor-tab rounded-lg px-4 py-3 text-left font-semibold transition"
+                        data-supervisor-tab="entregas"
+                        role="tab"
+                        aria-controls="panel-entregas"
+                    >
+                        <span class="block text-sm">
+                            Equipos para entrega
+                        </span>
+
+                        <span class="mt-1 block text-xs opacity-75">
+                            {{ $ordenesListasEntrega->count() }} pendientes
+                        </span>
+                    </button>
+                </div>
+            </nav>
+
+            <section
+                id="panel-cotizaciones"
+                data-supervisor-panel="cotizaciones"
+                role="tabpanel"
+                aria-labelledby="tab-cotizaciones"
+                class="supervisor-panel rounded-xl bg-white p-6 shadow dark:bg-zinc-900"
+            >
                 <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                     <div>
                         <h3 class="text-xl font-bold text-gray-900 dark:text-white">
@@ -336,7 +420,13 @@
                 @endif
             </section>
 
-            <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
+            <section
+                id="panel-sin-asignar"
+                data-supervisor-panel="sin-asignar"
+                role="tabpanel"
+                aria-labelledby="tab-sin-asignar"
+                class="supervisor-panel hidden rounded-xl bg-white p-6 shadow dark:bg-zinc-900"
+            >
                 <div class="flex flex-col justify-between gap-3 md:flex-row md:items-center">
                     <div>
                         <h3 class="text-xl font-bold text-gray-900 dark:text-white">
@@ -484,7 +574,13 @@
                 @endif
             </section>
 
-            <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
+            <section
+                id="panel-asignadas"
+                data-supervisor-panel="asignadas"
+                role="tabpanel"
+                aria-labelledby="tab-asignadas"
+                class="supervisor-panel hidden rounded-xl bg-white p-6 shadow dark:bg-zinc-900"
+            >
                 <div class="flex flex-col justify-between gap-3 md:flex-row md:items-center">
                     <div>
                         <h3 class="text-xl font-bold text-gray-900 dark:text-white">
@@ -605,6 +701,312 @@
                     </div>
                 @endif
             </section>
+
+            <section
+                id="panel-entregas"
+                data-supervisor-panel="entregas"
+                role="tabpanel"
+                aria-labelledby="tab-entregas"
+                class="supervisor-panel hidden rounded-xl bg-white p-6 shadow dark:bg-zinc-900"
+            >
+                <div
+                    class="flex flex-col justify-between gap-3 md:flex-row md:items-center"
+                >
+                    <div>
+                        <p
+                            class="text-sm font-semibold uppercase tracking-wide text-emerald-500"
+                        >
+                            Entregas
+                        </p>
+
+                        <h3 class="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+                            Equipos listos para entrega
+                        </h3>
+
+                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            Confirma la entrega física del equipo al cliente.
+                        </p>
+                    </div>
+
+                    <span
+                        class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
+                    >
+                        {{ $ordenesListasEntrega->count() }} pendientes
+                    </span>
+                </div>
+
+                @if ($ordenesListasEntrega->isEmpty())
+                    <div
+                        class="mt-6 rounded-lg bg-gray-100 p-6 text-center text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+                    >
+                        No existen equipos pendientes de entrega.
+                    </div>
+                @else
+                    <div class="mt-6 grid gap-5 xl:grid-cols-2">
+                        @foreach ($ordenesListasEntrega as $orden)
+                            @can('deliver', $orden)
+                                <article
+                                    class="rounded-xl border border-emerald-800 bg-emerald-950/40 p-5"
+                                >
+                                    <div
+                                        class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"
+                                    >
+                                        <div>
+                                            <p class="text-lg font-bold text-emerald-300">
+                                                {{ $orden->folio }}
+                                            </p>
+
+                                            <p class="mt-1 text-sm text-emerald-100">
+                                                {{ $orden->user?->name ?? 'Cliente no disponible' }}
+                                            </p>
+                                        </div>
+
+                                        <span
+                                            class="w-fit rounded-full bg-emerald-900 px-3 py-1 text-xs font-semibold text-emerald-100"
+                                        >
+                                            {{ $orden->estado }}
+                                        </span>
+                                    </div>
+
+                                    <dl class="mt-5 grid gap-3 sm:grid-cols-3">
+                                        <div class="rounded-lg bg-zinc-900 p-3">
+                                            <dt
+                                                class="text-xs font-semibold uppercase text-zinc-400"
+                                            >
+                                                Equipo
+                                            </dt>
+
+                                            <dd class="mt-1 text-sm font-medium text-white">
+                                                {{ $orden->equipo?->marca }}
+                                                {{ $orden->equipo?->modelo }}
+                                            </dd>
+                                        </div>
+
+                                        <div class="rounded-lg bg-zinc-900 p-3">
+                                            <dt
+                                                class="text-xs font-semibold uppercase text-zinc-400"
+                                            >
+                                                Costo final
+                                            </dt>
+
+                                            <dd class="mt-1 text-sm font-medium text-white">
+                                                ${{ number_format(
+                                                    (float) $orden->costo_final,
+                                                    2
+                                                ) }}
+                                            </dd>
+                                        </div>
+
+                                        <div class="rounded-lg bg-zinc-900 p-3">
+                                            <dt
+                                                class="text-xs font-semibold uppercase text-zinc-400"
+                                            >
+                                                Ingreso
+                                            </dt>
+
+                                            <dd class="mt-1 text-sm font-medium text-white">
+                                                {{ $orden->fecha_ingreso->format('d/m/Y') }}
+                                            </dd>
+                                        </div>
+                                    </dl>
+
+                                    <form method="POST"
+                                        action="{{ route('operacion.ordenes.entregar', ['orden' => $orden->id]) }}"
+                                        class="space-y-4">
+                                        @csrf
+
+                                        <div>
+                                            <label
+                                                for="comentario-entrega-{{ $orden->id }}"
+                                                class="block text-sm font-semibold text-emerald-100"
+                                            >
+                                                Comentario de entrega opcional
+                                            </label>
+
+                                            <textarea
+                                                id="comentario-entrega-{{ $orden->id }}"
+                                                name="comentario"
+                                                rows="3"
+                                                maxlength="2000"
+                                                class="mt-2 w-full rounded-lg border border-emerald-700 bg-white p-3 text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-emerald-500"
+                                                placeholder="Ejemplo: equipo recibido y revisado por el cliente."
+                                            ></textarea>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            class="rounded-lg bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700"
+                                            onclick="return confirm('¿Confirmas que el equipo fue entregado al cliente?');"
+                                        >
+                                            Confirmar entrega
+                                        </button>
+                                    </form>
+                                </article>
+                            @endcan
+                        @endforeach
+                    </div>
+                @endif
+            </section>
         </div>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const pestañas = Array.from(
+                document.querySelectorAll('[data-supervisor-tab]')
+            );
+
+            const paneles = Array.from(
+                document.querySelectorAll('[data-supervisor-panel]')
+            );
+
+            const nombresPermitidos = pestañas.map(function (pestaña) {
+                return pestaña.dataset.supervisorTab;
+            });
+
+            function nombreInicial() {
+                const hash = window.location.hash.replace('#', '');
+
+                if (nombresPermitidos.includes(hash)) {
+                    return hash;
+                }
+
+                return 'cotizaciones';
+            }
+
+            function ajustarTablaCotizaciones() {
+                if (
+                    typeof window.jQuery === 'undefined'
+                    || ! window.jQuery.fn.dataTable
+                ) {
+                    return;
+                }
+
+                const tabla = window.jQuery(
+                    '#tab-cotizaciones'
+                );
+
+                if (
+                    tabla.length > 0
+                    && window.jQuery.fn.dataTable.isDataTable(tabla)
+                ) {
+                    tabla.DataTable()
+                        .columns
+                        .adjust()
+                        .draw(false);
+                }
+            }
+
+            function mostrarPanel(nombre) {
+                paneles.forEach(function (panel) {
+                    const activo =
+                        panel.dataset.supervisorPanel === nombre;
+
+                    panel.classList.toggle('hidden', ! activo);
+                    panel.hidden = ! activo;
+                });
+
+                pestañas.forEach(function (pestaña) {
+                    const activa =
+                        pestaña.dataset.supervisorTab === nombre;
+
+                    pestaña.setAttribute(
+                        'aria-selected',
+                        activa ? 'true' : 'false'
+                    );
+
+                    pestaña.setAttribute(
+                        'tabindex',
+                        activa ? '0' : '-1'
+                    );
+
+                    pestaña.classList.toggle(
+                        'bg-purple-600',
+                        activa
+                    );
+
+                    pestaña.classList.toggle(
+                        'text-white',
+                        activa
+                    );
+
+                    pestaña.classList.toggle(
+                        'bg-zinc-800',
+                        ! activa
+                    );
+
+                    pestaña.classList.toggle(
+                        'text-zinc-300',
+                        ! activa
+                    );
+
+                    pestaña.classList.toggle(
+                        'hover:bg-zinc-700',
+                        ! activa
+                    );
+                });
+
+                window.history.replaceState(
+                    null,
+                    '',
+                    window.location.pathname
+                        + window.location.search
+                        + '#'
+                        + nombre
+                );
+
+                if (nombre === 'cotizaciones') {
+                    window.setTimeout(
+                        ajustarTablaCotizaciones,
+                        50
+                    );
+                }
+            }
+
+            pestañas.forEach(function (pestaña, indice) {
+                pestaña.addEventListener('click', function () {
+                    mostrarPanel(
+                        pestaña.dataset.supervisorTab
+                    );
+                });
+
+                pestaña.addEventListener(
+                    'keydown',
+                    function (evento) {
+                        if (
+                            evento.key !== 'ArrowRight'
+                            && evento.key !== 'ArrowLeft'
+                        ) {
+                            return;
+                        }
+
+                        evento.preventDefault();
+
+                        const desplazamiento =
+                            evento.key === 'ArrowRight'
+                                ? 1
+                                : -1;
+
+                        const siguienteIndice =
+                            (
+                                indice
+                                + desplazamiento
+                                + pestañas.length
+                            ) % pestañas.length;
+
+                        const siguiente = pestañas[
+                            siguienteIndice
+                        ];
+
+                        mostrarPanel(
+                            siguiente.dataset.supervisorTab
+                        );
+
+                        siguiente.focus();
+                    }
+                );
+            });
+
+            mostrarPanel(nombreInicial());
+        });
+    </script>
 </x-app-layout>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Supervisor;
 
+use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
 use App\Enums\EstadoRevisionCotizacion;
 use App\Http\Controllers\Controller;
@@ -24,10 +25,15 @@ class DashboardController extends Controller
             )
             ->count();
 
+        $estadosSinAsignacionRequerida = [
+            ...EstadoOrden::finalizados(),
+            EstadoOrden::LISTO_PARA_ENTREGA->value,
+        ];
+
         $ordenesSinAsignar = OrdenServicio::query()
             ->whereNotIn(
                 'estado',
-                EstadoOrden::finalizados()
+                $estadosSinAsignacionRequerida
             )
             ->whereDoesntHave(
                 'asignaciones',
@@ -68,7 +74,7 @@ class DashboardController extends Controller
             ])
             ->whereNotIn(
                 'estado',
-                EstadoOrden::finalizados()
+                $estadosSinAsignacionRequerida
             )
             ->whereDoesntHave(
                 'asignaciones',
@@ -101,6 +107,29 @@ class DashboardController extends Controller
             ->limit(20)
             ->get();
 
+        $ordenesListasEntrega = OrdenServicio::query()
+            ->with([
+                'user:id,name,email',
+                'equipo:id,marca,modelo,tipo,numero_serie',
+            ])
+            ->where(
+                'estado',
+                EstadoOrden::LISTO_PARA_ENTREGA->value
+            )
+            ->where(
+                'autorizacion',
+                EstadoAutorizacion::AUTORIZADA->value
+            )
+            ->where(
+                'estado_revision_cotizacion',
+                EstadoRevisionCotizacion::APROBADA->value
+            )
+            ->whereNotNull('costo_final')
+            ->whereNull('fecha_entrega')
+            ->oldest('updated_at')
+            ->limit(20)
+            ->get();
+
         return view(
             'supervisor.dashboard',
             compact(
@@ -111,7 +140,8 @@ class DashboardController extends Controller
                 'cierresPendientes',
                 'empleados',
                 'ordenesPendientes',
-                'ordenesAsignadas'
+                'ordenesAsignadas',
+                'ordenesListasEntrega'
             )
         );
     }
