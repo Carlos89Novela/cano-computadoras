@@ -4,45 +4,39 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Empresa extends Model
+class CategoriaProducto extends Model
 {
-    protected $table = 'empresas';
+    protected $table = 'categorias_producto';
 
     protected $fillable = [
+        'empresa_id',
         'nombre',
-        'razon_social',
-        'rfc',
-        'telefono',
-        'correo',
-        'direccion_fiscal',
+        'descripcion',
         'activo',
         'creado_por_id',
         'actualizado_por_id',
+        'desactivado_por_id',
+        'desactivado_at',
+        'motivo_desactivacion',
     ];
 
     protected function casts(): array
     {
         return [
             'activo' => 'boolean',
+            'desactivado_at' => 'datetime',
         ];
     }
 
     /**
-     * @return HasMany<Sucursal, $this>
+     * @return BelongsTo<Empresa, $this>
      */
-    public function sucursales(): HasMany
+    public function empresa(): BelongsTo
     {
-        return $this->hasMany(Sucursal::class);
-    }
-
-    /**
-     * @return HasMany<Almacen, $this>
-     */
-    public function almacenes(): HasMany
-    {
-        return $this->hasMany(Almacen::class);
+        return $this->belongsTo(
+            Empresa::class
+        );
     }
 
     /**
@@ -68,15 +62,13 @@ class Empresa extends Model
     }
 
     /**
-     * Categorías de productos pertenecientes a la empresa.
-     *
-     * @return HasMany<CategoriaProducto, $this>
+     * @return BelongsTo<User, $this>
      */
-    public function categoriasProducto(): HasMany
+    public function desactivadoPor(): BelongsTo
     {
-        return $this->hasMany(
-            CategoriaProducto::class,
-            'empresa_id'
+        return $this->belongsTo(
+            User::class,
+            'desactivado_por_id'
         );
     }
 }
