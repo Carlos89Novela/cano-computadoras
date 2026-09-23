@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -24,6 +25,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
+        'es_propietario',
     ];
 
     /**
@@ -46,6 +48,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'es_propietario' => 'boolean',
         ];
     }
 
@@ -93,5 +96,39 @@ class User extends Authenticatable implements MustVerifyEmail
             OrdenAsignacion::class,
             'asignado_por_id'
         );
+    }
+
+    public function esPropietario(): bool
+    {
+        return $this->es_propietario === true;
+    }
+
+    /**
+     * @return BelongsToMany<Sucursal, $this>
+     */
+    public function sucursales(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Sucursal::class,
+            'sucursal_usuario'
+        )
+            ->withPivot([
+                'es_principal',
+                'es_gerente',
+                'activo',
+                'asignado_por_id',
+                'asignado_at',
+                'finalizado_at',
+            ])
+            ->withTimestamps();
+    }
+
+    public function perteneceASucursal(
+        Sucursal $sucursal
+    ): bool {
+        return $this->sucursales()
+            ->whereKey($sucursal->id)
+            ->wherePivot('activo', true)
+            ->exists();
     }
 }

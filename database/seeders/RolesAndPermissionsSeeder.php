@@ -15,12 +15,26 @@ class RolesAndPermissionsSeeder extends Seeder
             ->forgetCachedPermissions();
 
         $permisos = [
+            'auditoria.ver',
+            'auditoria.ver_accesos',
+            'auditoria.ver_permisos',
+            'auditoria.ver_usuarios',
+            'auditoria.ver_ordenes',
+            'auditoria.ver_servicios',
+            'auditoria.ver_productos',
+            'auditoria.ver_inventario',
+            'auditoria.exportar',
+            'auditoria.exportar_completa',
+
             'usuarios.ver',
             'usuarios.crear',
             'usuarios.actualizar',
             'usuarios.desactivar',
             'usuarios.asignar_roles',
+            'usuarios.asignar_permisos',
+            'usuarios.modificar_propietario',
 
+            'servicios.actualizar_precios',
             'servicios.ver',
             'servicios.crear',
             'servicios.actualizar',
@@ -47,6 +61,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ordenes.rechazar_cierre',
             'ordenes.marcar_entregada',
             'ordenes.descargar_pdf',
+            'ordenes.entregar',
 
             'historial.ver_interno',
             'historial.ver_cliente',
@@ -58,6 +73,22 @@ class RolesAndPermissionsSeeder extends Seeder
 
             'configuracion.ver',
             'configuracion.actualizar',
+
+            'productos.ver',
+            'productos.crear',
+            'productos.actualizar',
+            'productos.actualizar_precios',
+            'productos.cambiar_estado',
+            'productos.eliminar',
+
+            'inventario.ver',
+            'inventario.registrar_entrada',
+            'inventario.registrar_salida',
+            'inventario.ajustar',
+            'inventario.consumir',
+            'inventario.devolver',
+            'inventario.ver_movimientos',
+            'inventario.exportar',
         ];
 
         foreach ($permisos as $permiso) {
@@ -84,7 +115,26 @@ class RolesAndPermissionsSeeder extends Seeder
             'web'
         );
 
-        $administrador->syncPermissions($permisos);
+        $permisosReservados = config(
+            'access_control.permisos_reservados',
+            []
+        );
+
+        $permisosAdministrador = collect($permisos)
+            ->reject(
+                fn (string $permiso): bool => is_array($permisosReservados)
+                    && in_array(
+                        $permiso,
+                        $permisosReservados,
+                        true
+                    )
+            )
+            ->values()
+            ->all();
+
+        $administrador->syncPermissions(
+            $permisosAdministrador
+        );
 
         $supervisor->syncPermissions([
             'servicios.ver',

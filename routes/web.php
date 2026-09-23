@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioController;
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
+use App\Http\Controllers\Admin\UsuarioController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
 use App\Http\Controllers\Empleado\OrdenAsignadaController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
 use App\Http\Controllers\Supervisor\EntregaOrdenController;
 use App\Http\Controllers\Supervisor\RevisionCotizacionController;
+use App\Http\Middleware\PropietarioMiddleware;
 use App\Models\Servicio;
 use Illuminate\Support\Facades\Route;
 
@@ -134,6 +136,31 @@ Route::middleware(['auth', 'administrador'])
         Route::resource('servicios', AdminServicioController::class)
             ->parameters(['servicios' => 'servicio'])
             ->except(['show']);
+
+        Route::middleware(
+            PropietarioMiddleware::class
+        )->group(function (): void {
+            Route::get(
+                '/usuarios',
+                [UsuarioController::class, 'index']
+            )->name('usuarios.index');
+
+            Route::get(
+                '/usuarios/{usuario}/editar',
+                [UsuarioController::class, 'edit']
+            )->name('usuarios.edit');
+
+            Route::patch(
+                '/usuarios/{usuario}/rol',
+                [UsuarioController::class, 'updateRole']
+            )->name('usuarios.rol.update');
+
+            Route::patch(
+                '/usuarios/{usuario}/permisos',
+                [UsuarioController::class, 'updatePermissions']
+            )->name('usuarios.permisos.update');
+
+        });
 
     });
 

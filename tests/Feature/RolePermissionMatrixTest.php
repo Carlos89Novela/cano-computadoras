@@ -29,16 +29,31 @@ test('the system creates the four operational roles', function () {
     ]);
 });
 
-test('the administrator receives every registered permission', function () {
+test('delegated administrator does not receive owner reserved permissions', function () {
     $administrador = Role::findByName(
         'administrador',
         'web'
     );
 
-    expect($administrador->permissions()->count())
-        ->toBe(Permission::query()->count())
-        ->and($administrador->permissions()->count())
-        ->toBe(38);
+    $permisosReservados = config(
+        'access_control.permisos_reservados',
+        []
+    );
+
+    expect($permisosReservados)
+        ->toBeArray();
+
+    foreach ($permisosReservados as $permiso) {
+        expect(
+            $administrador->hasPermissionTo(
+                $permiso
+            )
+        )->toBeFalse();
+    }
+
+    expect($administrador->hasPermissionTo(
+        'ordenes.ver_todas'
+    ))->toBeTrue();
 });
 
 test('the supervisor can coordinate work without administering services', function () {
@@ -142,16 +157,15 @@ test('the client keeps only customer permissions', function () {
 });
 
 test('running the roles seeder repeatedly does not create duplicates', function () {
-    $this->seed(RolesAndPermissionsSeeder::class);
-    $this->seed(RolesAndPermissionsSeeder::class);
+    $cantidadRolesInicial = Role::query()->count();
+    $cantidadPermisosInicial = Permission::query()->count();
 
-    app(PermissionRegistrar::class)
-        ->forgetCachedPermissions();
+    $this->seed(RolesAndPermissionsSeeder::class);
 
     expect(Role::query()->count())
-        ->toBe(4)
+        ->toBe($cantidadRolesInicial)
         ->and(Permission::query()->count())
-        ->toBe(38)
+        ->toBe($cantidadPermisosInicial)
         ->and(
             Role::query()
                 ->where('name', 'administrador')

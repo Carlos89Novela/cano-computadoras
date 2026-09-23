@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
+use App\Services\Auditoria\RegistrarAcceso;
 use App\Services\RedireccionPorRol;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +27,8 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(
         LoginRequest $request,
-        RedireccionPorRol $redireccionPorRol
+        RedireccionPorRol $redireccionPorRol,
+        RegistrarAcceso $registrarAcceso
     ): RedirectResponse {
         $request->authenticate();
 
@@ -39,6 +41,13 @@ class AuthenticatedSessionController extends Controller
             403
         );
 
+        $registrarAcceso->registrar(
+            evento: 'inicio_exitoso',
+            resultado: 'exitoso',
+            request: $request,
+            usuario: $usuario
+        );
+
         return redirect()->intended(
             $redireccionPorRol->ruta($usuario)
         );
@@ -47,12 +56,24 @@ class AuthenticatedSessionController extends Controller
     /**
      * Destroy an authenticated session.
      */
-    public function destroy(Request $request): RedirectResponse
-    {
+    public function destroy(
+        Request $request,
+        RegistrarAcceso $registrarAcceso
+    ): RedirectResponse {
+        $usuario = $request->user();
+
+        if ($usuario instanceof User) {
+            $registrarAcceso->registrar(
+                evento: 'cierre_sesion',
+                resultado: 'exitoso',
+                request: $request,
+                usuario: $usuario
+            );
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
 
         return redirect('/');

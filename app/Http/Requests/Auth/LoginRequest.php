@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
+use App\Services\Auditoria\RegistrarAcceso;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -42,8 +44,28 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (
+            ! Auth::attempt(
+                $this->only('email', 'password'),
+                $this->boolean('remember')
+            )
+        ) {
             RateLimiter::hit($this->throttleKey());
+
+            $correo = (string) $this->input('email');
+
+            $usuario = User::query()
+                ->where('email', $correo)
+                ->first();
+
+            app(RegistrarAcceso::class)->registrar(
+                evento: 'inicio_fallido',
+                resultado: 'fallido',
+                request: $this,
+                usuario: $usuario,
+                correoIntentado: $correo,
+                motivoFallo: 'Credenciales inválidas.'
+            );
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -67,6 +89,17 @@ class LoginRequest extends FormRequest
         event(new Lockout($this));
 
         $seconds = RateLimiter::availableIn($this->throttleKey());
+
+        app(RegistrarAcceso::class)->registrar(
+            evento: 'bloqueo_temporal',
+            resultado: 'bloqueado',
+            request: $this,
+            correoIntentado: (string) $this->input('email'),
+            motivoFallo: 'Demasiados intentos de inicio de sesión.',
+            metadatos: [
+                'segundos_restantes' => $seconds,
+            ]
+        );
 
         throw ValidationException::withMessages([
             'email' => trans('auth.throttle', [
