@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioController;
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
+use App\Http\Controllers\Admin\SucursalController;
 use App\Http\Controllers\Admin\UsuarioController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
@@ -159,6 +160,21 @@ Route::middleware(['auth', 'administrador'])
                 '/usuarios/{usuario}/permisos',
                 [UsuarioController::class, 'updatePermissions']
             )->name('usuarios.permisos.update');
+
+            Route::get(
+                '/empresas/{empresa}/sucursales',
+                [SucursalController::class, 'index']
+            )->name('empresas.sucursales.index');
+
+            Route::get(
+                '/empresas/{empresa}/sucursales/crear',
+                [SucursalController::class, 'create']
+            )->name('empresas.sucursales.create');
+
+            Route::post(
+                '/empresas/{empresa}/sucursales',
+                [SucursalController::class, 'store']
+            )->name('empresas.sucursales.store');
 
         });
 

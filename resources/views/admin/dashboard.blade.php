@@ -74,6 +74,15 @@
                     >
                         Administrar servicios
                     </a>
+
+                    @if (auth()->user()?->esPropietario())
+                        <a href="{{ route('admin.empresas.sucursales.index', [
+                            'empresa' =>1,]) }}"
+                            class="rounded-lg bg-purple-600 px-5 py-3 font-semibold text-white hover:bg-purple-700"
+                        >
+                            Sucursales y almacenes
+                        </a>
+                    @endif
                 </div>
             </section>
         </div>
