@@ -11,6 +11,7 @@ use App\Http\Controllers\Empleado\OrdenAsignadaController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
+use App\Http\Controllers\Productos\CategoriaProductoController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Supervisor\AsignacionController;
@@ -178,6 +179,56 @@ Route::middleware(['auth', 'administrador'])
 
         });
 
+    });
+
+Route::middleware([
+    'auth',
+    'verified',
+])
+    ->prefix('operacion')
+    ->name('productos.')
+    ->group(function (): void {
+        Route::get(
+            '/empresas/{empresa}/categorias-producto',
+            [CategoriaProductoController::class, 'index']
+        )
+            ->middleware('permission:productos.ver')
+            ->name('categorias.index');
+
+        Route::get(
+            '/empresas/{empresa}/categorias-producto/crear',
+            [CategoriaProductoController::class, 'create']
+        )
+            ->middleware('permission:productos.crear')
+            ->name('categorias.create');
+
+        Route::post(
+            '/empresas/{empresa}/categorias-producto',
+            [CategoriaProductoController::class, 'store']
+        )
+            ->middleware('permission:productos.crear')
+            ->name('categorias.store');
+
+        Route::get(
+            '/empresas/{empresa}/categorias-producto/{categoria}/editar',
+            [CategoriaProductoController::class, 'edit']
+        )
+            ->middleware('permission:productos.actualizar')
+            ->name('categorias.edit');
+
+        Route::put(
+            '/empresas/{empresa}/categorias-producto/{categoria}',
+            [CategoriaProductoController::class, 'update']
+        )
+            ->middleware('permission:productos.actualizar')
+            ->name('categorias.update');
+
+        Route::patch(
+            '/empresas/{empresa}/categorias-producto/{categoria}/estado',
+            [CategoriaProductoController::class, 'updateStatus']
+        )
+            ->middleware('permission:productos.cambiar_estado')
+            ->name('categorias.estado.update');
     });
 
 Route::middleware([
