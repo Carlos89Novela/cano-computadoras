@@ -2,7 +2,7 @@
     {{-- =====================================================
          ENCABEZADO
          Muestra el contexto de navegación y el título
-         para el registro de un nuevo proveedor.
+         para la edición de un proveedor existente.
     ====================================================== --}}
 
     <x-slot name="header">
@@ -13,7 +13,7 @@
                 </p>
 
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
-                    Nuevo proveedor
+                    Editar proveedor
                 </h2>
 
                 <p class="text-xs text-zinc-400">
@@ -37,8 +37,17 @@
     <div class="py-12">
         <div class="mx-auto w-full max-w-4xl space-y-6 px-4 sm:px-6 lg:px-8">
             {{-- =================================================
-                 MENSAJES DE ERROR
+                 MENSAJES DE ÉXITO Y ERROR
             ================================================== --}}
+
+            @if (session('success'))
+                <div
+                    class="rounded-lg border border-green-700 bg-green-950 p-4 text-green-200"
+                    role="status"
+                >
+                    {{ session('success') }}
+                </div>
+            @endif
 
             @if ($errors->any())
                 <div
@@ -46,7 +55,7 @@
                     role="alert"
                 >
                     <p class="font-semibold">
-                        No fue posible registrar el proveedor.
+                        No fue posible actualizar el proveedor.
                     </p>
 
                     <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
@@ -59,10 +68,11 @@
 
             {{-- =================================================
                  FICHA INFORMATIVA
+                 Muestra la empresa, el estado actual y autoría.
             ================================================== --}}
 
             <section class="rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow">
-                <dl class="grid gap-4 sm:grid-cols-2">
+                <dl class="grid gap-4 sm:grid-cols-3">
                     <div class="rounded-lg bg-zinc-950 p-4">
                         <dt class="text-xs font-semibold uppercase text-zinc-500">
                             Empresa
@@ -75,29 +85,61 @@
 
                     <div class="rounded-lg bg-zinc-950 p-4">
                         <dt class="text-xs font-semibold uppercase text-zinc-500">
-                            Estado inicial
+                            Estado
                         </dt>
 
-                        <dd class="mt-1 font-semibold text-green-400">
-                            Activo
+                        <dd class="mt-1 font-semibold">
+                            @if ($proveedor->activo)
+                                <span class="text-green-400">
+                                    Activo
+                                </span>
+                            @else
+                                <span class="text-red-400">
+                                    Inactivo
+                                </span>
+                            @endif
+                        </dd>
+                    </div>
+
+                    <div class="rounded-lg bg-zinc-950 p-4">
+                        <dt class="text-xs font-semibold uppercase text-zinc-500">
+                            Creado por
+                        </dt>
+
+                        <dd class="mt-1 font-semibold text-white">
+                            {{ $proveedor->creadoPor?->name ?? 'Usuario no disponible' }}
                         </dd>
                     </div>
                 </dl>
+
+                @if (! $proveedor->activo && $proveedor->motivo_desactivacion)
+                    <div class="mt-4 rounded-lg border border-red-900 bg-red-950/40 p-4 text-xs text-red-200">
+                        <p class="font-semibold text-red-300">
+                            Motivo de desactivación registrado:
+                        </p>
+
+                        <p class="mt-1 text-zinc-300">
+                            {{ $proveedor->motivo_desactivacion }}
+                        </p>
+                    </div>
+                @endif
             </section>
 
             {{-- =================================================
-                 FORMULARIO DE ALTA
-                 Envía los datos validados mediante POST a store.
+                 FORMULARIO DE EDICIÓN
+                 Envía los datos validados mediante PUT a update.
             ================================================== --}}
 
             <form
-                action="{{ route('proveedores.store', [
+                action="{{ route('proveedores.update', [
                     'empresa' => $empresa->id,
+                    'proveedor' => $proveedor->id,
                 ]) }}"
                 method="POST"
                 class="space-y-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow"
             >
                 @csrf
+                @method('PUT')
 
                 {{-- Fila 1: Código y Nombre --}}
                 <div class="grid gap-6 sm:grid-cols-2">
@@ -115,14 +157,13 @@
                             type="text"
                             required
                             maxlength="40"
-                            value="{{ old('codigo') }}"
+                            value="{{ old('codigo', $proveedor->codigo) }}"
                             @class([
                                 'w-full rounded-lg border bg-zinc-950 p-3 font-mono text-white placeholder:text-zinc-500 uppercase focus:ring-purple-500',
                                 'border-zinc-700 focus:border-purple-500' => ! $errors->has('codigo'),
                                 'border-red-600 focus:border-red-500' => $errors->has('codigo'),
                             ])
                             placeholder="Ejemplo: PROV-001"
-                            autofocus
                         >
 
                         <p class="mt-1 text-xs text-zinc-400">
@@ -150,7 +191,7 @@
                             type="text"
                             required
                             maxlength="200"
-                            value="{{ old('nombre') }}"
+                            value="{{ old('nombre', $proveedor->nombre) }}"
                             @class([
                                 'w-full rounded-lg border bg-zinc-950 p-3 text-white placeholder:text-zinc-500 focus:ring-purple-500',
                                 'border-zinc-700 focus:border-purple-500' => ! $errors->has('nombre'),
@@ -186,7 +227,7 @@
                             name="razon_social"
                             type="text"
                             maxlength="200"
-                            value="{{ old('razon_social') }}"
+                            value="{{ old('razon_social', $proveedor->razon_social) }}"
                             @class([
                                 'w-full rounded-lg border bg-zinc-950 p-3 text-white placeholder:text-zinc-500 focus:ring-purple-500',
                                 'border-zinc-700 focus:border-purple-500' => ! $errors->has('razon_social'),
@@ -219,7 +260,7 @@
                             name="rfc"
                             type="text"
                             maxlength="20"
-                            value="{{ old('rfc') }}"
+                            value="{{ old('rfc', $proveedor->rfc) }}"
                             @class([
                                 'w-full rounded-lg border bg-zinc-950 p-3 font-mono text-white placeholder:text-zinc-500 uppercase focus:ring-purple-500',
                                 'border-zinc-700 focus:border-purple-500' => ! $errors->has('rfc'),
@@ -255,7 +296,7 @@
                             name="contacto"
                             type="text"
                             maxlength="150"
-                            value="{{ old('contacto') }}"
+                            value="{{ old('contacto', $proveedor->contacto) }}"
                             @class([
                                 'w-full rounded-lg border bg-zinc-950 p-3 text-white placeholder:text-zinc-500 focus:ring-purple-500',
                                 'border-zinc-700 focus:border-purple-500' => ! $errors->has('contacto'),
@@ -288,7 +329,7 @@
                             name="telefono"
                             type="text"
                             maxlength="30"
-                            value="{{ old('telefono') }}"
+                            value="{{ old('telefono', $proveedor->telefono) }}"
                             @class([
                                 'w-full rounded-lg border bg-zinc-950 p-3 text-white placeholder:text-zinc-500 focus:ring-purple-500',
                                 'border-zinc-700 focus:border-purple-500' => ! $errors->has('telefono'),
@@ -321,7 +362,7 @@
                             name="correo"
                             type="email"
                             maxlength="255"
-                            value="{{ old('correo') }}"
+                            value="{{ old('correo', $proveedor->correo) }}"
                             @class([
                                 'w-full rounded-lg border bg-zinc-950 p-3 text-white placeholder:text-zinc-500 focus:ring-purple-500',
                                 'border-zinc-700 focus:border-purple-500' => ! $errors->has('correo'),
@@ -362,7 +403,7 @@
                             'border-red-600 focus:border-red-500' => $errors->has('direccion'),
                         ])
                         placeholder="Calle, número, colonia, código postal, municipio y estado."
-                    >{{ old('direccion') }}</textarea>
+                    >{{ old('direccion', $proveedor->direccion) }}</textarea>
 
                     <p class="mt-1 text-xs text-zinc-400">
                         Opcional. Domicilio para entregas o facturación (máximo 2000 caracteres).
@@ -395,7 +436,7 @@
                             'border-red-600 focus:border-red-500' => $errors->has('notas'),
                         ])
                         placeholder="Condiciones comerciales, días de crédito, tiempos estimados de entrega o acuerdos especiales."
-                    >{{ old('notas') }}</textarea>
+                    >{{ old('notas', $proveedor->notas) }}</textarea>
 
                     <p class="mt-1 text-xs text-zinc-400">
                         Opcional. Notas internas no visibles para el proveedor (máximo 4000 caracteres).
@@ -411,12 +452,12 @@
                 {{-- Aviso de Auditoría --}}
                 <div class="rounded-lg border border-blue-900 bg-blue-950/40 p-4">
                     <p class="font-semibold text-blue-200">
-                        Registro auditado
+                        Modificación auditada
                     </p>
 
                     <p class="mt-2 text-sm text-blue-100">
-                        El sistema registrará quién dio de alta al proveedor, la empresa propietaria,
-                        la fecha y hora exacta, la sesión y la dirección IP en la bitácora inmutable.
+                        Se registrarán los valores anteriores y nuevos, el usuario responsable,
+                        la fecha y hora exacta, la sesión y la dirección IP en la bitácora inmutable de auditoría.
                     </p>
                 </div>
 
@@ -426,7 +467,7 @@
                         type="submit"
                         class="rounded-lg bg-purple-600 px-6 py-3 font-semibold text-white transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
                     >
-                        Crear proveedor
+                        Guardar cambios
                     </button>
 
                     <a
@@ -442,4 +483,3 @@
         </div>
     </div>
 </x-app-layout>
-

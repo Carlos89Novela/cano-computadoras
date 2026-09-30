@@ -128,4 +128,3 @@ class UpdateEquipoRequest extends FormRequest
         return $valor !== '' ? $valor : null;
     }
 }
-

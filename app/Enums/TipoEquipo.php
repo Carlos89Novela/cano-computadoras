@@ -34,4 +34,3 @@ enum TipoEquipo: string
         );
     }
 }
-

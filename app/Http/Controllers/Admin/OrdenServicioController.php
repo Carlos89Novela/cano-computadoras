@@ -13,6 +13,7 @@ use App\Notifications\EstadoReparacionActualizado;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -63,7 +64,7 @@ class OrdenServicioController extends Controller
      * filtros exactos por estado, ordenamiento relacional y renderizado de componentes parciales HTML.
      *
      * @param  Request  $request  Petición DataTables con parámetros draw, start, length, order y search.
-     * @return \Illuminate\Http\JsonResponse Respuesta JSON compatible con el protocolo DataTables.
+     * @return JsonResponse Respuesta JSON compatible con el protocolo DataTables.
      */
     public function data(Request $request)
     {
@@ -281,7 +282,7 @@ class OrdenServicioController extends Controller
      * alertando opcionalmente al cliente con mensajes personalizados.
      *
      * @param  BulkUpdateOrdenServicioRequest  $request  Petición validada con arreglo de IDs y estado destino.
-     * @return \Illuminate\Http\JsonResponse Resumen de conteos: exitosas, omitidas y fallidas.
+     * @return JsonResponse Resumen de conteos: exitosas, omitidas y fallidas.
      */
     public function bulkUpdate(BulkUpdateOrdenServicioRequest $request)
     {

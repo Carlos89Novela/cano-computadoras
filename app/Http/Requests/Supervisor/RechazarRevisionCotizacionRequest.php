@@ -93,4 +93,3 @@ class RechazarRevisionCotizacionRequest extends FormRequest
         ];
     }
 }
-

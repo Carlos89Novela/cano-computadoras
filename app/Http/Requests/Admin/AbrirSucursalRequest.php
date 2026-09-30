@@ -174,4 +174,3 @@ class AbrirSucursalRequest extends FormRequest
         ];
     }
 }
-

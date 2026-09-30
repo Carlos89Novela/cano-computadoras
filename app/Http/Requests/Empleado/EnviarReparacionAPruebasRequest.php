@@ -91,4 +91,3 @@ class EnviarReparacionAPruebasRequest extends FormRequest
         ];
     }
 }
-

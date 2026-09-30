@@ -200,7 +200,6 @@ class ActualizarPermisosUsuario
      * @param  User  $usuario  Usuario receptor.
      * @param  array<int, string>  $permisos  Listado normalizado de permisos.
      * @param  string  $motivo  Justificación.
-     * @return void
      *
      * @throws AuthorizationException Si el actor no tiene privilegios o intenta alterar su propia cuenta/propietario.
      * @throws ValidationException Si se incluyen permisos no delegables o falta justificación.

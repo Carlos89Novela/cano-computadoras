@@ -164,4 +164,3 @@ class ActualizarPermisosUsuarioRequest extends FormRequest
             ->all();
     }
 }
-

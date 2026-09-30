@@ -345,7 +345,6 @@ class AbrirSucursal
      * @param  User  $actor  Usuario ejecutante.
      * @param  User  $gerente  Candidato a gerente de sucursal.
      * @param  array<string, mixed>  $datos  Datos normalizados de la sucursal.
-     * @return void
      *
      * @throws AuthorizationException Si el usuario no es el propietario.
      * @throws ValidationException Si la empresa está inactiva o los campos no cumplen formato.

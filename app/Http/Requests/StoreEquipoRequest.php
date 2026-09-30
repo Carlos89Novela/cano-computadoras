@@ -124,4 +124,3 @@ class StoreEquipoRequest extends FormRequest
         return $valor !== '' ? $valor : null;
     }
 }
-

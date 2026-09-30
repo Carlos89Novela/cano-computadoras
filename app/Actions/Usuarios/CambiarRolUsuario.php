@@ -165,7 +165,6 @@ class CambiarRolUsuario
      * @param  User  $usuario  Usuario a modificar.
      * @param  string  $nuevoRol  Rol solicitado.
      * @param  string  $motivo  Motivo de cambio.
-     * @return void
      *
      * @throws AuthorizationException Si el actor no es propietario o intenta modificar una cuenta protegida.
      * @throws ValidationException Si el rol no pertenece a la lista autorizada o falta el motivo.

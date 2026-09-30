@@ -116,4 +116,3 @@ class CambiarRolUsuarioRequest extends FormRequest
         ];
     }
 }
-

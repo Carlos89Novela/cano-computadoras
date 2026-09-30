@@ -129,4 +129,3 @@ class ActualizarCategoriaProductoRequest extends FormRequest
         ];
     }
 }
-

@@ -237,4 +237,3 @@ class RolesAndPermissionsSeeder extends Seeder
             ->forgetCachedPermissions();
     }
 }
-

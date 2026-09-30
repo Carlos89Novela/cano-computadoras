@@ -59,4 +59,3 @@ return new class extends Migration
         Schema::dropIfExists('orden_servicios');
     }
 };
-

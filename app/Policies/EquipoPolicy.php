@@ -64,4 +64,3 @@ class EquipoPolicy
         return (int) $equipo->user_id === (int) $user->id;
     }
 }
-

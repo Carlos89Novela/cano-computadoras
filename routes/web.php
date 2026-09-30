@@ -13,6 +13,7 @@ use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Proveedores\ProveedorController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
@@ -229,6 +230,92 @@ Route::middleware([
         )
             ->middleware('permission:productos.cambiar_estado')
             ->name('categorias.estado.update');
+    });
+
+// =========================================================
+// PROVEEDORES
+// Rutas operativas para consultar y administrar proveedores.
+// Cada operación exige su permiso correspondiente.
+// =========================================================
+
+Route::middleware([
+    'auth',
+    'verified',
+])
+    ->prefix('operacion')
+    ->name('proveedores.')
+    ->group(function (): void {
+        // -------------------------------------------------
+        // LISTADO
+        // Permite consultar proveedores de una empresa.
+        // -------------------------------------------------
+
+        Route::get(
+            '/empresas/{empresa}/proveedores',
+            [ProveedorController::class, 'index']
+        )
+            ->middleware('permission:productos.ver')
+            ->name('index');
+
+        // -------------------------------------------------
+        // FORMULARIO DE CREACIÓN
+        // Muestra la pantalla para registrar un proveedor.
+        // -------------------------------------------------
+
+        Route::get(
+            '/empresas/{empresa}/proveedores/crear',
+            [ProveedorController::class, 'create']
+        )
+            ->middleware('permission:productos.crear')
+            ->name('create');
+
+        // -------------------------------------------------
+        // REGISTRO
+        // Procesa el alta auditada del proveedor.
+        // -------------------------------------------------
+
+        Route::post(
+            '/empresas/{empresa}/proveedores',
+            [ProveedorController::class, 'store']
+        )
+            ->middleware('permission:productos.crear')
+            ->name('store');
+
+        // -------------------------------------------------
+        // FORMULARIO DE EDICIÓN
+        // Muestra los datos actuales del proveedor.
+        // -------------------------------------------------
+
+        Route::get(
+            '/empresas/{empresa}/proveedores/{proveedor}/editar',
+            [ProveedorController::class, 'edit']
+        )
+            ->middleware('permission:productos.actualizar')
+            ->name('edit');
+
+        // -------------------------------------------------
+        // ACTUALIZACIÓN
+        // Modifica datos generales, pero no el estado.
+        // -------------------------------------------------
+
+        Route::put(
+            '/empresas/{empresa}/proveedores/{proveedor}',
+            [ProveedorController::class, 'update']
+        )
+            ->middleware('permission:productos.actualizar')
+            ->name('update');
+
+        // -------------------------------------------------
+        // CAMBIO DE ESTADO
+        // Desactiva o reactiva con motivo obligatorio.
+        // -------------------------------------------------
+
+        Route::patch(
+            '/empresas/{empresa}/proveedores/{proveedor}/estado',
+            [ProveedorController::class, 'updateStatus']
+        )
+            ->middleware('permission:productos.cambiar_estado')
+            ->name('estado.update');
     });
 
 Route::middleware([

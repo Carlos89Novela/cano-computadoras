@@ -297,4 +297,3 @@ class CategoriaProductoController extends Controller
             );
     }
 }
-

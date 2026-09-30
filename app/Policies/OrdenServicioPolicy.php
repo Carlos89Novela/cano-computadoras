@@ -374,4 +374,3 @@ class OrdenServicioPolicy
         return (int) $orden->user_id === (int) $user->id;
     }
 }
-

@@ -161,4 +161,3 @@ class UpdateOrdenTecnicaRequest extends FormRequest
         ];
     }
 }
-

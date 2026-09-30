@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers\Proveedores;
 
+use App\Actions\Proveedores\ActualizarProveedor;
+use App\Actions\Proveedores\CambiarEstadoProveedor;
 use App\Actions\Proveedores\CrearProveedor;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Proveedores\ActualizarProveedorRequest;
+use App\Http\Requests\Proveedores\CambiarEstadoProveedorRequest;
 use App\Http\Requests\Proveedores\CrearProveedorRequest;
 use App\Models\Empresa;
+use App\Models\Proveedor;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -130,6 +135,187 @@ class ProveedorController extends Controller
             ->with(
                 'success',
                 'El proveedor fue creado correctamente.'
+            );
+    }
+
+    // ---------------------------------------------------------
+    // FORMULARIO DE EDICIÓN
+    // Comprueba que el proveedor pertenezca a la empresa y
+    // carga los datos de auditoría que mostrará la vista.
+    // ---------------------------------------------------------
+
+    public function edit(
+        Empresa $empresa,
+        Proveedor $proveedor
+    ): View {
+        abort_unless(
+            (int) $proveedor->empresa_id
+            === (int) $empresa->id,
+            404
+        );
+
+        $proveedor->load([
+            'creadoPor:id,name',
+            'actualizadoPor:id,name',
+            'desactivadoPor:id,name',
+        ]);
+
+        /** @var view-string $vista */
+        $vista = 'proveedores.edit';
+
+        return view(
+            $vista,
+            compact(
+                'empresa',
+                'proveedor',
+            )
+        );
+    }
+
+    // ---------------------------------------------------------
+    // ACTUALIZACIÓN DEL PROVEEDOR
+    // Recibe datos validados y delega la operación a la acción
+    // transaccional ActualizarProveedor.
+    // ---------------------------------------------------------
+
+    public function update(
+        ActualizarProveedorRequest $request,
+        Empresa $empresa,
+        Proveedor $proveedor,
+        ActualizarProveedor $actualizarProveedor
+    ): RedirectResponse {
+        // -----------------------------------------------------
+        // ACTOR AUTENTICADO
+        // El Form Request ya autorizó el permiso, pero esta
+        // comprobación garantiza un objeto User válido.
+        // -----------------------------------------------------
+
+        $actor = $request->user();
+
+        abort_unless(
+            $actor instanceof User,
+            403
+        );
+
+        // -----------------------------------------------------
+        // DATOS VALIDADOS
+        // Solo contiene los campos permitidos por el Request.
+        // No incluye estado, empresa ni datos de auditoría.
+        // -----------------------------------------------------
+
+        $datos = $request->validated();
+
+        // -----------------------------------------------------
+        // EJECUCIÓN TRANSACCIONAL
+        // Normaliza los datos, evita códigos duplicados y crea
+        // el registro de auditoría.
+        // -----------------------------------------------------
+
+        $actualizarProveedor->ejecutar(
+            empresa: $empresa,
+            proveedor: $proveedor,
+            actor: $actor,
+            datos: $datos,
+            request: $request
+        );
+
+        // -----------------------------------------------------
+        // REDIRECCIÓN
+        // Regresa al formulario del proveedor actualizado.
+        // -----------------------------------------------------
+
+        return redirect()
+            ->route(
+                'proveedores.edit',
+                [
+                    'empresa' => $empresa->id,
+                    'proveedor' => $proveedor->id,
+                ]
+            )
+            ->with(
+                'success',
+                'El proveedor fue actualizado correctamente.'
+            );
+    }
+
+    // ---------------------------------------------------------
+    // CAMBIO DE ESTADO
+    // Desactiva o reactiva un proveedor sin eliminarlo.
+    // El motivo es obligatorio y queda registrado en auditoría.
+    // ---------------------------------------------------------
+
+    public function updateStatus(
+        CambiarEstadoProveedorRequest $request,
+        Empresa $empresa,
+        Proveedor $proveedor,
+        CambiarEstadoProveedor $cambiarEstado
+    ): RedirectResponse {
+        // -----------------------------------------------------
+        // ACTOR AUTENTICADO
+        // Confirma que exista un usuario válido en la sesión.
+        // -----------------------------------------------------
+
+        $actor = $request->user();
+
+        abort_unless(
+            $actor instanceof User,
+            403
+        );
+
+        // -----------------------------------------------------
+        // DATOS VALIDADOS
+        // Este endpoint solo acepta "activar" y "motivo".
+        // -----------------------------------------------------
+
+        $datos = $request->validated();
+
+        $activar = $datos['activar'] ?? null;
+        $motivo = $datos['motivo'] ?? null;
+
+        abort_unless(
+            is_bool($activar),
+            422
+        );
+
+        abort_unless(
+            is_string($motivo),
+            422
+        );
+
+        // -----------------------------------------------------
+        // EJECUCIÓN TRANSACCIONAL
+        // Actualiza el estado y registra valores anteriores,
+        // nuevos, actor, motivo, IP y sesión.
+        // -----------------------------------------------------
+
+        $cambiarEstado->ejecutar(
+            empresa: $empresa,
+            proveedor: $proveedor,
+            actor: $actor,
+            activar: $activar,
+            motivo: $motivo,
+            request: $request
+        );
+
+        // -----------------------------------------------------
+        // MENSAJE DINÁMICO
+        // Cambia según se haya reactivado o desactivado.
+        // -----------------------------------------------------
+
+        $mensaje = $activar
+            ? 'El proveedor fue reactivado correctamente.'
+            : 'El proveedor fue desactivado correctamente.';
+
+        return redirect()
+            ->route(
+                'proveedores.index',
+                [
+                    'empresa' => $empresa->id,
+                ]
+            )
+            ->with(
+                'success',
+                $mensaje
             );
     }
 }
