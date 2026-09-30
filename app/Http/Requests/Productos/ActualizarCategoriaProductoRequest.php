@@ -8,8 +8,23 @@ use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Solicitud de Validación para la Actualización de Categorías de Productos.
+ *
+ * Aplica los controles de seguridad multitenant y unicidad empresarial:
+ * - Aislamiento Multitenant: Verifica que la categoría pertenezca inequívocamente
+ *   a la empresa vinculada en la ruta y que el actor posea el permiso `productos.actualizar`.
+ * - Unicidad por Empresa: Asegura que el nuevo nombre no colisione con otra categoría
+ *   dentro de la misma empresa, ignorando el identificador de la categoría en edición.
+ * - Normalización de cadenas de texto.
+ */
 class ActualizarCategoriaProductoRequest extends FormRequest
 {
+    /**
+     * Determina si el actor tiene autorización para modificar categorías en esta empresa.
+     *
+     * @return bool Verdadero si el usuario tiene permiso y se respeta el aislamiento multitenant.
+     */
     public function authorize(): bool
     {
         $actor = $this->user();
@@ -23,6 +38,9 @@ class ActualizarCategoriaProductoRequest extends FormRequest
             && $actor->can('productos.actualizar');
     }
 
+    /**
+     * Normaliza los textos de nombre y descripción antes de validar.
+     */
     protected function prepareForValidation(): void
     {
         $nombre = $this->input('nombre');
@@ -38,12 +56,18 @@ class ActualizarCategoriaProductoRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Define las reglas de validación para la categoría.
+     *
+     * @return array<string, mixed> Reglas de validación aplicables.
+     */
     public function rules(): array
     {
         $empresa = $this->route('empresa');
         $categoria = $this->route('categoria');
 
         return [
+            // Nombre de la categoría con unicidad restringida al ámbito de la empresa
             'nombre' => [
                 'required',
                 'string',
@@ -66,6 +90,7 @@ class ActualizarCategoriaProductoRequest extends FormRequest
                             : null
                     ),
             ],
+            // Descripción técnica o comercial de la categoría (opcional)
             'descripcion' => [
                 'nullable',
                 'string',
@@ -74,6 +99,11 @@ class ActualizarCategoriaProductoRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para la validación.
+     *
+     * @return array<string, string> Mensajes legibles.
+     */
     public function messages(): array
     {
         return [
@@ -86,6 +116,11 @@ class ActualizarCategoriaProductoRequest extends FormRequest
         ];
     }
 
+    /**
+     * Nombres legibles para los atributos evaluados.
+     *
+     * @return array<string, string> Nombres amigables.
+     */
     public function attributes(): array
     {
         return [
@@ -94,3 +129,4 @@ class ActualizarCategoriaProductoRequest extends FormRequest
         ];
     }
 }
+

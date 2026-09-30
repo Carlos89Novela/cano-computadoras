@@ -7,8 +7,22 @@ use App\Models\Equipo;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Solicitud de Validación para la Actualización de Equipos del Cliente.
+ *
+ * Aplica los controles de autorización y validación sobre modificaciones a un equipo:
+ * - Valida mediante Policy que el usuario autenticado sea el dueño legítimo del equipo.
+ * - Sanitiza y recorta cadenas de texto (tipo, marca, modelo).
+ * - Convierte cadenas vacías en valores nulos limpios para número de serie y descripción.
+ * - Restringe el tipo de equipo a los valores autorizados en el enum `TipoEquipo`.
+ */
 class UpdateEquipoRequest extends FormRequest
 {
+    /**
+     * Determina si el cliente autenticado tiene permiso para editar este equipo.
+     *
+     * @return bool Verdadero si la Policy de equipos autoriza la operación.
+     */
     public function authorize(): bool
     {
         $equipo = $this->route('equipo');
@@ -17,6 +31,9 @@ class UpdateEquipoRequest extends FormRequest
             && $this->user()?->can('update', $equipo) === true;
     }
 
+    /**
+     * Normaliza los valores antes de aplicar las reglas de validación.
+     */
     protected function prepareForValidation(): void
     {
         $this->merge([
@@ -32,30 +49,40 @@ class UpdateEquipoRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Define las reglas de validación aplicables a la actualización del equipo.
+     *
+     * @return array<string, mixed> Reglas de validación.
+     */
     public function rules(): array
     {
         return [
+            // Tipo de dispositivo validado contra el enum TipoEquipo
             'tipo' => [
                 'required',
                 'string',
                 Rule::in(TipoEquipo::valores()),
                 'max:100',
             ],
+            // Marca o fabricante
             'marca' => [
                 'required',
                 'string',
                 'max:100',
             ],
+            // Modelo del equipo
             'modelo' => [
                 'required',
                 'string',
                 'max:100',
             ],
+            // Número de serie del fabricante (opcional)
             'numero_serie' => [
                 'nullable',
                 'string',
                 'max:150',
             ],
+            // Descripción o características adicionales (opcional)
             'descripcion' => [
                 'nullable',
                 'string',
@@ -64,6 +91,11 @@ class UpdateEquipoRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para la validación.
+     *
+     * @return array<string, string> Mensajes de error específicos.
+     */
     public function messages(): array
     {
         return [
@@ -79,6 +111,12 @@ class UpdateEquipoRequest extends FormRequest
         ];
     }
 
+    /**
+     * Limpia un valor opcional retornando null si está vacío o no es una cadena.
+     *
+     * @param  mixed  $valor  Dato crudo de entrada.
+     * @return string|null Cadena recortada o null.
+     */
     private function normalizarOpcional(mixed $valor): ?string
     {
         if (! is_string($valor)) {
@@ -90,3 +128,4 @@ class UpdateEquipoRequest extends FormRequest
         return $valor !== '' ? $valor : null;
     }
 }
+

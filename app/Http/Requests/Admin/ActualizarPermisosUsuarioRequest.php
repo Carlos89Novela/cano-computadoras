@@ -6,8 +6,25 @@ use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Solicitud de Validación para la Actualización de Permisos Directos de Usuarios.
+ *
+ * Aplica salvaguardas estrictas de control de acceso jerárquico y separación de funciones:
+ * - Exclusividad del Propietario: Solo un administrador con bandera de propietario puede
+ *   delegar o revocar permisos directos.
+ * - Inmunidad de Propietarios y Auto-modificación: Impide alterar los permisos de otro propietario
+ *   o auto-modificar los propios para evitar escalada de privilegios o auto-bloqueos.
+ * - Lista Blanca de Permisos Delegables: Solo admite permisos explícitamente declarados
+ *   como delegables en la configuración (`access_control.permisos_delegables`).
+ * - Motivo Obligatorio: Todo ajuste en privilegios debe registrar una justificación para auditoría.
+ */
 class ActualizarPermisosUsuarioRequest extends FormRequest
 {
+    /**
+     * Valida que el actor sea propietario y que el usuario objetivo no sea propietario ni él mismo.
+     *
+     * @return bool Verdadero si la jerarquía autoriza la modificación de permisos.
+     */
     public function authorize(): bool
     {
         $actor = $this->user();
@@ -21,6 +38,9 @@ class ActualizarPermisosUsuarioRequest extends FormRequest
             && (int) $actor->id !== (int) $usuario->id;
     }
 
+    /**
+     * Asegura la estructura de matriz para permisos y recorta el motivo de cambio.
+     */
     protected function prepareForValidation(): void
     {
         $permisos = $this->input(
@@ -42,20 +62,28 @@ class ActualizarPermisosUsuarioRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Define las reglas de validación para los permisos delegables y el motivo.
+     *
+     * @return array<string, mixed> Reglas de validación aplicables.
+     */
     public function rules(): array
     {
         $permisosDelegables =
             $this->permisosDelegables();
 
         return [
+            // Arreglo de identificadores de permisos seleccionados
             'permisos' => [
                 'present',
                 'array',
             ],
+            // Cada permiso debe ser una cadena perteneciente a la lista blanca delegable
             'permisos.*' => [
                 'string',
                 Rule::in($permisosDelegables),
             ],
+            // Justificación obligatoria para la bitácora de auditoría
             'motivo_permisos' => [
                 'required',
                 'string',
@@ -64,6 +92,11 @@ class ActualizarPermisosUsuarioRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para la delegación de permisos.
+     *
+     * @return array<string, string> Mensajes de error legibles.
+     */
     public function messages(): array
     {
         return [
@@ -77,6 +110,11 @@ class ActualizarPermisosUsuarioRequest extends FormRequest
         ];
     }
 
+    /**
+     * Nombres amigables para los atributos en caso de fallos.
+     *
+     * @return array<string, string> Nombres legibles.
+     */
     public function attributes(): array
     {
         return [
@@ -86,7 +124,9 @@ class ActualizarPermisosUsuarioRequest extends FormRequest
     }
 
     /**
-     * @return array<int, string>
+     * Extrae y compila la lista blanca de permisos que pueden ser otorgados de forma delegada.
+     *
+     * @return array<int, string> Lista plana de nombres de permisos autorizados para delegación.
      */
     private function permisosDelegables(): array
     {
@@ -124,3 +164,4 @@ class ActualizarPermisosUsuarioRequest extends FormRequest
             ->all();
     }
 }
+

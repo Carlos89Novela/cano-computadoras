@@ -9,10 +9,22 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
+/**
+ * Controlador para la Solicitud de Enlaces de Restablecimiento de Contraseña.
+ *
+ * Expone la interfaz y la lógica de envío de correos electrónicos para
+ * recuperación de cuenta:
+ * 1. Muestra la pantalla "Olvidé mi contraseña".
+ * 2. Valida la existencia y formato del correo provisto.
+ * 3. Delega en el Password Broker la generación de un token criptográfico seguro
+ *    y el envío del correo electrónico con el enlace de un solo uso.
+ */
 class PasswordResetLinkController extends Controller
 {
     /**
-     * Display the password reset link request view.
+     * Muestra la vista del formulario para solicitar el enlace de recuperación.
+     *
+     * @return View Vista Blade de recuperación de contraseña.
      */
     public function create(): View
     {
@@ -20,9 +32,12 @@ class PasswordResetLinkController extends Controller
     }
 
     /**
-     * Handle an incoming password reset link request.
+     * Procesa la solicitud y despacha el correo con el enlace de restablecimiento.
      *
-     * @throws ValidationException
+     * @param  Request  $request  Petición HTTP entrante con el campo 'email'.
+     * @return RedirectResponse Retorno a la vista previa con el estado o errores resultantes.
+     *
+     * @throws ValidationException Si el correo no cuenta con el formato requerido.
      */
     public function store(Request $request): RedirectResponse
     {
@@ -30,16 +45,16 @@ class PasswordResetLinkController extends Controller
             'email' => ['required', 'email'],
         ]);
 
-        // We will send the password reset link to this user. Once we have attempted
-        // to send the link, we will examine the response then see the message we
-        // need to show to the user. Finally, we'll send out a proper response.
+        // Genera el token y despacha la notificación por correo al destinatario
         $status = Password::sendResetLink(
             $request->only('email')
         );
 
+        // Retorna con confirmación o mensaje de error según la respuesta del broker
         return $status == Password::RESET_LINK_SENT
-                    ? back()->with('status', __($status))
-                    : back()->withInput($request->only('email'))
-                        ->withErrors(['email' => __($status)]);
+            ? back()->with('status', __($status))
+            : back()->withInput($request->only('email'))
+                ->withErrors(['email' => __($status)]);
     }
 }
+

@@ -7,8 +7,24 @@ use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Solicitud de Validación para la Apertura de Sucursales de Empresa.
+ *
+ * Aplica los controles de autorización corporativa y reglas de integridad para dar de alta
+ * una nueva unidad de negocio o sucursal operativa:
+ * - Exclusividad de autorización: Reservado exclusivamente para el Administrador que ostenta
+ *   la condición de Propietario de la Empresa (`esPropietario()`).
+ * - Unicidad multitenant: Garantiza que el código de la sucursal sea único en el contexto
+ *   específico de la empresa receptora.
+ * - Obligatoriedad de motivo: Exige explicitar la justificación comercial/operativa para auditoría.
+ */
 class AbrirSucursalRequest extends FormRequest
 {
+    /**
+     * Determina si el actor autenticado cuenta con las facultades de propietario de la empresa.
+     *
+     * @return bool Verdadero solo si el usuario es administrador y propietario.
+     */
     public function authorize(): bool
     {
         $actor = $this->user();
@@ -20,6 +36,9 @@ class AbrirSucursalRequest extends FormRequest
             && $actor->esPropietario();
     }
 
+    /**
+     * Normaliza y recorta los campos de texto antes de la validación.
+     */
     protected function prepareForValidation(): void
     {
         $campos = [
@@ -51,16 +70,23 @@ class AbrirSucursalRequest extends FormRequest
         $this->merge($normalizados);
     }
 
+    /**
+     * Define las reglas de validación para la creación de la sucursal.
+     *
+     * @return array<string, mixed> Reglas de validación aplicables.
+     */
     public function rules(): array
     {
         $empresa = $this->route('empresa');
 
         return [
+            // Gerente o responsable operativo de la nueva sucursal
             'gerente_id' => [
                 'required',
                 'integer',
                 Rule::exists('users', 'id'),
             ],
+            // Código nemotécnico alfanumérico único para la empresa
             'codigo' => [
                 'required',
                 'string',
@@ -76,6 +102,7 @@ class AbrirSucursalRequest extends FormRequest
                         )
                     ),
             ],
+            // Nombre comercial o descriptivo de la sucursal
             'nombre' => [
                 'required',
                 'string',
@@ -111,10 +138,12 @@ class AbrirSucursalRequest extends FormRequest
                 'string',
                 'max:10',
             ],
+            // Indicador de si esta sucursal fungirá como matriz o sede principal
             'es_principal' => [
                 'required',
                 'boolean',
             ],
+            // Justificación obligatoria para la bitácora de auditoría corporativa
             'motivo' => [
                 'required',
                 'string',
@@ -123,6 +152,11 @@ class AbrirSucursalRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para la validación de la sucursal.
+     *
+     * @return array<string, string> Mensajes de validación legibles.
+     */
     public function messages(): array
     {
         return [
@@ -140,3 +174,4 @@ class AbrirSucursalRequest extends FormRequest
         ];
     }
 }
+

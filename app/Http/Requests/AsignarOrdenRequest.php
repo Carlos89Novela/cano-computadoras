@@ -4,8 +4,22 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
+/**
+ * Solicitud de Validación para la Asignación y Reasignación de Órdenes de Servicio.
+ *
+ * Aplica los controles de autorización y reglas de integridad para vincular
+ * un empleado técnico responsable a una orden de servicio de taller:
+ * - Valida permisos operativos de asignación o reasignación vía Spatie.
+ * - Limpia y normaliza las observaciones o instrucciones para el técnico.
+ * - Verifica la existencia del identificador del empleado en la tabla de usuarios.
+ */
 class AsignarOrdenRequest extends FormRequest
 {
+    /**
+     * Determina si el usuario autenticado tiene autorización para asignar técnicos a órdenes.
+     *
+     * @return bool Verdadero si el usuario cuenta con los permisos requeridos.
+     */
     public function authorize(): bool
     {
         $usuario = $this->user();
@@ -17,6 +31,9 @@ class AsignarOrdenRequest extends FormRequest
             ]);
     }
 
+    /**
+     * Normaliza los datos antes de aplicar las reglas de validación.
+     */
     protected function prepareForValidation(): void
     {
         $observaciones = $this->input('observaciones');
@@ -28,14 +45,21 @@ class AsignarOrdenRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Define las reglas de validación aplicables a la petición.
+     *
+     * @return array<string, mixed> Matriz de reglas de validación.
+     */
     public function rules(): array
     {
         return [
+            // El técnico debe existir obligatoriamente en la tabla de usuarios
             'empleado_id' => [
                 'required',
                 'integer',
                 'exists:users,id',
             ],
+            // Notas u orientaciones de trabajo opcionales para el técnico asignado
             'observaciones' => [
                 'nullable',
                 'string',
@@ -44,6 +68,11 @@ class AsignarOrdenRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para la validación.
+     *
+     * @return array<string, string> Matriz asociativa de mensajes.
+     */
     public function messages(): array
     {
         return [
@@ -54,6 +83,11 @@ class AsignarOrdenRequest extends FormRequest
         ];
     }
 
+    /**
+     * Nombres legibles para los atributos en caso de fallos de validación.
+     *
+     * @return array<string, string> Nombres de atributos amigables.
+     */
     public function attributes(): array
     {
         return [
@@ -62,3 +96,4 @@ class AsignarOrdenRequest extends FormRequest
         ];
     }
 }
+

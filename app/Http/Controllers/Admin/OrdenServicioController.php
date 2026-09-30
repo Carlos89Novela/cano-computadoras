@@ -22,8 +22,23 @@ use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
+/**
+ * Controlador de Gestión Administrativa de Órdenes de Servicio.
+ *
+ * Módulo neurálgico para el control operativo y directivo del taller:
+ * - Tablero interactivo con DataTables del lado del servidor (búsqueda multicampo, ordenamiento compuesto y paginación).
+ * - Actualización masiva de órdenes con validación estricta de máquinas de estados (`permiteTransicionA`).
+ * - Edición individual de estados, diagnósticos, costos preliminares/definitivos y notas.
+ * - Despacho automático de notificaciones telemáticas a clientes ante actualizaciones de avance.
+ * - Generación de reportes ejecutivos en formatos CSV (con BOM UTF-8) y PDF apaisado.
+ */
 class OrdenServicioController extends Controller
 {
+    /**
+     * Muestra la bandeja administrativa de órdenes con catálogos de filtros rápidos.
+     *
+     * @return View Vista 'admin.ordenes.index' con órdenes recientes y estados para filtrado.
+     */
     public function index(): View
     {
         $ordenes = OrdenServicio::query()
@@ -41,8 +56,18 @@ class OrdenServicioController extends Controller
         ));
     }
 
+    /**
+     * Endpoint JSON para DataTables con procesamiento 100% del lado del servidor.
+     *
+     * Permite búsquedas globales concurrentes (folio, estado, nombre del cliente, marca, modelo o serie del equipo),
+     * filtros exactos por estado, ordenamiento relacional y renderizado de componentes parciales HTML.
+     *
+     * @param  Request  $request  Petición DataTables con parámetros draw, start, length, order y search.
+     * @return \Illuminate\Http\JsonResponse Respuesta JSON compatible con el protocolo DataTables.
+     */
     public function data(Request $request)
     {
+        // Mapeo seguro de columnas ordenables en base de datos para prevenir inyecciones SQL
         $columnasPermitidas = [
             'folio' => 'orden_servicios.folio',
             'estado' => 'orden_servicios.estado',
@@ -59,6 +84,7 @@ class OrdenServicioController extends Controller
 
         $recordsTotal = OrdenServicio::query()->count();
 
+        // Filtro exacto por estado operativo
         $estadoFiltro = $request->string('estado')->trim()->toString();
 
         if (
@@ -72,6 +98,7 @@ class OrdenServicioController extends Controller
             );
         }
 
+        // Búsqueda multicriterio (Full-text LIKE en orden, cliente y equipo)
         $search = $request->input('search.value');
 
         if (is_string($search) && trim($search) !== '') {
@@ -119,6 +146,7 @@ class OrdenServicioController extends Controller
 
         $recordsFiltered = (clone $query)->count();
 
+        // Resolución del ordenamiento dinámico
         $orderColumnIndex = $request->integer('order.0.column');
         $orderColumn = $request->input(
             "columns.{$orderColumnIndex}.data"
@@ -133,6 +161,7 @@ class OrdenServicioController extends Controller
         }
 
         if ($orderColumn === 'cliente') {
+            // Ordenamiento por subconsulta sobre el nombre del usuario
             $query->orderBy(
                 User::query()
                     ->select('name')
@@ -144,6 +173,7 @@ class OrdenServicioController extends Controller
                 $orderDirection
             );
         } elseif ($orderColumn === 'equipo') {
+            // Ordenamiento por subconsultas sobre la marca y modelo del equipo
             $query
                 ->orderBy(
                     Equipo::query()
@@ -243,6 +273,16 @@ class OrdenServicioController extends Controller
         ]);
     }
 
+    /**
+     * Procesa la actualización masiva de estados sobre múltiples órdenes seleccionadas.
+     *
+     * Valida de manera individual que cada orden cumpla con la máquina de transiciones permitidas
+     * (`permiteTransicionA`). Omite órdenes incompatibles y registra en bitácora cada actualización efectiva,
+     * alertando opcionalmente al cliente con mensajes personalizados.
+     *
+     * @param  BulkUpdateOrdenServicioRequest  $request  Petición validada con arreglo de IDs y estado destino.
+     * @return \Illuminate\Http\JsonResponse Resumen de conteos: exitosas, omitidas y fallidas.
+     */
     public function bulkUpdate(BulkUpdateOrdenServicioRequest $request)
     {
         $datos = $request->validated();
@@ -271,6 +311,7 @@ class OrdenServicioController extends Controller
             $tieneComentario = filled($datos['comentario'] ?? null);
             $tieneMensajeCliente = filled($datos['mensaje_cliente'] ?? null);
 
+            // Regla de negocio: La máquina de estados debe permitir la transición hacia el nuevo estado
             if (
                 $estadoCambio
                 && ! $estadoActual->permiteTransicionA($nuevoEstado)
@@ -280,6 +321,7 @@ class OrdenServicioController extends Controller
                 continue;
             }
 
+            // Si no hay cambio de estado ni notas, no se procesa
             if (! $estadoCambio && ! $tieneComentario && ! $tieneMensajeCliente) {
                 $ordenesOmitidas++;
 
@@ -294,6 +336,7 @@ class OrdenServicioController extends Controller
                     $orden,
                     $request
                 ): void {
+                    // Actualiza estado y ajusta fecha de entrega si corresponde
                     if ($estadoCambio) {
                         $orden->update([
                             'estado' => $nuevoEstado->value,
@@ -303,6 +346,7 @@ class OrdenServicioController extends Controller
                         ]);
                     }
 
+                    // Asienta en la bitácora interna de la orden
                     $orden->historial()->create([
                         'user_id' => $request->user()->id,
                         'estado' => $orden->estado,
@@ -328,6 +372,7 @@ class OrdenServicioController extends Controller
 
             $orden->refresh();
 
+            // Notificación al cliente si cambió el estado o se agregó un mensaje explícito
             $debeNotificar = $estadoCambio
                 || filled($datos['mensaje_cliente'] ?? null);
 
@@ -362,6 +407,14 @@ class OrdenServicioController extends Controller
         ]);
     }
 
+    /**
+     * Muestra la pantalla de edición administrativa de una orden de servicio.
+     *
+     * Calcula dinámicamente los estados a los cuales es legal transicionar según el estado actual.
+     *
+     * @param  OrdenServicio  $orden  Orden inyectada por Route Model Binding.
+     * @return View Formulario de edición con las opciones válidas del ciclo de vida.
+     */
     public function edit(OrdenServicio $orden): View
     {
         $orden->load([
@@ -372,6 +425,7 @@ class OrdenServicioController extends Controller
 
         $estadoActual = EstadoOrden::tryFrom($orden->estado);
 
+        // Conjunto de estados permitidos según la máquina de estados
         $estados = $estadoActual
             ? array_values(array_unique([
                 $estadoActual->value,
@@ -385,6 +439,13 @@ class OrdenServicioController extends Controller
         );
     }
 
+    /**
+     * Procesa la actualización individual de la orden por parte del administrador.
+     *
+     * @param  UpdateOrdenServicioRequest  $request  Petición validada con datos técnicos y monetarios.
+     * @param  OrdenServicio  $orden  Orden a actualizar.
+     * @return RedirectResponse Redirección a la edición con mensaje flash de éxito.
+     */
     public function update(
         UpdateOrdenServicioRequest $request,
         OrdenServicio $orden
@@ -399,6 +460,7 @@ class OrdenServicioController extends Controller
             $orden,
             $estadoAnterior
         ): void {
+            // Actualización de campos operativos y costos
             $orden->update([
                 'estado' => $datos['estado'],
                 'diagnostico' => $datos['diagnostico'] ?? null,
@@ -413,6 +475,7 @@ class OrdenServicioController extends Controller
             $tieneComentario = filled($datos['comentario'] ?? null);
             $tieneMensajeCliente = filled($datos['mensaje_cliente'] ?? null);
 
+            // Registro en historial técnico
             if ($estadoCambio || $tieneComentario || $tieneMensajeCliente) {
                 $orden->historial()->create([
                     'user_id' => $usuarioId,
@@ -426,6 +489,7 @@ class OrdenServicioController extends Controller
 
         $orden->refresh();
 
+        // Notificación al cliente si varió el estatus o se incluyó mensaje público
         $debeNotificar = $estadoAnterior !== $orden->estado
             || filled($datos['mensaje_cliente'] ?? null);
 
@@ -448,10 +512,19 @@ class OrdenServicioController extends Controller
             );
     }
 
+    /**
+     * Exporta el listado de órdenes en formato CSV estructurado con codificación UTF-8 BOM.
+     *
+     * Permite abrir directamente en Microsoft Excel sin problemas de tildes o caracteres especiales en español.
+     *
+     * @param  Request  $request  Petición HTTP con filtros opcionales de búsqueda y estado.
+     * @return Response Descarga del archivo plano .csv.
+     */
     public function exportCsv(Request $request): Response
     {
         $estado = $this->obtenerEstadoExportacion($request);
 
+        // Recupera la colección filtrada
         $ordenes = $this
             ->consultaExportacion($request, $estado)
             ->get();
@@ -488,6 +561,7 @@ class OrdenServicioController extends Controller
             ];
         }
 
+        // Creación del flujo de memoria temporal para armar el CSV
         $archivo = fopen('php://temp', 'r+');
 
         if ($archivo === false) {
@@ -497,6 +571,7 @@ class OrdenServicioController extends Controller
             );
         }
 
+        // Inserción obligatoria del Byte Order Mark (BOM) UTF-8 para compatibilidad nativa con Excel
         fwrite($archivo, "\xEF\xBB\xBF");
 
         foreach ($filas as $fila) {
@@ -534,6 +609,14 @@ class OrdenServicioController extends Controller
         ]);
     }
 
+    /**
+     * Genera un reporte gerencial en PDF en orientación apaisada (Landscape) con resúmenes ejecutivos.
+     *
+     * Agrupa y calcula totales de ingresos monetarios y conteo de equipos por cada estado de reparación.
+     *
+     * @param  Request  $request  Petición HTTP con filtros activos.
+     * @return Response Descarga del documento PDF compilado con DomPDF.
+     */
     public function exportPdf(Request $request): Response
     {
         $estado = $this->obtenerEstadoExportacion($request);
@@ -542,6 +625,7 @@ class OrdenServicioController extends Controller
             ->consultaExportacion($request, $estado)
             ->get();
 
+        // Agrupación estadística por estado para la tabla resumen
         $resumenPorEstado = $ordenes
             ->groupBy('estado')
             ->map(function ($items): array {
@@ -581,6 +665,12 @@ class OrdenServicioController extends Controller
         return $pdf->download($nombreArchivo);
     }
 
+    /**
+     * Imprime y descarga la boleta individual de la orden de servicio en formato A4 vertical.
+     *
+     * @param  OrdenServicio  $orden  Orden a imprimir.
+     * @return Response Descarga del PDF.
+     */
     public function pdf(
         OrdenServicio $orden
     ): Response {
@@ -601,6 +691,12 @@ class OrdenServicioController extends Controller
         );
     }
 
+    /**
+     * Resuelve y valida el parámetro de estado para exportaciones masivas.
+     *
+     * @param  Request  $request  Petición HTTP entrante.
+     * @return string Estado válido o 'all' por defecto.
+     */
     private function obtenerEstadoExportacion(Request $request): string
     {
         $estado = trim(
@@ -618,7 +714,13 @@ class OrdenServicioController extends Controller
         return $estado;
     }
 
-    /** @return Builder<OrdenServicio> */
+    /**
+     * Construye la consulta Eloquent común para los motores de exportación aplicando filtros y ordenamiento.
+     *
+     * @param  Request  $request  Petición con texto de búsqueda opcional.
+     * @param  string  $estado  Estado específico o 'all'.
+     * @return Builder<OrdenServicio> Consulta preparada para ejecución.
+     */
     private function consultaExportacion(
         Request $request,
         string $estado
@@ -646,6 +748,7 @@ class OrdenServicioController extends Controller
             return $query;
         }
 
+        // Búsqueda en folio, estado, cliente o equipo
         return $query->where(
             function (Builder $consulta) use ($search) {
                 $consulta

@@ -21,10 +21,32 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
+/**
+ * Controlador de Gestión Operativa de Órdenes Asignadas al Empleado Técnico.
+ *
+ * Administra el flujo de trabajo técnico completo sobre las órdenes de servicio
+ * asignadas al técnico autenticado:
+ * 1. Consulta y filtrado AJAX server-side para DataTables.
+ * 2. Actualización de diagnóstico técnico, cotización estimada y notas de taller.
+ * 3. Envío de cotización a revisión de supervisión.
+ * 4. Inicio de reparación autorizada por el cliente.
+ * 5. Envío a pruebas de control de calidad.
+ * 6. Marcado de la reparación como lista para entrega al cliente.
+ * 7. Vista detallada del historial y expediente del equipo en reparación.
+ */
 class OrdenAsignadaController extends Controller
 {
+    /**
+     * Procesa la solicitud AJAX de DataTables con la cola de trabajo del técnico.
+     *
+     * @param  Request  $request  Petición HTTP con parámetros de búsqueda, orden y paginación.
+     * @return JsonResponse Estructura JSON compatible con DataTables con registros y contadores.
+     */
     public function data(Request $request): JsonResponse
     {
+        // ---------------------------------------------------------------------
+        // 1. Verificación del Actor
+        // ---------------------------------------------------------------------
         $usuario = $request->user();
 
         abort_unless(
@@ -32,6 +54,9 @@ class OrdenAsignadaController extends Controller
             403
         );
 
+        // ---------------------------------------------------------------------
+        // 2. Consulta Base de Asignaciones Activas del Técnico
+        // ---------------------------------------------------------------------
         $consultaBase = OrdenAsignacion::query()
             ->where('empleado_id', $usuario->id)
             ->where('activo', true)
@@ -45,8 +70,12 @@ class OrdenAsignadaController extends Controller
                 }
             );
 
+        // Conteo total previo a cualquier búsqueda
         $recordsTotal = (clone $consultaBase)->count();
 
+        // ---------------------------------------------------------------------
+        // 3. Filtro de Búsqueda Global en Datos de la Orden y Relaciones
+        // ---------------------------------------------------------------------
         $search = $request->input('search.value');
 
         if (is_string($search) && trim($search) !== '') {
@@ -106,8 +135,12 @@ class OrdenAsignadaController extends Controller
             );
         }
 
+        // Conteo filtrado
         $recordsFiltered = (clone $consultaBase)->count();
 
+        // ---------------------------------------------------------------------
+        // 4. Ordenamiento Seguro
+        // ---------------------------------------------------------------------
         $orderDirection = strtolower(
             (string) $request->input(
                 'order.0.dir',
@@ -136,6 +169,9 @@ class OrdenAsignadaController extends Controller
             $consultaBase->latest('asignado_at');
         }
 
+        // ---------------------------------------------------------------------
+        // 5. Paginación y Carga Eager de Relaciones
+        // ---------------------------------------------------------------------
         $start = max(
             $request->integer('start'),
             0
@@ -161,6 +197,9 @@ class OrdenAsignadaController extends Controller
             ->take($length)
             ->get();
 
+        // ---------------------------------------------------------------------
+        // 6. Transformación y Renderizado de Acciones
+        // ---------------------------------------------------------------------
         $data = $rows
             ->map(function (OrdenAsignacion $asignacion): array {
                 $orden = $asignacion->ordenServicio;
@@ -200,6 +239,14 @@ class OrdenAsignadaController extends Controller
         ]);
     }
 
+    /**
+     * Actualiza el diagnóstico técnico, costo estimado y notas de reparación del equipo.
+     *
+     * @param  UpdateOrdenTecnicaRequest  $request  Petición validada con datos técnicos.
+     * @param  OrdenServicio  $orden  Orden de servicio a modificar.
+     * @param  ActualizarTrabajoTecnico  $actualizarTrabajoTecnico  Acción de dominio que aplica los cambios y audita.
+     * @return RedirectResponse Redirección a la vista de la orden con mensaje de éxito.
+     */
     public function updateTechnical(
         UpdateOrdenTecnicaRequest $request,
         OrdenServicio $orden,
@@ -228,11 +275,20 @@ class OrdenAsignadaController extends Controller
             );
     }
 
+    /**
+     * Envía la cotización y diagnóstico formulados a la revisión y aprobación del supervisor.
+     *
+     * @param  Request  $request  Petición HTTP entrante con el usuario autenticado.
+     * @param  OrdenServicio  $orden  Orden cuya cotización se enviará a revisión.
+     * @param  SolicitarRevisionCotizacion  $solicitarRevisionCotizacion  Acción de dominio que procesa la solicitud.
+     * @return RedirectResponse Redirección a la orden con confirmación o mensaje de error de validación.
+     */
     public function requestQuoteReview(
         Request $request,
         OrdenServicio $orden,
         SolicitarRevisionCotizacion $solicitarRevisionCotizacion
     ): RedirectResponse {
+        // Valida que el técnico tenga permisos para solicitar revisión en el estado actual de la orden
         Gate::authorize(
             'requestQuoteReview',
             $orden
@@ -270,11 +326,20 @@ class OrdenAsignadaController extends Controller
             );
     }
 
+    /**
+     * Pone en marcha formal los trabajos de reparación cuando la orden ya cuenta con autorización del cliente.
+     *
+     * @param  Request  $request  Petición HTTP entrante.
+     * @param  OrdenServicio  $orden  Orden autorizada a iniciar.
+     * @param  IniciarReparacionAutorizada  $iniciarReparacion  Acción de dominio que transiciona a EN_REPARACION.
+     * @return RedirectResponse Redirección a la orden con confirmación.
+     */
     public function startRepair(
         Request $request,
         OrdenServicio $orden,
         IniciarReparacionAutorizada $iniciarReparacion
     ): RedirectResponse {
+        // Valida mediante Policy que la orden esté debidamente autorizada y lista para reparación
         Gate::authorize(
             'startAuthorizedRepair',
             $orden
@@ -305,6 +370,14 @@ class OrdenAsignadaController extends Controller
             );
     }
 
+    /**
+     * Transiciona la orden de servicio a etapa de pruebas de control de calidad o estabilidad.
+     *
+     * @param  EnviarReparacionAPruebasRequest  $request  Petición validada con comentarios técnicos opcionales.
+     * @param  OrdenServicio  $orden  Orden en reparación.
+     * @param  EnviarReparacionAPruebas  $enviarReparacionAPruebas  Acción de dominio que ejecuta la transición a EN_PRUEBAS.
+     * @return RedirectResponse Redirección a la orden con mensaje de confirmación.
+     */
     public function sendToTesting(
         EnviarReparacionAPruebasRequest $request,
         OrdenServicio $orden,
@@ -342,6 +415,14 @@ class OrdenAsignadaController extends Controller
             );
     }
 
+    /**
+     * Finaliza los trabajos técnicos, establece el costo final definitivo y marca el equipo como listo para entrega.
+     *
+     * @param  MarcarReparacionListaParaEntregaRequest  $request  Petición con el costo final y comentarios de cierre.
+     * @param  OrdenServicio  $orden  Orden en pruebas o reparación.
+     * @param  MarcarReparacionListaParaEntrega  $marcarListaParaEntrega  Acción de dominio que transiciona a LISTO_PARA_ENTREGA.
+     * @return RedirectResponse Redirección al panel del empleado con mensaje flash.
+     */
     public function markReadyForDelivery(
         MarcarReparacionListaParaEntregaRequest $request,
         OrdenServicio $orden,
@@ -377,14 +458,22 @@ class OrdenAsignadaController extends Controller
             );
     }
 
+    /**
+     * Muestra la vista detallada de la orden de servicio asignada con todo su expediente técnico.
+     *
+     * @param  OrdenServicio  $orden  Orden de servicio asignada al técnico.
+     * @return View Vista con diagnóstico, cotización, historial de bitácora y datos del cliente.
+     */
     public function show(
         OrdenServicio $orden
     ): View {
+        // Valida que el empleado tenga acceso a esta orden específica
         Gate::authorize(
             'viewAssigned',
             $orden
         );
 
+        // Carga con anticipación el cliente, equipo, servicio e historial
         $orden->load([
             'user:id,name',
             'equipo:id,tipo,marca,modelo,numero_serie',
@@ -400,3 +489,4 @@ class OrdenAsignadaController extends Controller
         );
     }
 }
+

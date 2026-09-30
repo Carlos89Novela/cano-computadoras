@@ -6,13 +6,30 @@ use App\Models\Servicio;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Solicitud de Validación para la Modificación de un Servicio del Catálogo.
+ *
+ * Valida los cambios sobre tarifas, descripción o disponibilidad de un servicio:
+ * - Unicidad condicional: Valida que el nombre no colisione con otros servicios existentes,
+ *   ignorando el identificador del propio servicio en edición.
+ * - Validación monetaria y coherencia de importes.
+ * - Normalización de la bandera booleana de estado activo.
+ */
 class UpdateServicioRequest extends FormRequest
 {
+    /**
+     * Determina si el usuario tiene autorización para actualizar servicios.
+     *
+     * @return bool Verdadero si está autorizado por el middleware de administración.
+     */
     public function authorize(): bool
     {
         return true;
     }
 
+    /**
+     * Normaliza el valor booleano del campo activo antes de validar.
+     */
     protected function prepareForValidation(): void
     {
         $this->merge([
@@ -20,11 +37,17 @@ class UpdateServicioRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Define las reglas de validación para actualizar el servicio.
+     *
+     * @return array<string, mixed> Reglas de validación aplicables.
+     */
     public function rules(): array
     {
         $servicio = $this->route('servicio');
 
         return [
+            // Nombre del servicio con verificación de unicidad excluyendo el registro actual
             'nombre' => [
                 'required',
                 'string',
@@ -35,17 +58,20 @@ class UpdateServicioRequest extends FormRequest
                         : null
                 ),
             ],
+            // Descripción técnica o alcance del servicio (opcional)
             'descripcion' => [
                 'nullable',
                 'string',
                 'max:2000',
             ],
+            // Tarifa o precio monetario asignado al servicio
             'precio' => [
                 'required',
                 'numeric',
                 'min:0',
                 'max:99999999.99',
             ],
+            // Estado de activación para nuevas recepciones en taller
             'activo' => [
                 'required',
                 'boolean',
@@ -53,6 +79,11 @@ class UpdateServicioRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para la modificación de servicios.
+     *
+     * @return array<string, string> Mensajes legibles.
+     */
     public function messages(): array
     {
         return [
@@ -69,6 +100,11 @@ class UpdateServicioRequest extends FormRequest
         ];
     }
 
+    /**
+     * Nombres amigables para los campos de formulario.
+     *
+     * @return array<string, string> Nombres legibles.
+     */
     public function attributes(): array
     {
         return [
@@ -79,3 +115,4 @@ class UpdateServicioRequest extends FormRequest
         ];
     }
 }
+

@@ -9,15 +9,37 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * Modelo Eloquent que representa a los Usuarios del sistema (Clientes, Empleados, Supervisores, Administradores y Propietario).
+ *
+ * Implementa autenticación Laravel, verificación de correo electrónico obligatoria (MustVerifyEmail)
+ * y el trait HasRoles de Spatie Permission para gestión de roles y permisos delegables.
+ *
+ * Jerarquía de Propietario (Owner):
+ * El atributo 'es_propietario' designa al superusuario de la organización, quien posee de forma
+ * exclusiva los permisos reservados (asignación de roles administrativos, modificación de otros propietarios
+ * y descarga de auditorías completas) que no pueden ser delegados a administradores comunes.
+ *
+ * @property int $id
+ * @property string $name Nombre completo del usuario
+ * @property string $email Correo electrónico único
+ * @property string $password Contraseña cifrada
+ * @property bool $es_propietario Indicador de máxima jerarquía en el sistema
+ * @property Carbon|null $email_verified_at Fecha de verificación de correo
+ * @property string|null $remember_token
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ */
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
 
     /**
-     * The attributes that are mass assignable.
+     * Columnas asignables en masa.
      *
      * @var list<string>
      */
@@ -29,7 +51,7 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     /**
-     * The attributes that should be hidden for serialization.
+     * Atributos ocultos en serialización JSON (APIs o vistas).
      *
      * @var list<string>
      */
@@ -39,7 +61,7 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     /**
-     * Get the attributes that should be cast.
+     * Conversiones automáticas de tipos de atributos.
      *
      * @return array<string, string>
      */
@@ -53,7 +75,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Equipos relacionados con el usuario.
+     * Relación: Equipos registrados pertenecientes a este cliente.
      *
      * @return HasMany<Equipo, $this>
      */
@@ -63,7 +85,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Órdenes de servicio relacionadas con el usuario.
+     * Relación: Órdenes de servicio registradas a nombre de este cliente.
      *
      * @return HasMany<OrdenServicio, $this>
      */
@@ -73,7 +95,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Asignaciones en las que el usuario participa como empleado.
+     * Relación: Órdenes de servicio donde el usuario fue asignado como empleado técnico.
      *
      * @return HasMany<OrdenAsignacion, $this>
      */
@@ -86,7 +108,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Asignaciones realizadas por el usuario.
+     * Relación: Asignaciones de trabajo emitidas o despachadas por este supervisor/administrador.
      *
      * @return HasMany<OrdenAsignacion, $this>
      */
@@ -98,12 +120,17 @@ class User extends Authenticatable implements MustVerifyEmail
         );
     }
 
+    /**
+     * Comprueba si el usuario tiene el estatus de propietario del sistema.
+     */
     public function esPropietario(): bool
     {
         return $this->es_propietario === true;
     }
 
     /**
+     * Relación: Sucursales a las que está asignado el usuario para trabajar.
+     *
      * @return BelongsToMany<Sucursal, $this>
      */
     public function sucursales(): BelongsToMany
@@ -123,6 +150,9 @@ class User extends Authenticatable implements MustVerifyEmail
             ->withTimestamps();
     }
 
+    /**
+     * Comprueba si el usuario está asignado y activo en una sucursal determinada.
+     */
     public function perteneceASucursal(
         Sucursal $sucursal
     ): bool {

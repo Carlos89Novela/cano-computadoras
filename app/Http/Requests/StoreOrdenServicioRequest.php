@@ -5,13 +5,32 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Solicitud de Validación para la Creación de Órdenes de Servicio por el Cliente.
+ *
+ * Aplica reglas de integridad referencial y seguridad multicapa:
+ * - Aislamiento estricto de propiedad: Valida que el equipo seleccionado pertenezca
+ *   obligatoriamente al usuario autenticado, impidiendo asociar equipos de terceros.
+ * - Validación de catálogo de servicios: Si se especifica un servicio preliminar,
+ *   verifica que exista y se encuentre marcado como activo en el catálogo.
+ * - Calidad de descripción de falla: Exige un mínimo de detalle (10 caracteres)
+ *   para garantizar que los técnicos dispongan de contexto suficiente para el diagnóstico.
+ */
 class StoreOrdenServicioRequest extends FormRequest
 {
+    /**
+     * Determina si el usuario tiene autorización para generar órdenes de reparación.
+     *
+     * @return bool Verdadero si el usuario está autenticado.
+     */
     public function authorize(): bool
     {
         return $this->user() !== null;
     }
 
+    /**
+     * Normaliza los textos de entrada antes de aplicar las validaciones.
+     */
     protected function prepareForValidation(): void
     {
         $problemaReportado = $this->input('problema_reportado');
@@ -23,9 +42,15 @@ class StoreOrdenServicioRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Define las reglas de validación para la creación de la orden.
+     *
+     * @return array<string, mixed> Reglas de validación.
+     */
     public function rules(): array
     {
         return [
+            // El equipo debe pertenecer obligatoriamente al cliente que realiza la petición
             'equipo_id' => [
                 'required',
                 'integer',
@@ -34,12 +59,14 @@ class StoreOrdenServicioRequest extends FormRequest
                     $this->user()?->id
                 ),
             ],
+            // Descripción detallada del síntoma o falla reportada por el cliente
             'problema_reportado' => [
                 'required',
                 'string',
                 'min:10',
                 'max:2000',
             ],
+            // Servicio preliminar solicitado (opcional, debe estar activo si se proporciona)
             'servicio_id' => [
                 'nullable',
                 'integer',
@@ -51,6 +78,11 @@ class StoreOrdenServicioRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para la validación.
+     *
+     * @return array<string, string> Mensajes de error específicos.
+     */
     public function messages(): array
     {
         return [
@@ -65,6 +97,11 @@ class StoreOrdenServicioRequest extends FormRequest
         ];
     }
 
+    /**
+     * Nombres legibles para los atributos en mensajes de error.
+     *
+     * @return array<string, string> Nombres legibles.
+     */
     public function attributes(): array
     {
         return [
@@ -74,3 +111,4 @@ class StoreOrdenServicioRequest extends FormRequest
         ];
     }
 }
+

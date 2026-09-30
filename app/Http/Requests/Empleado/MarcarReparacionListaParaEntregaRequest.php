@@ -6,8 +6,22 @@ use App\Models\OrdenServicio;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Solicitud de Validación para Marcar una Reparación como Lista para Entrega.
+ *
+ * Aplica los controles de autorización y validación monetaria para el cierre técnico:
+ * - Valida mediante la Policy `markRepairReadyForDelivery` que el técnico tenga la orden asignada
+ *   y que la orden se encuentre en reparación o pruebas habiendo sido autorizada.
+ * - Exige el registro obligatorio del costo final definitivo con hasta dos decimales.
+ * - Admite notas técnicas de conclusión o entrega para la bitácora interna.
+ */
 class MarcarReparacionListaParaEntregaRequest extends FormRequest
 {
+    /**
+     * Determina si el empleado autenticado tiene autorización para marcar la orden lista.
+     *
+     * @return bool Verdadero si la Policy autoriza la finalización técnica.
+     */
     public function authorize(): bool
     {
         $orden = $this->route('orden');
@@ -22,6 +36,9 @@ class MarcarReparacionListaParaEntregaRequest extends FormRequest
         );
     }
 
+    /**
+     * Normaliza los textos de entrada antes de validar.
+     */
     protected function prepareForValidation(): void
     {
         $comentario = $this->input('comentario');
@@ -33,9 +50,15 @@ class MarcarReparacionListaParaEntregaRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Define las reglas de validación para el costo final y las notas de cierre.
+     *
+     * @return array<string, mixed> Reglas de validación aplicables.
+     */
     public function rules(): array
     {
         return [
+            // Costo final definitivo de la reparación realizada
             'costo_final' => [
                 'required',
                 'numeric',
@@ -43,6 +66,7 @@ class MarcarReparacionListaParaEntregaRequest extends FormRequest
                 'max:99999999.99',
                 'decimal:0,2',
             ],
+            // Comentarios o notas de cierre técnico de taller (opcional)
             'comentario' => [
                 'nullable',
                 'string',
@@ -51,6 +75,11 @@ class MarcarReparacionListaParaEntregaRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para el cierre técnico.
+     *
+     * @return array<string, string> Mensajes legibles.
+     */
     public function messages(): array
     {
         return [
@@ -64,6 +93,11 @@ class MarcarReparacionListaParaEntregaRequest extends FormRequest
         ];
     }
 
+    /**
+     * Nombres amigables para los campos de cierre técnico.
+     *
+     * @return array<string, string> Nombres legibles.
+     */
     public function attributes(): array
     {
         return [
@@ -72,3 +106,4 @@ class MarcarReparacionListaParaEntregaRequest extends FormRequest
         ];
     }
 }
+

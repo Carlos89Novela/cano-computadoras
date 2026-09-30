@@ -13,14 +13,43 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Acción del Dominio de Sucursales: Apertura Operativa de Sucursal.
+ *
+ * Orquesta el aprovisionamiento integral de una nueva sucursal dentro de una empresa:
+ * 1. Autorización estricta: Acción reservada exclusivamente para el Propietario del sistema (`esPropietario()`).
+ * 2. Asignación gerencial: Asocia un gerente responsable con rol de 'supervisor' o 'administrador'.
+ * 3. Determinación de sede principal: La primera sucursal se convierte automáticamente en principal;
+ *    las subsecuentes respetan la exclusividad de sede principal única por empresa.
+ * 4. Aprovisionamiento logístico automático:
+ *    - Crea el Almacén Principal físico de la sucursal (`ALM-{CODIGO}`).
+ *    - Garantiza la existencia del Almacén Virtual de Tránsito de la empresa (`TRANSITO`).
+ * 5. Vinculación en tabla pivote: Asocia al gerente en `sucursal_usuario` con flags `es_principal` y `es_gerente`.
+ * 6. Bitácora de auditoría: Emite el evento inmutable 'sucursal.abierta' con el detalle de entidades creadas.
+ */
 class AbrirSucursal
 {
+    /**
+     * Inyecta el servicio de auditoría inmutable.
+     *
+     * @param  RegistrarAuditoria  $registrarAuditoria  Servicio centralizado de bitácora.
+     */
     public function __construct(
         private RegistrarAuditoria $registrarAuditoria
     ) {}
 
     /**
-     * @param  array<string, mixed>  $datos
+     * Ejecuta el aprovisionamiento atómico de la sucursal, sus almacenes y la asignación del gerente.
+     *
+     * @param  Empresa  $empresa  Empresa multi-tenant donde se apertura la sucursal.
+     * @param  User  $actor  Usuario propietario que autoriza y abre la sucursal.
+     * @param  User  $gerente  Usuario designado como titular de la sucursal.
+     * @param  array<string, mixed>  $datos  Atributos de la sucursal (código, nombre, contacto, dirección, etc.).
+     * @param  Request|null  $request  Petición HTTP entrante para metadatos de auditoría.
+     * @return Sucursal Instancia de la sucursal creada con sus relaciones cargadas.
+     *
+     * @throws AuthorizationException Si el actor no es propietario o no es administrador.
+     * @throws ValidationException Si la empresa está inactiva, el gerente no califica o hay colisión de códigos.
      */
     public function ejecutar(
         Empresa $empresa,
@@ -29,10 +58,12 @@ class AbrirSucursal
         array $datos,
         ?Request $request = null
     ): Sucursal {
+        // Normaliza textos, mayúsculas en códigos y valores nulos/vacíos
         $datosNormalizados = $this->normalizarDatos(
             $datos
         );
 
+        // Valida reglas preliminares de autorización, rol del gerente y formatos
         $this->validar(
             $empresa,
             $actor,
@@ -50,6 +81,7 @@ class AbrirSucursal
                 $datosNormalizados,
                 $request
             ): Sucursal {
+                // Bloqueo pesimista sobre la empresa y el gerente para garantizar atomicidad
                 $empresaBloqueada = Empresa::query()
                     ->lockForUpdate()
                     ->findOrFail($empresa->id);
@@ -58,6 +90,7 @@ class AbrirSucursal
                     ->lockForUpdate()
                     ->findOrFail($gerente->id);
 
+                // Revalida estados sobre los modelos bloqueados
                 $this->validar(
                     $empresaBloqueada,
                     $actor,
@@ -73,6 +106,7 @@ class AbrirSucursal
                     'nombre'
                 ];
 
+                // Comprueba que no exista colisión de código en la misma empresa
                 $existeSucursal = Sucursal::query()
                     ->where(
                         'empresa_id',
@@ -87,6 +121,7 @@ class AbrirSucursal
                     ]);
                 }
 
+                // Evalúa si es la primera sucursal de la empresa para asignarla como principal por defecto
                 $esPrimeraSucursal = ! Sucursal::query()
                     ->where(
                         'empresa_id',
@@ -99,6 +134,7 @@ class AbrirSucursal
                     ?? false
                 );
 
+                // Si solicita ser principal y no es la primera, verifica que no exista ya otra sede principal
                 if (
                     $solicitaPrincipal
                     && ! $esPrimeraSucursal
@@ -124,6 +160,7 @@ class AbrirSucursal
                 $esPrincipal = $esPrimeraSucursal
                     || $solicitaPrincipal;
 
+                // Creación de la sucursal
                 $sucursal = Sucursal::query()->create([
                     'empresa_id' => $empresaBloqueada->id,
                     'codigo' => $codigo,
@@ -139,6 +176,7 @@ class AbrirSucursal
                     'creado_por_id' => $actor->id,
                 ]);
 
+                // Aprovisionamiento logístico 1: Almacén físico principal para la nueva sucursal
                 $codigoAlmacen =
                     'ALM-'.$codigo;
 
@@ -155,6 +193,7 @@ class AbrirSucursal
                         'creado_por_id' => $actor->id,
                     ]);
 
+                // Aprovisionamiento logístico 2: Garantiza el Almacén Virtual de Tránsito de la empresa
                 $almacenTransito = Almacen::query()
                     ->where(
                         'empresa_id',
@@ -182,6 +221,7 @@ class AbrirSucursal
                         ]);
                 }
 
+                // Asignación gerencial: Vincula al gerente en la tabla pivote sucursal_usuario
                 $sucursal->usuarios()->attach(
                     $gerenteBloqueado->id,
                     [
@@ -193,6 +233,7 @@ class AbrirSucursal
                     ]
                 );
 
+                // Asienta el evento en la bitácora inmutable de auditoría
                 $this->registrarAuditoria->registrar(
                     accion: 'sucursal.abierta',
                     modulo: 'sucursales',
@@ -230,8 +271,10 @@ class AbrirSucursal
     }
 
     /**
-     * @param  array<string, mixed>  $datos
-     * @return array<string, mixed>
+     * Limpia y estandariza los tipos de datos recibidos del formulario/payload.
+     *
+     * @param  array<string, mixed>  $datos  Valores en crudo.
+     * @return array<string, mixed> Valores estructurados y formateados.
      */
     private function normalizarDatos(
         array $datos
@@ -275,6 +318,12 @@ class AbrirSucursal
         ];
     }
 
+    /**
+     * Convierte cadenas vacías a nulos limpios.
+     *
+     * @param  mixed  $valor  Dato a evaluar.
+     * @return string|null Cadena sin espacios o null si estaba vacía.
+     */
     private function textoOpcional(
         mixed $valor
     ): ?string {
@@ -290,7 +339,16 @@ class AbrirSucursal
     }
 
     /**
-     * @param  array<string, mixed>  $datos
+     * Valida la jerarquía de privilegios, habilitación de la empresa y cualificación gerencial.
+     *
+     * @param  Empresa  $empresa  Empresa a la que pertenecerá la sucursal.
+     * @param  User  $actor  Usuario ejecutante.
+     * @param  User  $gerente  Candidato a gerente de sucursal.
+     * @param  array<string, mixed>  $datos  Datos normalizados de la sucursal.
+     * @return void
+     *
+     * @throws AuthorizationException Si el usuario no es el propietario.
+     * @throws ValidationException Si la empresa está inactiva o los campos no cumplen formato.
      */
     private function validar(
         Empresa $empresa,
@@ -298,6 +356,7 @@ class AbrirSucursal
         User $gerente,
         array $datos
     ): void {
+        // Regla estricta: Solo el Propietario con rol Administrador puede abrir sucursales
         if (
             ! $actor->hasRole('administrador')
             || ! $actor->esPropietario()
@@ -313,6 +372,7 @@ class AbrirSucursal
             ]);
         }
 
+        // El gerente debe contar con rol jerárquico adecuado
         if (! $gerente->hasAnyRole([
             'supervisor',
             'administrador',

@@ -15,6 +15,7 @@ use App\Notifications\PresupuestoAutorizadoPorCliente;
 use App\Notifications\PresupuestoRechazadoPorCliente;
 use App\Services\GeneradorFolioOrden;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,13 +24,28 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Controlador de Órdenes de Servicio para Clientes.
+ *
+ * Gestiona el ciclo de vida de las reparaciones desde la perspectiva del cliente:
+ * - Creación y registro de nuevas solicitudes de reparación con asignación de folio único.
+ * - Seguimiento detallado del avance y bitácora técnica de la orden.
+ * - Autorización o rechazo del presupuesto/cotización técnica previamente aprobada por el taller.
+ * - Notificación automática al personal técnico y supervisores ante decisiones presupuestales.
+ * - Emisión y descarga del comprobante PDF oficial de la orden de servicio.
+ */
 class OrdenServicioController extends Controller
 {
     use AuthorizesRequests;
 
+    /**
+     * Muestra el catálogo de órdenes de servicio solicitadas por el cliente autenticado.
+     *
+     * @param  Request  $request  Petición HTTP entrante.
+     * @return View Vista con la colección de órdenes del cliente.
+     */
     public function index(Request $request): View
     {
-        // Obtener las órdenes de servicio del usuario autenticado
         $ordenes = OrdenServicio::query()
             ->with('equipo')
             ->where('user_id', $request->user()->id)
@@ -39,14 +55,24 @@ class OrdenServicioController extends Controller
         return view('ordenes.index', compact('ordenes'));
     }
 
+    /**
+     * Presenta el formulario para solicitar una nueva reparación.
+     *
+     * Si el cliente aún no ha registrado ningún equipo en su cuenta, lo redirige
+     * con una alerta al módulo de alta de equipos.
+     *
+     * @param  Request  $request  Petición HTTP entrante.
+     * @return View|RedirectResponse Formulario de alta o redirección a registro de equipo.
+     */
     public function create(Request $request): View|RedirectResponse
     {
-        // Obtener los equipos del usuario autenticado
+        // Obtiene los equipos pertenecientes al cliente ordenados por marca
         $equipos = Equipo::query()
             ->where('user_id', $request->user()->id)
             ->orderBy('marca')
             ->get();
-        // Verificar si el usuario tiene equipos registrados
+
+        // Regla previa: El cliente debe tener al menos un equipo registrado
         if ($equipos->isEmpty()) {
             return redirect()
                 ->route('equipos.create')
@@ -54,10 +80,9 @@ class OrdenServicioController extends Controller
                     'error',
                     'Primero debes registrar un equipo.'
                 );
-
         }
 
-        // Obtener los servicios disponibles
+        // Catálogo de servicios disponibles activos
         $servicios = Servicio::query()
             ->where('activo', true)
             ->orderBy('nombre')
@@ -66,6 +91,13 @@ class OrdenServicioController extends Controller
         return view('ordenes.create', compact('equipos', 'servicios'));
     }
 
+    /**
+     * Registra una nueva orden de servicio generando un folio garantizado anti-colisiones.
+     *
+     * @param  StoreOrdenServicioRequest  $request  Petición validada con el equipo, problema y servicio.
+     * @param  GeneradorFolioOrden  $generadorFolio  Servicio inyectado para foliado secuencial.
+     * @return RedirectResponse Redirección a la vista de seguimiento de la orden.
+     */
     public function store(
         StoreOrdenServicioRequest $request,
         GeneradorFolioOrden $generadorFolio
@@ -73,6 +105,7 @@ class OrdenServicioController extends Controller
         $datos = $request->validated();
         $usuarioId = $request->user()->id;
 
+        // Creación atómica de la orden y su primer asiento en el historial
         $orden = DB::transaction(function () use (
             $datos,
             $generadorFolio,
@@ -88,6 +121,7 @@ class OrdenServicioController extends Controller
                 'servicio_id' => $datos['servicio_id'] ?? null,
             ]);
 
+            // Asienta la recepción en el historial cronológico
             $orden->historial()->create([
                 'user_id' => $usuarioId,
                 'estado' => EstadoOrden::RECIBIDO->value,
@@ -107,11 +141,20 @@ class OrdenServicioController extends Controller
             );
     }
 
+    /**
+     * Muestra la cronología y estado actual de una orden de servicio propia del cliente.
+     *
+     * @param  OrdenServicio  $orden  Orden de servicio inyectada por Route Model Binding.
+     * @return View Vista de seguimiento de la orden.
+     *
+     * @throws AuthorizationException Si el usuario autenticado no es el dueño de la orden.
+     */
     public function show(
         OrdenServicio $orden
     ): View {
         $this->authorize('view', $orden);
-        // Cargar las relaciones necesarias para la vista
+
+        // Carga ansiosa del equipo, servicio y de la bitácora ordenada cronológicamente
         $orden->load([
             'equipo',
             'servicio',
@@ -124,6 +167,19 @@ class OrdenServicioController extends Controller
         return view('ordenes.show', compact('orden'));
     }
 
+    /**
+     * Procesa la decisión del cliente sobre el presupuesto técnico (autorizar o rechazar).
+     *
+     * Transición y reglas:
+     * - La orden debe tener cotización previamente 'APROBADA' y estado 'ESPERANDO_AUTORIZACION'.
+     * - Si el cliente autoriza: transiciona a 'ESPERANDO_REFACCION'.
+     * - Si el cliente rechaza: transiciona a 'CANCELADO'.
+     * - Despacha notificaciones al técnico asignado y a todos los supervisores.
+     *
+     * @param  AutorizarOrdenServicioRequest  $request  Petición validada con el campo 'decision'.
+     * @param  OrdenServicio  $orden  Orden sujeta a decisión presupuestal.
+     * @return RedirectResponse Redirección a la orden con confirmación.
+     */
     public function autorizar(
         AutorizarOrdenServicioRequest $request,
         OrdenServicio $orden
@@ -131,6 +187,7 @@ class OrdenServicioController extends Controller
         $datos = $request->validated();
         $usuarioId = $request->user()->id;
 
+        // Ejecución transaccional protegida con bloqueo pesimista
         $ordenActualizada = DB::transaction(
             function () use (
                 $datos,
@@ -141,6 +198,7 @@ class OrdenServicioController extends Controller
                     ->lockForUpdate()
                     ->findOrFail($orden->id);
 
+                // Comprueba que la cotización haya sido visada por la supervisión
                 abort_unless(
                     $ordenBloqueada->estado_revision_cotizacion
                         === EstadoRevisionCotizacion::APROBADA,
@@ -148,6 +206,7 @@ class OrdenServicioController extends Controller
                     'La cotización no cuenta con aprobación interna.'
                 );
 
+                // Comprueba que la orden esté en espera de decisión del cliente
                 abort_unless(
                     $ordenBloqueada->estado
                         === EstadoOrden::ESPERANDO_AUTORIZACION->value,
@@ -155,6 +214,7 @@ class OrdenServicioController extends Controller
                     'La reparación no está esperando autorización.'
                 );
 
+                // Evita doble autorización o cambio de decisión posterior
                 abort_unless(
                     $ordenBloqueada->autorizacion
                         === EstadoAutorizacion::PENDIENTE->value,
@@ -165,6 +225,7 @@ class OrdenServicioController extends Controller
                 $autorizada = $datos['decision']
                     === EstadoAutorizacion::AUTORIZADA->value;
 
+                // Actualiza decisión y estado operativo correspondiente
                 $ordenBloqueada->update([
                     'autorizacion' => $datos['decision'],
                     'fecha_autorizacion' => now(),
@@ -173,6 +234,7 @@ class OrdenServicioController extends Controller
                         : EstadoOrden::CANCELADO->value,
                 ]);
 
+                // Asienta el evento en el historial
                 $ordenBloqueada->historial()->create([
                     'user_id' => $usuarioId,
                     'estado' => $ordenBloqueada->estado,
@@ -189,6 +251,7 @@ class OrdenServicioController extends Controller
         $autorizada = $ordenActualizada->autorizacion
             === EstadoAutorizacion::AUTORIZADA->value;
 
+        // Preparación de la notificación según la decisión
         $notificacion = $autorizada
             ? new PresupuestoAutorizadoPorCliente(
                 $ordenActualizada
@@ -199,6 +262,7 @@ class OrdenServicioController extends Controller
 
         $destinatarios = collect();
 
+        // Agrega al técnico asignado si existe asignación activa
         $asignacionActiva = $ordenActualizada
             ->asignacionActiva()
             ->with('empleado')
@@ -210,6 +274,7 @@ class OrdenServicioController extends Controller
             );
         }
 
+        // Agrega a todos los supervisores del sistema
         $supervisores = User::role('supervisor')
             ->get();
 
@@ -237,11 +302,20 @@ class OrdenServicioController extends Controller
             );
     }
 
+    /**
+     * Genera y descarga el comprobante en PDF oficial de la orden de servicio.
+     *
+     * @param  OrdenServicio  $orden  Orden de servicio a imprimir.
+     * @return Response Descarga del documento PDF formateado en hoja A4 portrait.
+     *
+     * @throws AuthorizationException Si el usuario no tiene permisos de descarga sobre la orden.
+     */
     public function pdf(
         OrdenServicio $orden
     ): Response {
         $this->authorize('downloadPdf', $orden);
 
+        // Carga de modelos asociados para la plantilla del reporte
         $orden->load([
             'user',
             'equipo',

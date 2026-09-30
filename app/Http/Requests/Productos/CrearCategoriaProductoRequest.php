@@ -7,8 +7,23 @@ use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * Solicitud de Validación para la Creación de Categorías de Productos.
+ *
+ * Aplica los controles de autorización y unicidad contextual para nuevas categorías:
+ * - Autorización Multitenant: Verifica que el usuario cuente con el permiso `productos.crear`
+ *   en el ámbito de la empresa receptora.
+ * - Unicidad por Empresa: Garantiza que el nombre de la categoría no se repita
+ *   dentro de la misma empresa (permitiendo el mismo nombre en empresas distintas).
+ * - Normalización de cadenas de texto de entrada.
+ */
 class CrearCategoriaProductoRequest extends FormRequest
 {
+    /**
+     * Determina si el actor tiene autorización para registrar categorías en la empresa.
+     *
+     * @return bool Verdadero si el usuario cuenta con el permiso requerido.
+     */
     public function authorize(): bool
     {
         $actor = $this->user();
@@ -19,6 +34,9 @@ class CrearCategoriaProductoRequest extends FormRequest
             && $actor->can('productos.crear');
     }
 
+    /**
+     * Normaliza los textos de nombre y descripción antes de validar.
+     */
     protected function prepareForValidation(): void
     {
         $nombre = $this->input('nombre');
@@ -34,11 +52,17 @@ class CrearCategoriaProductoRequest extends FormRequest
         ]);
     }
 
+    /**
+     * Define las reglas de validación para la nueva categoría.
+     *
+     * @return array<string, mixed> Reglas de validación aplicables.
+     */
     public function rules(): array
     {
         $empresa = $this->route('empresa');
 
         return [
+            // Nombre de la categoría con comprobación de unicidad por empresa
             'nombre' => [
                 'required',
                 'string',
@@ -55,6 +79,7 @@ class CrearCategoriaProductoRequest extends FormRequest
                     )
                 ),
             ],
+            // Descripción detallada del tipo de productos agrupados (opcional)
             'descripcion' => [
                 'nullable',
                 'string',
@@ -63,6 +88,11 @@ class CrearCategoriaProductoRequest extends FormRequest
         ];
     }
 
+    /**
+     * Mensajes de error personalizados para la validación.
+     *
+     * @return array<string, string> Mensajes legibles.
+     */
     public function messages(): array
     {
         return [
@@ -75,6 +105,11 @@ class CrearCategoriaProductoRequest extends FormRequest
         ];
     }
 
+    /**
+     * Nombres legibles para los atributos evaluados.
+     *
+     * @return array<string, string> Nombres amigables.
+     */
     public function attributes(): array
     {
         return [
@@ -83,3 +118,4 @@ class CrearCategoriaProductoRequest extends FormRequest
         ];
     }
 }
+
