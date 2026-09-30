@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -134,6 +135,22 @@ class Proveedor extends Model
         return $this->belongsTo(
             User::class,
             'desactivado_por_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // PRODUCTOS PRINCIPALES DEL PROVEEDOR
+    // Productos que utilizan al proveedor como opción principal.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<Producto, $this>
+     */
+    public function productosPrincipales(): HasMany
+    {
+        return $this->hasMany(
+            Producto::class,
+            'proveedor_principal_id'
         );
     }
 }

@@ -111,4 +111,21 @@ return [
         ],
     ],
 
+    // ---------------------------------------------------------
+    // UNIDADES DE MEDIDA PARA PRODUCTOS
+    // Valores normalizados aceptados en el catálogo.
+    // ---------------------------------------------------------
+
+    'unidades_medida_productos' => [
+        'pieza',
+        'unidad',
+        'caja',
+        'paquete',
+        'kit',
+        'metro',
+        'litro',
+        'kilogramo',
+        'servicio',
+    ],
+
 ];

@@ -135,4 +135,20 @@ class Empresa extends Model
             'empresa_id'
         );
     }
+
+    // ---------------------------------------------------------
+    // PRODUCTOS
+    // Catálogo de productos perteneciente a la empresa.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<Producto, $this>
+     */
+    public function productos(): HasMany
+    {
+        return $this->hasMany(
+            Producto::class,
+            'empresa_id'
+        );
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CategoriaProducto extends Model
 {
@@ -69,6 +70,22 @@ class CategoriaProducto extends Model
         return $this->belongsTo(
             User::class,
             'desactivado_por_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // PRODUCTOS DE LA CATEGORÍA
+    // Permite consultar los productos clasificados aquí.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<Producto, $this>
+     */
+    public function productos(): HasMany
+    {
+        return $this->hasMany(
+            Producto::class,
+            'categoria_producto_id'
         );
     }
 }
