@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Inventario\ReservarInventarioParaOrden;
+use App\Enums\EstadoOrden;
 use App\Models\Almacen;
 use App\Models\CategoriaProducto;
 use App\Models\Empresa;
@@ -12,7 +13,9 @@ use App\Models\ReservaInventario;
 use App\Models\Sucursal;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
@@ -373,4 +376,522 @@ test('successive service order reservations accumulate', function () {
         ->toBe('12.5000')
         ->and($existencia->costo_promedio)
         ->toBe('900.0000');
+});
+
+// ---------------------------------------------------------
+// USUARIO SIN PERMISO
+// Impide crear una reserva por orden cuando el actor no
+// cuenta con el permiso inventario.consumir.
+// ---------------------------------------------------------
+
+test('user without permission cannot reserve inventory for service order', function () {
+    [
+        $responsable,
+        $cliente,
+        $empresa,
+        $sucursal,
+        $almacen,
+        $categoria,
+        $producto,
+        $existencia,
+        $equipo,
+        $orden,
+    ] = prepararEntornoParaReservaPorOrden();
+
+    $empleado = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $empleado->assignRole(
+        'empleado'
+    );
+
+    expect(
+        fn () => app(
+            ReservarInventarioParaOrden::class
+        )->ejecutar(
+            empresa: $empresa,
+            almacen: $almacen,
+            producto: $producto,
+            orden: $orden,
+            actor: $empleado,
+            datos: [
+                'cantidad' => '3.0000',
+                'motivo' => 'Intento de reserva no autorizada.',
+            ]
+        )
+    )->toThrow(
+        AuthorizationException::class,
+        'No tienes permiso para reservar inventario.'
+    );
+
+    $existencia->refresh();
+
+    expect($existencia->cantidad)
+        ->toBe('20.0000')
+        ->and($existencia->cantidad_reservada)
+        ->toBe('2.0000')
+        ->and($existencia->cantidadDisponible())
+        ->toBe('18.0000')
+        ->and($existencia->costo_promedio)
+        ->toBe('900.0000')
+        ->and(ReservaInventario::query()->count())
+        ->toBe(0);
+});
+
+// ---------------------------------------------------------
+// EQUIPO DE OTRO CLIENTE
+// Impide crear una reserva cuando el equipo relacionado no
+// pertenece al cliente titular de la orden.
+// ---------------------------------------------------------
+
+test('service order equipment must belong to order customer', function () {
+    [
+        $responsable,
+        $cliente,
+        $empresa,
+        $sucursal,
+        $almacen,
+        $categoria,
+        $producto,
+        $existencia,
+        $equipo,
+        $orden,
+    ] = prepararEntornoParaReservaPorOrden();
+
+    $otroCliente = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $equipoExterno = Equipo::query()->create([
+        'user_id' => $otroCliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Marca externa',
+        'modelo' => 'Equipo externo',
+        'numero_serie' => 'SERIE-EXTERNA-001',
+        'descripcion' => 'Equipo perteneciente a otro cliente.',
+    ]);
+
+    $orden->update([
+        'equipo_id' => $equipoExterno->id,
+    ]);
+
+    expect(
+        fn () => app(
+            ReservarInventarioParaOrden::class
+        )->ejecutar(
+            empresa: $empresa,
+            almacen: $almacen,
+            producto: $producto,
+            orden: $orden->fresh(),
+            actor: $responsable,
+            datos: [
+                'cantidad' => '3.0000',
+                'motivo' => 'Intento de reserva con equipo externo.',
+            ]
+        )
+    )->toThrow(
+        ValidationException::class,
+        'El equipo de la orden no pertenece al cliente indicado.'
+    );
+
+    $existencia->refresh();
+
+    expect($existencia->cantidad)
+        ->toBe('20.0000')
+        ->and($existencia->cantidad_reservada)
+        ->toBe('2.0000')
+        ->and($existencia->cantidadDisponible())
+        ->toBe('18.0000')
+        ->and(ReservaInventario::query()->count())
+        ->toBe(0)
+        ->and($orden->fresh()?->user_id)
+        ->toBe($cliente->id)
+        ->and($equipo->user_id)
+        ->toBe($cliente->id);
+});
+
+// ---------------------------------------------------------
+// DISPONIBILIDAD INSUFICIENTE
+// Impide reservar para una orden una cantidad superior al
+// saldo disponible y revierte toda la operación.
+// ---------------------------------------------------------
+
+test('service order reservation cannot exceed available stock', function () {
+    [
+        $responsable,
+        $cliente,
+        $empresa,
+        $sucursal,
+        $almacen,
+        $categoria,
+        $producto,
+        $existencia,
+        $equipo,
+        $orden,
+    ] = prepararEntornoParaReservaPorOrden();
+
+    // Existencia disponible:
+    // 20.0000 - 2.0000 = 18.0000
+    expect(
+        fn () => app(
+            ReservarInventarioParaOrden::class
+        )->ejecutar(
+            empresa: $empresa,
+            almacen: $almacen,
+            producto: $producto,
+            orden: $orden,
+            actor: $responsable,
+            datos: [
+                'cantidad' => '18.0001',
+                'motivo' => 'Intento de reservar más del disponible.',
+            ]
+        )
+    )->toThrow(
+        ValidationException::class
+    );
+
+    $existencia->refresh();
+
+    expect($existencia->cantidad)
+        ->toBe('20.0000')
+        ->and($existencia->cantidad_reservada)
+        ->toBe('2.0000')
+        ->and($existencia->cantidadDisponible())
+        ->toBe('18.0000')
+        ->and($existencia->costo_promedio)
+        ->toBe('900.0000')
+        ->and(ReservaInventario::query()->count())
+        ->toBe(0);
+});
+
+// ---------------------------------------------------------
+// CANTIDAD INVÁLIDA
+// Reutiliza las validaciones de la reserva consolidada y
+// evita crear detalles incompletos para la orden.
+// ---------------------------------------------------------
+
+test('service order reservation requires valid positive quantity', function (
+    mixed $cantidad
+) {
+    [
+        $responsable,
+        $cliente,
+        $empresa,
+        $sucursal,
+        $almacen,
+        $categoria,
+        $producto,
+        $existencia,
+        $equipo,
+        $orden,
+    ] = prepararEntornoParaReservaPorOrden();
+
+    expect(
+        fn () => app(
+            ReservarInventarioParaOrden::class
+        )->ejecutar(
+            empresa: $empresa,
+            almacen: $almacen,
+            producto: $producto,
+            orden: $orden,
+            actor: $responsable,
+            datos: [
+                'cantidad' => $cantidad,
+                'motivo' => 'Validación de cantidad para la orden.',
+            ]
+        )
+    )->toThrow(
+        ValidationException::class
+    );
+
+    $existencia->refresh();
+
+    expect($existencia->cantidad)
+        ->toBe('20.0000')
+        ->and($existencia->cantidad_reservada)
+        ->toBe('2.0000')
+        ->and($existencia->cantidadDisponible())
+        ->toBe('18.0000')
+        ->and($existencia->costo_promedio)
+        ->toBe('900.0000')
+        ->and(ReservaInventario::query()->count())
+        ->toBe(0);
+})->with([
+    'cantidad vacía' => [
+        '   ',
+    ],
+    'cantidad cero' => [
+        '0',
+    ],
+    'cantidad negativa' => [
+        '-1.0000',
+    ],
+    'cantidad no numérica' => [
+        'cinco',
+    ],
+    'cantidad con más de cuatro decimales' => [
+        '1.12345',
+    ],
+]);
+
+// ---------------------------------------------------------
+// MOTIVO INVÁLIDO
+// Toda reserva por orden necesita una justificación válida
+// y no debe modificar ningún saldo si la validación falla.
+// ---------------------------------------------------------
+
+test('service order reservation requires valid reason', function (
+    string $motivo
+) {
+    [
+        $responsable,
+        $cliente,
+        $empresa,
+        $sucursal,
+        $almacen,
+        $categoria,
+        $producto,
+        $existencia,
+        $equipo,
+        $orden,
+    ] = prepararEntornoParaReservaPorOrden();
+
+    expect(
+        fn () => app(
+            ReservarInventarioParaOrden::class
+        )->ejecutar(
+            empresa: $empresa,
+            almacen: $almacen,
+            producto: $producto,
+            orden: $orden,
+            actor: $responsable,
+            datos: [
+                'cantidad' => '3.0000',
+                'motivo' => $motivo,
+            ]
+        )
+    )->toThrow(
+        ValidationException::class
+    );
+
+    $existencia->refresh();
+
+    expect($existencia->cantidad)
+        ->toBe('20.0000')
+        ->and($existencia->cantidad_reservada)
+        ->toBe('2.0000')
+        ->and($existencia->cantidadDisponible())
+        ->toBe('18.0000')
+        ->and(ReservaInventario::query()->count())
+        ->toBe(0);
+})->with([
+    'motivo vacío' => [
+        '   ',
+    ],
+    'motivo mayor de mil caracteres' => [
+        str_repeat('A', 1001),
+    ],
+]);
+
+// ---------------------------------------------------------
+// ORDEN FINALIZADA
+// Una orden entregada o cancelada no puede recibir nuevas
+// reservas de inventario.
+// ---------------------------------------------------------
+
+test('finished service order cannot receive inventory reservation', function (
+    string $estado
+) {
+    [
+        $responsable,
+        $cliente,
+        $empresa,
+        $sucursal,
+        $almacen,
+        $categoria,
+        $producto,
+        $existencia,
+        $equipo,
+        $orden,
+    ] = prepararEntornoParaReservaPorOrden();
+
+    $orden->update([
+        'estado' => $estado,
+    ]);
+
+    expect(
+        fn () => app(
+            ReservarInventarioParaOrden::class
+        )->ejecutar(
+            empresa: $empresa,
+            almacen: $almacen,
+            producto: $producto,
+            orden: $orden->fresh(),
+            actor: $responsable,
+            datos: [
+                'cantidad' => '3.0000',
+                'motivo' => 'Intento de reservar para una orden finalizada.',
+            ]
+        )
+    )->toThrow(
+        ValidationException::class,
+        'No se puede reservar inventario para una orden finalizada.'
+    );
+
+    $existencia->refresh();
+
+    expect($existencia->cantidad)
+        ->toBe('20.0000')
+        ->and($existencia->cantidad_reservada)
+        ->toBe('2.0000')
+        ->and($existencia->cantidadDisponible())
+        ->toBe('18.0000')
+        ->and($existencia->costo_promedio)
+        ->toBe('900.0000')
+        ->and(ReservaInventario::query()->count())
+        ->toBe(0);
+})->with([
+    'orden entregada' => [
+        EstadoOrden::ENTREGADO->value,
+    ],
+    'orden cancelada' => [
+        EstadoOrden::CANCELADO->value,
+    ],
+]);
+
+// ---------------------------------------------------------
+// REAPERTURA DE RESERVA LIBERADA
+// Una reserva completamente liberada puede recibir nuevas
+// unidades sin perder su historial de liberación.
+// ---------------------------------------------------------
+
+test('fully released reservation can be reopened with new quantity', function () {
+    [
+        $responsable,
+        $cliente,
+        $empresa,
+        $sucursal,
+        $almacen,
+        $categoria,
+        $producto,
+        $existencia,
+        $equipo,
+        $orden,
+    ] = prepararEntornoParaReservaPorOrden();
+
+    // -----------------------------------------------------
+    // RESERVA FINALIZADA PREVIA
+    // Simula una reserva de cinco unidades que fue liberada
+    // completamente antes de recibir la nueva ampliación.
+    // -----------------------------------------------------
+
+    $reservaExistente = ReservaInventario::query()->create([
+        'empresa_id' => $empresa->id,
+        'almacen_id' => $almacen->id,
+        'producto_id' => $producto->id,
+        'orden_servicio_id' => $orden->id,
+        'cantidad_reservada' => '5.0000',
+        'cantidad_consumida' => '0.0000',
+        'cantidad_liberada' => '5.0000',
+        'estado' => ReservaInventario::ESTADO_LIBERADA,
+        'motivo' => 'Reserva anterior completamente liberada.',
+        'reservado_por_id' => $responsable->id,
+        'actualizado_por_id' => $responsable->id,
+        'reservado_at' => now()->subDay(),
+        'finalizado_at' => now()->subHour(),
+    ]);
+
+    expect($reservaExistente->cantidadPendiente())
+        ->toBe('0.0000')
+        ->and($reservaExistente->estaFinalizada())
+        ->toBeTrue()
+        ->and($reservaExistente->estaActiva())
+        ->toBeFalse();
+
+    // -----------------------------------------------------
+    // NUEVA RESERVA
+    // Agrega tres unidades sobre el mismo registro formal.
+    // La reserva total histórica pasa de cinco a ocho.
+    // -----------------------------------------------------
+
+    $reservaActualizada = app(
+        ReservarInventarioParaOrden::class
+    )->ejecutar(
+        empresa: $empresa,
+        almacen: $almacen,
+        producto: $producto,
+        orden: $orden,
+        actor: $responsable,
+        datos: [
+            'cantidad' => '3.0000',
+            'motivo' => 'Nuevas unidades requeridas para la reparación.',
+        ]
+    );
+
+    // -----------------------------------------------------
+    // DETALLE FORMAL
+    // Conserva las cinco unidades liberadas y deja tres
+    // unidades nuevamente pendientes.
+    // -----------------------------------------------------
+
+    expect($reservaActualizada->id)
+        ->toBe($reservaExistente->id)
+        ->and($reservaActualizada->cantidad_reservada)
+        ->toBe('8.0000')
+        ->and($reservaActualizada->cantidad_consumida)
+        ->toBe('0.0000')
+        ->and($reservaActualizada->cantidad_liberada)
+        ->toBe('5.0000')
+        ->and($reservaActualizada->cantidadPendiente())
+        ->toBe('3.0000')
+        ->and($reservaActualizada->estado)
+        ->toBe(ReservaInventario::ESTADO_PARCIAL)
+        ->and($reservaActualizada->motivo)
+        ->toBe(
+            'Nuevas unidades requeridas para la reparación.'
+        )
+        ->and($reservaActualizada->reservado_por_id)
+        ->toBe($responsable->id)
+        ->and($reservaActualizada->actualizado_por_id)
+        ->toBe($responsable->id)
+        ->and($reservaActualizada->finalizado_at)
+        ->toBeNull()
+        ->and($reservaActualizada->estaFinalizada())
+        ->toBeFalse()
+        ->and($reservaActualizada->estaActiva())
+        ->toBeTrue();
+
+    // -----------------------------------------------------
+    // SALDO CONSOLIDADO
+    // La existencia física y el costo permanecen iguales.
+    // Solo aumenta la cantidad reservada consolidada.
+    // -----------------------------------------------------
+
+    $existencia->refresh();
+
+    expect($existencia->cantidad)
+        ->toBe('20.0000')
+        ->and($existencia->cantidad_reservada)
+        ->toBe('5.0000')
+        ->and($existencia->cantidadDisponible())
+        ->toBe('15.0000')
+        ->and($existencia->costo_promedio)
+        ->toBe('900.0000')
+        ->and($existencia->actualizado_por_id)
+        ->toBe($responsable->id);
+
+    // -----------------------------------------------------
+    // SIN DUPLICADOS
+    // Debe seguir existiendo un solo registro para la misma
+    // orden, almacén y producto.
+    // -----------------------------------------------------
+
+    expect(
+        ReservaInventario::query()
+            ->where('orden_servicio_id', $orden->id)
+            ->where('almacen_id', $almacen->id)
+            ->where('producto_id', $producto->id)
+            ->count()
+    )->toBe(1);
 });

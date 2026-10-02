@@ -2,6 +2,7 @@
 
 namespace App\Actions\Inventario;
 
+use App\Enums\EstadoOrden;
 use App\Models\Almacen;
 use App\Models\Empresa;
 use App\Models\OrdenServicio;
@@ -212,12 +213,50 @@ class ReservarInventarioParaOrden
     private function validarOrden(
         OrdenServicio $orden
     ): void {
+        // -----------------------------------------------------
+        // ESTADO TERMINAL
+        // Las órdenes entregadas o canceladas no pueden recibir
+        // nuevas reservas de inventario.
+        // -----------------------------------------------------
+
         if (
-            $orden->equipo !== null
-            && (int) $orden->equipo->user_id !== (int) $orden->user_id
+            in_array(
+                $orden->estado,
+                EstadoOrden::finalizados(),
+                true
+            )
         ) {
             throw ValidationException::withMessages([
-                'orden' => 'El equipo no pertenece al cliente registrado en la orden de servicio.',
+                'orden' => 'No se puede reservar inventario para una orden finalizada.',
+            ]);
+        }
+
+        // -----------------------------------------------------
+        // EQUIPO RELACIONADO
+        // Toda orden debe conservar un equipo relacionado para
+        // poder comprometer productos de inventario.
+        // -----------------------------------------------------
+
+        $equipo = $orden->equipo;
+
+        if ($equipo === null) {
+            throw ValidationException::withMessages([
+                'orden' => 'La orden debe tener un equipo relacionado.',
+            ]);
+        }
+
+        // -----------------------------------------------------
+        // PROPIETARIO DEL EQUIPO
+        // El equipo debe pertenecer al mismo cliente registrado
+        // como titular de la orden de servicio.
+        // -----------------------------------------------------
+
+        if (
+            (int) $equipo->user_id
+            !== (int) $orden->user_id
+        ) {
+            throw ValidationException::withMessages([
+                'orden' => 'El equipo de la orden no pertenece al cliente indicado.',
             ]);
         }
     }
@@ -267,9 +306,15 @@ class ReservarInventarioParaOrden
     private function determinarEstado(
         ReservaInventario $reserva
     ): string {
+        $procesada = bcadd(
+            (string) $reserva->cantidad_consumida,
+            (string) $reserva->cantidad_liberada,
+            4
+        );
+
         if (
             bccomp(
-                (string) $reserva->cantidad_consumida,
+                $procesada,
                 '0.0000',
                 4
             ) > 0
