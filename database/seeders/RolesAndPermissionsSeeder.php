@@ -115,6 +115,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'productos.cambiar_estado',
             'productos.eliminar',
 
+            // Administración de almacenes
+            'almacenes.ver',
+            'almacenes.crear',
+            'almacenes.actualizar',
+            'almacenes.cambiar_estado',
+
             // Control de Almacenes e Inventarios
             'inventario.ver',
             'inventario.registrar_entrada',

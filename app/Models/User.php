@@ -161,4 +161,59 @@ class User extends Authenticatable implements MustVerifyEmail
             ->wherePivot('activo', true)
             ->exists();
     }
+
+    /**
+     * @return HasMany<ExistenciaAlmacen, $this>
+     */
+    public function existenciasActualizadas(): HasMany
+    {
+        return $this->hasMany(
+            ExistenciaAlmacen::class,
+            'actualizado_por_id'
+        );
+    }
+
+    /**
+     * @return HasMany<MovimientoInventario, $this>
+     */
+    public function movimientosInventario(): HasMany
+    {
+        return $this->hasMany(
+            MovimientoInventario::class,
+            'usuario_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // RESERVAS CREADAS
+    // Recupera las reservas de inventario creadas originalmente
+    // por este usuario.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<ReservaInventario, $this>
+     */
+    public function reservasInventarioCreadas(): HasMany
+    {
+        return $this->hasMany(
+            ReservaInventario::class,
+            'reservado_por_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // RESERVAS ACTUALIZADAS
+    // Recupera las reservas cuyo último consumoio liberación
+    // fue realizado por este usuario.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<ReservaInventario, $this>     */
+    public function reservasInventarioActualizadas(): HasMany
+    {
+        return $this->hasMany(
+            ReservaInventario::class,
+            'actualizado_por_id'
+        );
+    }
 }

@@ -2,6 +2,13 @@
 
 namespace App\Models;
 
+// ---------------------------------------------------------
+// IMPORTACIONES
+// Modelo base de Eloquent, tipos de relaciones para agrupar
+// sucursales, almacenes, catálogo, inventario y usuarios,
+// además de utilidades de fecha.
+// ---------------------------------------------------------
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -28,16 +35,19 @@ use Illuminate\Support\Carbon;
  */
 class Empresa extends Model
 {
-    /**
-     * Nombre explícito de la tabla en base de datos.
-     *
-     * @var string
-     */
+    // ---------------------------------------------------------
+    // TABLA
+    // Nombre explícito de la tabla en base de datos.
+    // ---------------------------------------------------------
+
     protected $table = 'empresas';
 
+    // ---------------------------------------------------------
+    // ASIGNACIÓN MASIVA
+    // Columnas permitidas al registrar o modificar la empresa.
+    // ---------------------------------------------------------
+
     /**
-     * Columnas asignables en masa.
-     *
      * @var list<string>
      */
     protected $fillable = [
@@ -52,9 +62,12 @@ class Empresa extends Model
         'actualizado_por_id',
     ];
 
+    // ---------------------------------------------------------
+    // CONVERSIONES DE TIPO
+    // Conversiones de tipo automáticas para atributos del modelo.
+    // ---------------------------------------------------------
+
     /**
-     * Conversiones de tipo automáticas.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
@@ -64,9 +77,12 @@ class Empresa extends Model
         ];
     }
 
+    // ---------------------------------------------------------
+    // SUCURSALES
+    // Sucursales físicas pertenecientes a la empresa.
+    // ---------------------------------------------------------
+
     /**
-     * Relación: Sucursales físicas pertenecientes a la empresa.
-     *
      * @return HasMany<Sucursal, $this>
      */
     public function sucursales(): HasMany
@@ -74,9 +90,12 @@ class Empresa extends Model
         return $this->hasMany(Sucursal::class);
     }
 
+    // ---------------------------------------------------------
+    // ALMACENES
+    // Almacenes físicos o virtuales pertenecientes a la empresa.
+    // ---------------------------------------------------------
+
     /**
-     * Relación: Almacenes (físicos o virtuales) pertenecientes a la empresa.
-     *
      * @return HasMany<Almacen, $this>
      */
     public function almacenes(): HasMany
@@ -84,9 +103,12 @@ class Empresa extends Model
         return $this->hasMany(Almacen::class);
     }
 
+    // ---------------------------------------------------------
+    // USUARIO CREADOR
+    // Cuenta de usuario que registró la empresa.
+    // ---------------------------------------------------------
+
     /**
-     * Relación: Usuario que creó la empresa.
-     *
      * @return BelongsTo<User, $this>
      */
     public function creadoPor(): BelongsTo
@@ -97,9 +119,12 @@ class Empresa extends Model
         );
     }
 
+    // ---------------------------------------------------------
+    // ÚLTIMO USUARIO ACTUALIZADOR
+    // Cuenta del último usuario que modificó los datos de la empresa.
+    // ---------------------------------------------------------
+
     /**
-     * Relación: Último usuario que modificó los datos de la empresa.
-     *
      * @return BelongsTo<User, $this>
      */
     public function actualizadoPor(): BelongsTo
@@ -110,9 +135,12 @@ class Empresa extends Model
         );
     }
 
+    // ---------------------------------------------------------
+    // CATEGORÍAS DE PRODUCTOS
+    // Clasificaciones de catálogo pertenecientes a la empresa.
+    // ---------------------------------------------------------
+
     /**
-     * Relación: Categorías de productos pertenecientes a la empresa.
-     *
      * @return HasMany<CategoriaProducto, $this>
      */
     public function categoriasProducto(): HasMany
@@ -123,9 +151,12 @@ class Empresa extends Model
         );
     }
 
+    // ---------------------------------------------------------
+    // PROVEEDORES
+    // Proveedores comerciales registrados para la empresa.
+    // ---------------------------------------------------------
+
     /**
-     * Relación: Proveedores pertenecientes a la empresa.
-     *
      * @return HasMany<Proveedor, $this>
      */
     public function proveedores(): HasMany
@@ -149,6 +180,54 @@ class Empresa extends Model
         return $this->hasMany(
             Producto::class,
             'empresa_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // EXISTENCIAS EN ALMACENES
+    // Saldos consolidados de inventario pertenecientes a la empresa.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<ExistenciaAlmacen, $this>
+     */
+    public function existenciasAlmacen(): HasMany
+    {
+        return $this->hasMany(
+            ExistenciaAlmacen::class,
+            'empresa_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // MOVIMIENTOS DE INVENTARIO
+    // Bitácora de movimientos de inventario de la empresa.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<MovimientoInventario, $this>
+     */
+    public function movimientosInventario(): HasMany
+    {
+        return $this->hasMany(
+            MovimientoInventario::class,
+            'empresa_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // RESERVAS DE INVENTARIO
+    // Recupera todas las reservas de inventario pertenecientes
+    // a la empresa.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<ReservaInventario, $this>
+     */
+    public function reservasInventario(): HasMany
+    {
+        return $this->hasMany(
+            ReservaInventario::class
         );
     }
 }

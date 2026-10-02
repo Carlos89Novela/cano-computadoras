@@ -10,6 +10,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Producto extends Model
 {
@@ -150,6 +151,55 @@ class Producto extends Model
         return $this->belongsTo(
             User::class,
             'desactivado_por_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // EXISTENCIAS EN ALMACENES
+    // Saldos consolidados del producto en cada almacén.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<ExistenciaAlmacen, $this>
+     */
+    public function existenciasAlmacen(): HasMany
+    {
+        return $this->hasMany(
+            ExistenciaAlmacen::class,
+            'producto_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // MOVIMIENTOS DE INVENTARIO
+    // Bitácora inmutable de movimientos del producto.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<MovimientoInventario, $this>
+     */
+    public function movimientosInventario(): HasMany
+    {
+        return $this->hasMany(
+            MovimientoInventario::class,
+            'producto_id'
+        );
+    }
+
+    // ---------------------------------------------------------
+    // RESERVAS DE INVENTARIO
+    // Recupera las reservas asociadas con este producto en
+    // órdenes y almacenes diferentes.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<ReservaInventario, $this>
+     */
+    public function reservasInventario(): HasMany
+    {
+        return $this->hasMany(
+            ReservaInventario::class,
+            'producto_id'
         );
     }
 }

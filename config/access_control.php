@@ -81,6 +81,22 @@ return [
             ],
         ],
 
+        // -------------------------------------------------
+        // ALMACENES
+        // Controla la consulta y administración de los
+        // espacios físicos o virtuales de inventario.
+        // -------------------------------------------------
+
+        'almacenes' => [
+            'titulo' => 'Almacenes',
+            'permisos' => [
+                'almacenes.ver' => 'Ver almacenes',
+                'almacenes.crear' => 'Crear almacenes',
+                'almacenes.actualizar' => 'Editar almacenes',
+                'almacenes.cambiar_estado' => 'Activar o desactivar almacenes',
+            ],
+        ],
+
         'inventario' => [
             'titulo' => 'Inventario',
             'permisos' => [

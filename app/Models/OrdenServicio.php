@@ -194,4 +194,21 @@ class OrdenServicio extends Model
             ->where('activo', true)
             ->latestOfMany('asignado_at');
     }
+
+    // ---------------------------------------------------------
+    // RESERVAS DE INVENTARIO
+    // Recupera los productos comprometidos para ejecutar el
+    // trabajo técnico de esta orden.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasMany<ReservaInventario, $this>
+     */
+    public function reservasInventario(): HasMany
+    {
+        return $this->hasMany(
+            ReservaInventario::class,
+            'orden_servicio_id'
+        );
+    }
 }
