@@ -422,6 +422,16 @@ class OrdenServicioController extends Controller
             'user',
             'equipo',
             'historial.usuario',
+            'reservasInventario' => function ($consulta): void {
+                $consulta
+                    ->with([
+                        'producto',
+                        'almacen',
+                        'reservadoPor',
+                        'actualizadoPor',
+                    ])
+                    ->latest('reservado_at');
+            },
         ]);
 
         $estadoActual = EstadoOrden::tryFrom($orden->estado);

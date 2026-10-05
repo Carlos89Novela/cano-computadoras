@@ -255,7 +255,7 @@
                                 name="comentario"
                                 rows="4"
                                 maxlength="2000"
-                                class="mt-2 w-full rounded-lg border border-blue-700 bg-blue-900 p-3 text-white"
+                                class="mt-2 w-full rounded-lg border border-blue-700 bg-blue-900 p-3 text-grey-900"
                                 placeholder="Describe la reparación realizada."
                             >{{ old('comentario') }}</textarea>
 
@@ -350,7 +350,7 @@
                                 name="comentario"
                                 rows="4"
                                 maxlength="2000"
-                                class="mt-2 w-full rounded-lg border border-purple-700 bg-purple-900 p-3 text-gray-900"
+                                class="mt-2 w-full rounded-lg border border-purple-700 bg-purple-900 p-3 text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:ring-green-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500"
                                 placeholder="Describe el resultado de las pruebas."
                             >{{ old('comentario') }}</textarea>
 

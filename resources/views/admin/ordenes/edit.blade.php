@@ -490,6 +490,116 @@
 
             </form>
 
+                        @can('inventario.ver')
+                <section class="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
+                    <div class="mb-5">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-purple-300">
+                            Inventario
+                        </p>
+
+                        <h3 class="mt-2 text-xl font-bold text-white">
+                            Productos comprometidos
+                        </h3>
+
+                        <p class="mt-2 text-sm text-zinc-400">
+                            Reservas de inventario vinculadas con esta orden de servicio.
+                        </p>
+                    </div>
+
+                    @if ($orden->reservasInventario->isEmpty())
+                        <div class="rounded-xl border border-dashed border-zinc-700 bg-zinc-900 p-5 text-sm text-zinc-300">
+                            Esta orden todavía no tiene productos reservados.
+                        </div>
+                    @else
+                        <div class="space-y-4">
+                            @foreach ($orden->reservasInventario as $reserva)
+                                <article class="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div>
+                                            <p class="font-semibold text-white">
+                                                {{ $reserva->producto?->nombre ?? 'Producto no disponible' }}
+                                            </p>
+
+                                            <p class="mt-1 text-sm text-zinc-400">
+                                                SKU:
+                                                {{ $reserva->producto?->sku ?? 'Sin SKU' }}
+                                            </p>
+
+                                            <p class="mt-1 text-sm text-zinc-400">
+                                                Almacén:
+                                                {{ $reserva->almacen?->nombre ?? 'No disponible' }}
+                                            </p>
+                                        </div>
+
+                                        <span class="inline-flex w-fit rounded-full bg-purple-600/20 px-3 py-1 text-xs font-semibold text-purple-200">
+                                            {{ ucfirst($reserva->estado) }}
+                                        </span>
+                                    </div>
+
+                                    <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                        <div class="rounded-lg bg-zinc-950 p-3">
+                                            <p class="text-xs uppercase tracking-wide text-zinc-500">
+                                                Reservado
+                                            </p>
+
+                                            <p class="mt-1 font-semibold text-white">
+                                                {{ number_format((float) $reserva->cantidad_reservada, 4) }}
+                                            </p>
+                                        </div>
+
+                                        <div class="rounded-lg bg-zinc-950 p-3">
+                                            <p class="text-xs uppercase tracking-wide text-zinc-500">
+                                                Consumido
+                                            </p>
+
+                                            <p class="mt-1 font-semibold text-white">
+                                                {{ number_format((float) $reserva->cantidad_consumida, 4) }}
+                                            </p>
+                                        </div>
+
+                                        <div class="rounded-lg bg-zinc-950 p-3">
+                                            <p class="text-xs uppercase tracking-wide text-zinc-500">
+                                                Liberado
+                                            </p>
+
+                                            <p class="mt-1 font-semibold text-white">
+                                                {{ number_format((float) $reserva->cantidad_liberada, 4) }}
+                                            </p>
+                                        </div>
+
+                                        <div class="rounded-lg bg-zinc-950 p-3">
+                                            <p class="text-xs uppercase tracking-wide text-zinc-500">
+                                                Pendiente
+                                            </p>
+
+                                            <p class="mt-1 font-semibold text-white">
+                                                {{ number_format((float) $reserva->cantidadPendiente(), 4) }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 border-t border-zinc-800 pt-4 text-sm text-zinc-400">
+                                        <p>
+                                            Motivo:
+                                            <span class="text-zinc-200">
+                                                {{ $reserva->motivo }}
+                                            </span>
+                                        </p>
+
+                                        <p class="mt-1">
+                                            Reservado por:
+                                            <span class="text-zinc-200">
+                                                {{ $reserva->reservadoPor?->name ?? 'Usuario no disponible' }}
+                                            </span>
+                                        </p>
+                                    </div>
+                                </article>
+                            @endforeach
+                        </div>
+                    @endif
+                </section>
+            @endcan
+
             <section class="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
                 <div class="mb-5 flex items-center justify-between gap-3">
                     <div>

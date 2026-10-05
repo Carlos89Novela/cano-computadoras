@@ -3,12 +3,19 @@
 use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
 use App\Enums\EstadoRevisionCotizacion;
+use App\Models\Almacen;
+use App\Models\CategoriaProducto;
+use App\Models\Empresa;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
+use App\Models\Producto;
+use App\Models\ReservaInventario;
 use App\Models\Servicio;
+use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 test('admin users can access the orders management page', function () {
@@ -175,6 +182,15 @@ test('admin users see a repair summary and activity history in the detail page',
     $admin = User::factory()->create();
     $admin->assignRole('administrador');
 
+    Permission::findOrCreate(
+        'inventario.ver',
+        'web'
+    );
+
+    $admin->givePermissionTo(
+        'inventario.ver'
+    );
+
     $cliente = User::factory()->create(['name' => 'Ana López']);
     $equipo = Equipo::create([
         'user_id' => $cliente->id,
@@ -205,8 +221,208 @@ test('admin users see a repair summary and activity history in the detail page',
 
     $response->assertOk()
         ->assertSee('Resumen de la reparación')
+        ->assertSee('Productos comprometidos')
+        ->assertSee(
+            'Esta orden todavía no tiene productos reservados.'
+        )
         ->assertSee('Historial de trabajo')
         ->assertSee('Se inició la revisión del equipo.');
+});
+
+// ---------------------------------------------------------
+// PANEL SIN PERMISO
+// El detalle administrativo no muestra las reservas cuando
+// el usuario no tiene el permiso inventario.ver.
+// ---------------------------------------------------------
+
+test('inventory reservation panel is hidden without permission', function () {
+    Role::firstOrCreate([
+        'name' => 'administrador',
+        'guard_name' => 'web',
+    ]);
+
+    $admin = User::factory()->create();
+
+    $admin->assignRole(
+        'administrador'
+    );
+
+    $cliente = User::factory()->create();
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude 5420',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-INVENTARIO-SIN-PERMISO',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'El equipo tarda en iniciar.',
+        'estado' => EstadoOrden::EN_REPARACION->value,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->get(
+            route('admin.ordenes.edit', [
+                'orden' => $orden->id,
+            ])
+        );
+
+    $response
+        ->assertOk()
+        ->assertSee('Resumen de la reparación')
+        ->assertDontSee('Productos comprometidos')
+        ->assertDontSee(
+            'Esta orden todavía no tiene productos reservados.'
+        );
+});
+
+// ---------------------------------------------------------
+// PANEL CON RESERVA REAL
+// El administrador con inventario.ver puede consultar el
+// producto y las cantidades vinculadas con la orden.
+// ---------------------------------------------------------
+
+test('admin can see inventory reservation details in order page', function () {
+    Role::firstOrCreate([
+        'name' => 'administrador',
+        'guard_name' => 'web',
+    ]);
+
+    Permission::findOrCreate(
+        'inventario.ver',
+        'web'
+    );
+
+    $admin = User::factory()->create();
+
+    $admin->assignRole(
+        'administrador'
+    );
+
+    $admin->givePermissionTo(
+        'inventario.ver'
+    );
+
+    $cliente = User::factory()->create([
+        'name' => 'Cliente con reserva',
+    ]);
+
+    $empresa = Empresa::query()->create([
+        'nombre' => 'Cano Computadoras',
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $sucursal = Sucursal::query()->create([
+        'empresa_id' => $empresa->id,
+        'codigo' => 'MATRIZ-RESERVA',
+        'nombre' => 'Sucursal principal',
+        'es_principal' => true,
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $almacen = Almacen::query()->create([
+        'empresa_id' => $empresa->id,
+        'sucursal_id' => $sucursal->id,
+        'codigo' => 'ALM-RESERVA',
+        'nombre' => 'Almacén de reparaciones',
+        'tipo' => Almacen::TIPO_PRINCIPAL,
+        'es_virtual' => false,
+        'permite_existencias' => true,
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $categoria = CategoriaProducto::query()->create([
+        'empresa_id' => $empresa->id,
+        'nombre' => 'Almacenamiento',
+        'descripcion' => 'Productos utilizados en reparaciones.',
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $producto = Producto::query()->create([
+        'empresa_id' => $empresa->id,
+        'categoria_producto_id' => $categoria->id,
+        'proveedor_principal_id' => null,
+        'sku' => 'SSD-PANEL-001',
+        'codigo_barras' => '7501111111111',
+        'nombre' => 'Unidad SSD para reparación',
+        'descripcion' => 'Producto mostrado en el detalle de la orden.',
+        'marca' => 'Marca de prueba',
+        'modelo' => 'SSD-PANEL',
+        'unidad_medida' => 'pieza',
+        'costo_referencia' => 900,
+        'precio_base' => 1200,
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude 5420',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-PANEL-INVENTARIO-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'El almacenamiento presenta fallas.',
+        'estado' => EstadoOrden::EN_REPARACION->value,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    ReservaInventario::query()->create([
+        'empresa_id' => $empresa->id,
+        'almacen_id' => $almacen->id,
+        'producto_id' => $producto->id,
+        'orden_servicio_id' => $orden->id,
+        'cantidad_reservada' => '8.0000',
+        'cantidad_consumida' => '2.0000',
+        'cantidad_liberada' => '1.0000',
+        'estado' => ReservaInventario::ESTADO_PARCIAL,
+        'motivo' => 'Reserva para reemplazar la unidad dañada.',
+        'reservado_por_id' => $admin->id,
+        'actualizado_por_id' => $admin->id,
+        'reservado_at' => now(),
+        'finalizado_at' => null,
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->get(
+            route('admin.ordenes.edit', [
+                'orden' => $orden->id,
+            ])
+        );
+
+    $response
+        ->assertOk()
+        ->assertSee('Productos comprometidos')
+        ->assertSee('Unidad SSD para reparación')
+        ->assertSee('SSD-PANEL-001')
+        ->assertSee('Almacén de reparaciones')
+        ->assertSee('Parcial')
+        ->assertSee('8.0000')
+        ->assertSee('2.0000')
+        ->assertSee('1.0000')
+        ->assertSee('5.0000')
+        ->assertSee(
+            'Reserva para reemplazar la unidad dañada.'
+        )
+        ->assertSee($admin->name)
+        ->assertDontSee(
+            'Esta orden todavía no tiene productos reservados.'
+        );
 });
 
 test('authenticated users can access the dashboard', function () {
