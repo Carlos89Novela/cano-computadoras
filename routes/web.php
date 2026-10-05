@@ -13,6 +13,7 @@ use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
+use App\Http\Controllers\Productos\ProductoController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Proveedores\ProveedorController;
 use App\Http\Controllers\SeguimientoController;
@@ -197,6 +198,41 @@ Route::middleware([
     ->prefix('operacion')
     ->name('productos.')
     ->group(function (): void {
+
+        // -------------------------------------------------
+        // PRODUCTOS
+        // Listado, formulario y registro inicial del
+        // catálogo de productos de una empresa.
+        // -------------------------------------------------
+
+        Route::get(
+            '/empresas/{empresa}/productos',
+            [ProductoController::class, 'index']
+        )
+            ->middleware('permission:productos.ver')
+            ->name('productos.index');
+
+        Route::get(
+            '/empresas/{empresa}/productos/data',
+            [ProductoController::class, 'data']
+        )
+            ->middleware('permission:productos.ver')
+            ->name('productos.data');
+
+        Route::get(
+            '/empresas/{empresa}/productos/crear',
+            [ProductoController::class, 'create']
+        )
+            ->middleware('permission:productos.crear')
+            ->name('productos.create');
+
+        Route::post(
+            '/empresas/{empresa}/productos',
+            [ProductoController::class, 'store']
+        )
+            ->middleware('permission:productos.crear')
+            ->name('productos.store');
+
         Route::get(
             '/empresas/{empresa}/categorias-producto',
             [CategoriaProductoController::class, 'index']
