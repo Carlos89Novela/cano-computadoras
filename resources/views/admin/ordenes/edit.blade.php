@@ -504,6 +504,188 @@
                         <p class="mt-2 text-sm text-zinc-400">
                             Reservas de inventario vinculadas con esta orden de servicio.
                         </p>
+
+                        @can('inventario.consumir')
+                        <div class="mt-6 space-y-4">
+                            @forelse ($empresasInventario as $empresaInventario)
+                                <form
+                                    action="{{ route('admin.ordenes.inventario.reservar', [
+                                        'empresa' => $empresaInventario->id,
+                                        'orden' => $orden->id,
+                                    ]) }}"
+                                    method="POST"
+                                >
+                                    @csrf
+
+                                    <div class="mb-4">
+                                        <p class="text-sm font-semibold text-white">
+                                            Reservar desde {{ $empresaInventario->nombre }}
+                                        </p>
+
+                                        <p class="mt-1 text-xs text-zinc-400">
+                                            Selecciona un almacén y un producto con existencia disponible.
+                                        </p>
+                                    </div>
+
+                                    <div class="grid gap-4 md:grid-cols-2">
+                                        <div>
+                                            <label
+                                                for="almacen-{{ $empresaInventario->id }}"
+                                                class="mb-2 block text-sm font-medium text-zinc-200"
+                                            >
+                                                Almacén
+                                            </label>
+
+                                            <select
+                                                id="almacen-{{ $empresaInventario->id }}"
+                                                name="almacen_id"
+                                                class="admin-form-control"
+                                                required
+                                            >
+                                                <option value="">
+                                                    Selecciona un almacén
+                                                </option>
+
+                                                @foreach (
+                                                    $empresaInventario->existenciasAlmacen
+                                                        ->pluck('almacen')
+                                                        ->filter()
+                                                        ->unique('id')
+                                                    as $almacenDisponible
+                                                )
+                                                    <option
+                                                        value="{{ $almacenDisponible->id }}"
+                                                        @selected(
+                                                            old('almacen_id')
+                                                            == $almacenDisponible->id
+                                                        )
+                                                    >
+                                                        {{ $almacenDisponible->nombre }}
+                                                        ({{ $almacenDisponible->codigo }})
+                                                    </option>
+                                                @endforeach
+                                            </select>
+
+                                            @error('almacen_id')
+                                                <p class="mt-2 text-sm text-red-400">
+                                                    {{ $message }}
+                                                </p>
+                                            @enderror
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                for="producto-{{ $empresaInventario->id }}"
+                                                class="mb-2 block text-sm font-medium text-zinc-200"
+                                            >
+                                                Producto
+                                            </label>
+
+                                            <select
+                                                id="producto-{{ $empresaInventario->id }}"
+                                                name="producto_id"
+                                                class="admin-form-control"
+                                                required
+                                            >
+                                                <option value="">
+                                                    Selecciona un producto
+                                                </option>
+
+                                                @foreach (
+                                                    $empresaInventario->existenciasAlmacen
+                                                        ->pluck('producto')
+                                                        ->filter()
+                                                        ->unique('id')
+                                                    as $productoDisponible
+                                                )
+                                                    <option
+                                                        value="{{ $productoDisponible->id }}"
+                                                        @selected(
+                                                            old('producto_id')
+                                                            == $productoDisponible->id
+                                                        )
+                                                    >
+                                                        {{ $productoDisponible->nombre }}
+                                                        ({{ $productoDisponible->sku }})
+                                                    </option>
+                                                @endforeach
+                                            </select>
+
+                                            @error('producto_id')
+                                                <p class="mt-2 text-sm text-red-400">
+                                                    {{ $message }}
+                                                </p>
+                                            @enderror
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                for="cantidad-reserva-{{ $empresaInventario->id }}"
+                                                class="mb-2 block text-sm font-medium text-zinc-200"
+                                            >
+                                                Cantidad
+                                            </label>
+
+                                            <input
+                                                id="cantidad-reserva-{{ $empresaInventario->id }}"
+                                                type="number"
+                                                name="cantidad"
+                                                value="{{ old('cantidad') }}"
+                                                min="0.0001"
+                                                step="0.0001"
+                                                class="admin-form-control"
+                                                required
+                                            >
+
+                                            @error('cantidad')
+                                                <p class="mt-2 text-sm text-red-400">
+                                                    {{ $message }}
+                                                </p>
+                                            @enderror
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                for="motivo-reserva-{{ $empresaInventario->id }}"
+                                                class="mb-2 block text-sm font-medium text-zinc-200"
+                                            >
+                                                Motivo
+                                            </label>
+
+                                            <input
+                                                id="motivo-reserva-{{ $empresaInventario->id }}"
+                                                type="text"
+                                                name="motivo"
+                                                value="{{ old('motivo') }}"
+                                                maxlength="1000"
+                                                class="admin-form-control"
+                                                required
+                                            >
+
+                                            @error('motivo')
+                                                <p class="mt-2 text-sm text-red-400">
+                                                    {{ $message }}
+                                                </p>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-5">
+                                        <button
+                                            type="submit"
+                                            class="ion-btn ion-btn--primary"
+                                        >
+                                            Reservar producto
+                                        </button>
+                                    </div>
+                                </form>
+                            @empty
+                                <div class="rounded-xl border border-dashed border-amber-700 bg-amber-950/30 p-5 text-sm text-amber-200">
+                                    No hay productos con existencia disponible para reservar.
+                                </div>
+                            @endforelse
+                        </div>
+                    @endcan
                     </div>
 
                     @if ($orden->reservasInventario->isEmpty())

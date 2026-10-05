@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\Inventario\InventarioOrdenController;
 use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioController;
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
 use App\Http\Controllers\Admin\SucursalController;
@@ -110,6 +111,13 @@ Route::middleware(['auth', 'administrador'])
             '/ordenes/{orden}/editar',
             [AdminOrdenServicioController::class, 'edit']
         )->name('ordenes.edit');
+
+        Route::post(
+            '/empresas/{empresa}/ordenes/{orden}/inventario/reservar',
+            [InventarioOrdenController::class, 'reservar']
+        )
+            ->middleware('permission:inventario.consumir')
+            ->name('ordenes.inventario.reservar');
 
         Route::put(
             '/ordenes/{orden}',

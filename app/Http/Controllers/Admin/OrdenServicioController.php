@@ -6,6 +6,7 @@ use App\Enums\EstadoOrden;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BulkUpdateOrdenServicioRequest;
 use App\Http\Requests\Admin\UpdateOrdenServicioRequest;
+use App\Models\Empresa;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
 use App\Models\User;
@@ -434,6 +435,86 @@ class OrdenServicioController extends Controller
             },
         ]);
 
+        // ---------------------------------------------------------
+        // INVENTARIO DISPONIBLE
+        // Recupera las existencias disponibles agrupadas por empresa
+        // para mostrarlas en los formularios de reserva.
+        // ---------------------------------------------------------
+
+        $empresasInventario = Empresa::query()
+            ->where('activo', true)
+            ->whereHas(
+                'existenciasAlmacen',
+                function (Builder $consulta): void {
+                    $consulta
+                        ->whereColumn(
+                            'cantidad',
+                            '>',
+                            'cantidad_reservada'
+                        )
+                        ->whereHas(
+                            'almacen',
+                            function (Builder $almacen): void {
+                                $almacen
+                                    ->where('activo', true)
+                                    ->where(
+                                        'permite_existencias',
+                                        true
+                                    );
+                            }
+                        )
+                        ->whereHas(
+                            'producto',
+                            function (Builder $producto): void {
+                                $producto->where(
+                                    'activo',
+                                    true
+                                );
+                            }
+                        );
+                }
+            )
+            ->with([
+                'existenciasAlmacen' => function (
+                    $consulta
+                ): void {
+                    $consulta
+                        ->whereColumn(
+                            'cantidad',
+                            '>',
+                            'cantidad_reservada'
+                        )
+                        ->whereHas(
+                            'almacen',
+                            function (Builder $almacen): void {
+                                $almacen
+                                    ->where('activo', true)
+                                    ->where(
+                                        'permite_existencias',
+                                        true
+                                    );
+                            }
+                        )
+                        ->whereHas(
+                            'producto',
+                            function (Builder $producto): void {
+                                $producto->where(
+                                    'activo',
+                                    true
+                                );
+                            }
+                        )
+                        ->with([
+                            'almacen',
+                            'producto',
+                        ])
+                        ->orderBy('almacen_id')
+                        ->orderBy('producto_id');
+                },
+            ])
+            ->orderBy('nombre')
+            ->get();
+
         $estadoActual = EstadoOrden::tryFrom($orden->estado);
 
         // Conjunto de estados permitidos según la máquina de estados
@@ -446,7 +527,11 @@ class OrdenServicioController extends Controller
 
         return view(
             'admin.ordenes.edit',
-            compact('orden', 'estados')
+            compact(
+                'orden',
+                'estados',
+                'empresasInventario'
+            )
         );
     }
 
