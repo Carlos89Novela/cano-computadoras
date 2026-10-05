@@ -33,6 +33,18 @@
             default =>
                 request()->routeIs('dashboard'),
         };
+
+        $empresasNavegacion = $usuario->hasRole('administrador')
+            && $usuario->esPropietario()
+                ? \App\Models\Empresa::query()
+                    ->where('activo', true)
+                    ->orderBy('nombre')
+                    ->get([
+                        'id',
+                        'nombre',
+                    ])
+                : collect();
+
     @endphp
     <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -116,18 +128,77 @@
                     </x-slot>
 
                     <x-slot name="content">
-                        <x-dropdown-link :href="route('profile.edit')">
-                            {{ __('Profile') }}
-                        </x-dropdown-link>
+                        @if ($usuario->hasRole('administrador'))
+                            <div class="border-b border-gray-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                Administración
+                            </div>
 
-                        <!-- Authentication -->
+                            <x-dropdown-link :href="route('admin.dashboard')">
+                                Panel administrativo
+                            </x-dropdown-link>
+
+                            <x-dropdown-link :href="route('admin.ordenes.index')">
+                                Administrar reparaciones
+                            </x-dropdown-link>
+
+                            <x-dropdown-link :href="route('admin.servicios.index')">
+                                Servicios y precios
+                            </x-dropdown-link>
+
+                            @if ($usuario->esPropietario())
+                                <x-dropdown-link :href="route('admin.usuarios.index')">
+                                    Usuarios y permisos
+                                </x-dropdown-link>
+
+                                @foreach ($empresasNavegacion as $empresaNavegacion)
+                                    <div class="border-y border-gray-200 px-4 py-2 text-xs font-semibold text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                        {{ $empresaNavegacion->nombre }}
+                                    </div>
+
+                                    <x-dropdown-link
+                                        :href="route('admin.empresas.sucursales.index', [
+                                            'empresa' => $empresaNavegacion->id,
+                                        ])"
+                                    >
+                                        Sucursales y almacenes
+                                    </x-dropdown-link>
+
+                                    @can('productos.ver')
+                                        <x-dropdown-link
+                                            :href="route('productos.categorias.index', [
+                                                'empresa' => $empresaNavegacion->id,
+                                            ])"
+                                        >
+                                            Categorías de productos
+                                        </x-dropdown-link>
+
+                                        <x-dropdown-link
+                                            :href="route('proveedores.index', [
+                                                'empresa' => $empresaNavegacion->id,
+                                            ])"
+                                        >
+                                            Proveedores
+                                        </x-dropdown-link>
+                                    @endcan
+                                @endforeach
+                            @endif
+                        @endif
+
+                        <div class="border-t border-gray-200 dark:border-gray-600">
+                            <x-dropdown-link :href="route('profile.edit')">
+                                Mi perfil
+                            </x-dropdown-link>
+                        </div>
+
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
 
-                            <x-dropdown-link :href="route('logout')"
-                                    onclick="event.preventDefault();
-                                                this.closest('form').submit();">
-                                {{ __('Log Out') }}
+                            <x-dropdown-link
+                                :href="route('logout')"
+                                onclick="event.preventDefault();
+                                    this.closest('form').submit();"
+                            >
+                                Cerrar sesión
                             </x-dropdown-link>
                         </form>
                     </x-slot>

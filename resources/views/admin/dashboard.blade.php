@@ -54,37 +54,6 @@
                     </p>
                 </div>
             </section>
-
-            <section class="rounded-xl bg-white p-8 shadow dark:bg-zinc-900">
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white">
-                    Acciones administrativas
-                </h3>
-
-                <div class="mt-6 flex flex-wrap gap-4">
-                    <a
-                        href="{{ route('admin.ordenes.index') }}"
-                        class="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-                    >
-                        Administrar reparaciones
-                    </a>
-
-                     <a
-                        href="{{ route('admin.servicios.index') }}"
-                        class="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-                    >
-                        Administrar servicios
-                    </a>
-
-                    @if (auth()->user()?->esPropietario())
-                        <a href="{{ route('admin.empresas.sucursales.index', [
-                            'empresa' =>1,]) }}"
-                            class="rounded-lg bg-purple-600 px-5 py-3 font-semibold text-white hover:bg-purple-700"
-                        >
-                            Sucursales y almacenes
-                        </a>
-                    @endif
-                </div>
-            </section>
         </div>
     </div>
 </x-app-layout>
