@@ -85,8 +85,7 @@ class RegistrarRecepcionInventario
         array $datos
     ): array {
         $tipo = $datos['tipo'] ?? '';
-        $referenciaExterna =
-            $datos['referencia_externa'] ?? null;
+        $referenciaExterna = $datos['referencia_externa'] ?? null;
         $motivo = $datos['motivo'] ?? '';
         $lineasOriginales = $datos['lineas'] ?? [];
 
@@ -94,11 +93,9 @@ class RegistrarRecepcionInventario
             ? Str::lower(trim($tipo))
             : '';
 
-        $referenciaNormalizada =
-            is_string($referenciaExterna)
-                && trim($referenciaExterna) !== ''
-                    ? trim($referenciaExterna)
-                    : null;
+        $referenciaNormalizada = is_string($referenciaExterna) && trim($referenciaExterna) !== ''
+            ? trim($referenciaExterna)
+            : null;
 
         $motivoNormalizado = is_string($motivo)
             ? trim($motivo)
@@ -427,11 +424,11 @@ class RegistrarRecepcionInventario
         /** @var Collection<int, Producto> $productos */
         $productos = Producto::query()
             ->whereIn('id', $productoIds)
-            ->get()
-            ->keyBy('id');
+            ->get();
 
         foreach ($productoIds as $indice => $productoId) {
-            $producto = $productos->get($productoId);
+            /** @var Producto|null $producto */
+            $producto = $productos->firstWhere('id', $productoId);
 
             if ($producto === null) {
                 throw ValidationException::withMessages([
@@ -522,6 +519,7 @@ class RegistrarRecepcionInventario
 
                 Producto::query()
                     ->whereIn('id', $productoIds)
+                    ->orderBy('id', 'asc')
                     ->lockForUpdate()
                     ->get();
 
