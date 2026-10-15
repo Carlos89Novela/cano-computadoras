@@ -10,6 +10,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
 use App\Http\Controllers\Empleado\OrdenAsignadaController;
 use App\Http\Controllers\EquipoController;
+use App\Http\Controllers\Inventario\EntradaInventarioController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
@@ -274,6 +275,48 @@ Route::middleware([
         )
             ->middleware('permission:productos.cambiar_estado')
             ->name('categorias.estado.update');
+    });
+
+// =========================================================
+// INVENTARIO
+// Operaciones para registrar entradas de productos en los
+// almacenes pertenecientes a una empresa.
+// =========================================================
+
+Route::middleware([
+    'auth',
+    'verified',
+])
+    ->prefix('operacion')
+    ->name('inventario.')
+    ->group(function (): void {
+        // -------------------------------------------------
+        // FORMULARIO DE ENTRADA
+        // Muestra almacenes y productos disponibles.
+        // -------------------------------------------------
+
+        Route::get(
+            '/empresas/{empresa}/inventario/entradas/crear',
+            [EntradaInventarioController::class, 'create']
+        )
+            ->middleware(
+                'permission:inventario.registrar_entrada'
+            )
+            ->name('entradas.create');
+
+        // -------------------------------------------------
+        // REGISTRAR ENTRADA
+        // Aumenta la existencia y registra el movimiento.
+        // -------------------------------------------------
+
+        Route::post(
+            '/empresas/{empresa}/inventario/entradas',
+            [EntradaInventarioController::class, 'store']
+        )
+            ->middleware(
+                'permission:inventario.registrar_entrada'
+            )
+            ->name('entradas.store');
     });
 
 // =========================================================
