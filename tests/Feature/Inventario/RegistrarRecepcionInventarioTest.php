@@ -41,8 +41,10 @@ class RegistrarRecepcionInventarioTest extends TestCase
         // 1. Permiso requerido
         Permission::findOrCreate('inventario.registrar_entrada');
 
-        // 2. Usuario con permiso
-        $this->actor = User::factory()->create();
+        // 2. Usuario con permiso y correo verificado
+        $this->actor = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
         $this->actor->givePermissionTo('inventario.registrar_entrada');
 
         // 3. Empresa base
@@ -121,7 +123,6 @@ class RegistrarRecepcionInventarioTest extends TestCase
     #[Test]
     public function registra_recepcion_exitosa_calcula_costo_promedio_y_crea_movimientos(): void
     {
-        // Estado previo: productoA ya tiene 10 piezas con costo promedio de $100.0000
         ExistenciaAlmacen::query()->create([
             'empresa_id' => $this->empresa->id,
             'almacen_id' => $this->almacen->id,
@@ -132,10 +133,6 @@ class RegistrarRecepcionInventarioTest extends TestCase
             'actualizado_por_id' => $this->actor->id,
         ]);
 
-        // Entrada:
-        // Producto A: 5 piezas a $130.0000
-        // Cálculo esperado CPP: ((10 * 100) + (5 * 130)) / 15 = 1650 / 15 = 110.0000
-        // Producto B: Primera entrada de 8 piezas a $50.0000 -> CPP = 50.0000
         $datos = [
             'tipo' => RecepcionInventario::TIPO_COMPRA,
             'referencia_externa' => 'FAC-2026-999',
@@ -164,7 +161,6 @@ class RegistrarRecepcionInventarioTest extends TestCase
             datos: $datos
         );
 
-        // Validar Encabezado
         $this->assertDatabaseHas('recepciones_inventario', [
             'id' => $recepcion->id,
             'empresa_id' => $this->empresa->id,
@@ -175,7 +171,6 @@ class RegistrarRecepcionInventarioTest extends TestCase
             'importe_total' => '1050.0000',
         ]);
 
-        // Validar Existencias y CPP
         $existenciaA = ExistenciaAlmacen::query()
             ->where('almacen_id', $this->almacen->id)
             ->where('producto_id', $this->productoA->id)
@@ -190,7 +185,6 @@ class RegistrarRecepcionInventarioTest extends TestCase
         $this->assertEquals('8.0000', $existenciaB->cantidad);
         $this->assertEquals('50.0000', $existenciaB->costo_promedio);
 
-        // Validar Kardex / MovimientoInventario
         $movimientos = MovimientoInventario::query()
             ->where('grupo_id', $recepcion->grupo_id)
             ->get();
@@ -272,5 +266,66 @@ class RegistrarRecepcionInventarioTest extends TestCase
                 ],
             ]
         );
+    }
+
+    #[Test]
+    public function endpoint_http_registra_recepcion_correctamente_y_redirige(): void
+    {
+        $payload = [
+            'almacen_id' => $this->almacen->id,
+            'proveedor_id' => $this->proveedor->id,
+            'tipo' => RecepcionInventario::TIPO_COMPRA,
+            'referencia_externa' => 'FAC-HTTP-001',
+            'motivo' => 'Recepción por endpoint HTTP',
+            'lineas' => [
+                [
+                    'producto_id' => $this->productoA->id,
+                    'cantidad' => '4.0000',
+                    'costo_unitario' => '120.0000',
+                ],
+            ],
+        ];
+
+        $response = $this->actingAs($this->actor)
+            ->post(
+                route('inventario.recepciones.store', $this->empresa),
+                $payload
+            );
+
+        $response->assertRedirect(route('inventario.entradas.create', $this->empresa));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('recepciones_inventario', [
+            'empresa_id' => $this->empresa->id,
+            'almacen_id' => $this->almacen->id,
+            'proveedor_id' => $this->proveedor->id,
+            'referencia_externa' => 'FAC-HTTP-001',
+        ]);
+    }
+
+    #[Test]
+    public function endpoint_http_falla_si_falta_proveedor_en_compra(): void
+    {
+        $payload = [
+            'almacen_id' => $this->almacen->id,
+            'proveedor_id' => null,
+            'tipo' => RecepcionInventario::TIPO_COMPRA,
+            'motivo' => 'Compra sin proveedor debe fallar',
+            'lineas' => [
+                [
+                    'producto_id' => $this->productoA->id,
+                    'cantidad' => '1.0000',
+                    'costo_unitario' => '100.0000',
+                ],
+            ],
+        ];
+
+        $response = $this->actingAs($this->actor)
+            ->post(
+                route('inventario.recepciones.store', $this->empresa),
+                $payload
+            );
+
+        $response->assertSessionHasErrors(['proveedor_id']);
     }
 }
