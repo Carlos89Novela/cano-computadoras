@@ -8,11 +8,45 @@ use App\Http\Requests\Inventario\RecepcionInventarioRequest;
 use App\Models\Almacen;
 use App\Models\Empresa;
 use App\Models\Proveedor;
+use App\Models\RecepcionInventario;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
 
 class RecepcionInventarioController extends Controller
 {
+    /**
+     * Muestra la pantalla para capturar una recepción múltiple de inventario.
+     */
+    public function create(Empresa $empresa): View
+    {
+        $almacenes = $empresa->almacenes()
+            ->where('activo', true)
+            ->where('permite_existencias', true)
+            ->orderBy('nombre')
+            ->get();
+
+        $proveedores = $empresa->proveedores()
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get();
+
+        $productos = $empresa->productos()
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'sku', 'nombre', 'costo_referencia']);
+
+        $tipos = RecepcionInventario::tiposPermitidos();
+
+        return view('inventario.recepciones.create', compact(
+            'empresa',
+            'almacenes',
+            'proveedores',
+            'productos',
+            'tipos'
+        ));
+    }
+
     /**
      * Procesa y registra una recepción múltiple de inventario para una empresa.
      */
@@ -43,7 +77,7 @@ class RecepcionInventarioController extends Controller
         );
 
         return redirect()
-            ->route('inventario.entradas.create', $empresa)
+            ->route('inventario.recepciones.create', $empresa)
             ->with('success', "Recepción {$recepcion->folio} registrada correctamente.");
     }
 }

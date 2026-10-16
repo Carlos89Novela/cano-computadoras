@@ -188,9 +188,7 @@ Route::middleware(['auth', 'administrador'])
                 '/empresas/{empresa}/sucursales',
                 [SucursalController::class, 'store']
             )->name('empresas.sucursales.store');
-
         });
-
     });
 
 Route::middleware([
@@ -200,40 +198,33 @@ Route::middleware([
     ->prefix('operacion')
     ->name('productos.')
     ->group(function (): void {
-
-        // -------------------------------------------------
-        // PRODUCTOS
-        // Listado, formulario y registro inicial del
-        // catálogo de productos de una empresa.
-        // -------------------------------------------------
-
         Route::get(
             '/empresas/{empresa}/productos',
             [ProductoController::class, 'index']
         )
             ->middleware('permission:productos.ver')
-            ->name('productos.index');
+            ->name('index');
 
         Route::get(
             '/empresas/{empresa}/productos/data',
             [ProductoController::class, 'data']
         )
             ->middleware('permission:productos.ver')
-            ->name('productos.data');
+            ->name('data');
 
         Route::get(
             '/empresas/{empresa}/productos/crear',
             [ProductoController::class, 'create']
         )
             ->middleware('permission:productos.crear')
-            ->name('productos.create');
+            ->name('create');
 
         Route::post(
             '/empresas/{empresa}/productos',
             [ProductoController::class, 'store']
         )
             ->middleware('permission:productos.crear')
-            ->name('productos.store');
+            ->name('store');
 
         Route::get(
             '/empresas/{empresa}/categorias-producto',
@@ -280,8 +271,8 @@ Route::middleware([
 
 // =========================================================
 // INVENTARIO
-// Operaciones para registrar entradas de productos en los
-// almacenes pertenecientes a una empresa.
+// Operaciones para registrar entradas y recepciones de productos
+// en los almacenes pertenecientes a una empresa.
 // =========================================================
 
 Route::middleware([
@@ -292,7 +283,7 @@ Route::middleware([
     ->name('inventario.')
     ->group(function (): void {
         // -------------------------------------------------
-        // FORMULARIO DE ENTRADA
+        // FORMULARIO DE ENTRADA SIMPLE
         // Muestra almacenes y productos disponibles.
         // -------------------------------------------------
 
@@ -306,7 +297,7 @@ Route::middleware([
             ->name('entradas.create');
 
         // -------------------------------------------------
-        // REGISTRAR ENTRADA
+        // REGISTRAR ENTRADA SIMPLE
         // Aumenta la existencia y registra el movimiento.
         // -------------------------------------------------
 
@@ -320,7 +311,21 @@ Route::middleware([
             ->name('entradas.store');
 
         // -------------------------------------------------
-        // RECEPCIÓN MÚLTIPLE DE INVENTARIO
+        // FORMULARIO DE RECEPCIÓN MÚLTIPLE
+        // Despliega la interfaz de captura con líneas dinámicas.
+        // -------------------------------------------------
+
+        Route::get(
+            '/empresas/{empresa}/inventario/recepciones/crear',
+            [RecepcionInventarioController::class, 'create']
+        )
+            ->middleware(
+                'permission:inventario.registrar_entrada'
+            )
+            ->name('recepciones.create');
+
+        // -------------------------------------------------
+        // REGISTRAR RECEPCIÓN MÚLTIPLE
         // Procesa la recepción con líneas de productos y CPP.
         // -------------------------------------------------
 
@@ -337,7 +342,6 @@ Route::middleware([
 // =========================================================
 // PROVEEDORES
 // Rutas operativas para consultar y administrar proveedores.
-// Cada operación exige su permiso correspondiente.
 // =========================================================
 
 Route::middleware([
@@ -347,22 +351,12 @@ Route::middleware([
     ->prefix('operacion')
     ->name('proveedores.')
     ->group(function (): void {
-        // -------------------------------------------------
-        // LISTADO
-        // Permite consultar proveedores de una empresa.
-        // -------------------------------------------------
-
         Route::get(
             '/empresas/{empresa}/proveedores',
             [ProveedorController::class, 'index']
         )
             ->middleware('permission:productos.ver')
             ->name('index');
-
-        // -------------------------------------------------
-        // FORMULARIO DE CREACIÓN
-        // Muestra la pantalla para registrar un proveedor.
-        // -------------------------------------------------
 
         Route::get(
             '/empresas/{empresa}/proveedores/crear',
@@ -371,22 +365,12 @@ Route::middleware([
             ->middleware('permission:productos.crear')
             ->name('create');
 
-        // -------------------------------------------------
-        // REGISTRO
-        // Procesa el alta auditada del proveedor.
-        // -------------------------------------------------
-
         Route::post(
             '/empresas/{empresa}/proveedores',
             [ProveedorController::class, 'store']
         )
             ->middleware('permission:productos.crear')
             ->name('store');
-
-        // -------------------------------------------------
-        // FORMULARIO DE EDICIÓN
-        // Muestra los datos actuales del proveedor.
-        // -------------------------------------------------
 
         Route::get(
             '/empresas/{empresa}/proveedores/{proveedor}/editar',
@@ -395,22 +379,12 @@ Route::middleware([
             ->middleware('permission:productos.actualizar')
             ->name('edit');
 
-        // -------------------------------------------------
-        // ACTUALIZACIÓN
-        // Modifica datos generales, pero no el estado.
-        // -------------------------------------------------
-
         Route::put(
             '/empresas/{empresa}/proveedores/{proveedor}',
             [ProveedorController::class, 'update']
         )
             ->middleware('permission:productos.actualizar')
             ->name('update');
-
-        // -------------------------------------------------
-        // CAMBIO DE ESTADO
-        // Desactiva o reactiva con motivo obligatorio.
-        // -------------------------------------------------
 
         Route::patch(
             '/empresas/{empresa}/proveedores/{proveedor}/estado',
