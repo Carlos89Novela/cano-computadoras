@@ -11,6 +11,7 @@ use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardContro
 use App\Http\Controllers\Empleado\OrdenAsignadaController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\Inventario\EntradaInventarioController;
+use App\Http\Controllers\Inventario\RecepcionInventarioController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
@@ -317,6 +318,20 @@ Route::middleware([
                 'permission:inventario.registrar_entrada'
             )
             ->name('entradas.store');
+
+        // -------------------------------------------------
+        // RECEPCIÓN MÚLTIPLE DE INVENTARIO
+        // Procesa la recepción con líneas de productos y CPP.
+        // -------------------------------------------------
+
+        Route::post(
+            '/empresas/{empresa}/inventario/recepciones',
+            [RecepcionInventarioController::class, 'store']
+        )
+            ->middleware(
+                'permission:inventario.registrar_entrada'
+            )
+            ->name('recepciones.store');
     });
 
 // =========================================================
