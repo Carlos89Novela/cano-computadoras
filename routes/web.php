@@ -129,6 +129,13 @@ Route::middleware(['auth', 'administrador'])
             ->middleware('permission:inventario.consumir')
             ->name('ordenes.inventario.consumir');
 
+        Route::post(
+            '/empresas/{empresa}/ordenes/{orden}/inventario/liberar',
+            [InventarioOrdenController::class, 'liberar']
+        )
+            ->middleware('permission:inventario.consumir')
+            ->name('ordenes.inventario.liberar');
+
         Route::put(
             '/ordenes/{orden}',
             [AdminOrdenServicioController::class, 'update']
