@@ -12,6 +12,7 @@ use App\Http\Controllers\Empleado\OrdenAsignadaController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\Inventario\EntradaInventarioController;
 use App\Http\Controllers\Inventario\RecepcionInventarioController;
+use App\Http\Controllers\Inventario\TransferenciaInventarioController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
@@ -68,27 +69,32 @@ Route::middleware('auth')->group(function () {
     Route::post(
         '/ordenes/{orden}/autorizar',
         [OrdenServicioController::class, 'autorizar']
-    )->name('ordenes.autorizar');
+    )
+        ->name('ordenes.autorizar');
 
     Route::get(
         '/ordenes/{orden}/pdf',
         [OrdenServicioController::class, 'pdf']
-    )->name('ordenes.pdf');
+    )
+        ->name('ordenes.pdf');
 
     Route::get(
         '/notificaciones',
         [NotificacionController::class, 'index']
-    )->name('notificaciones.index');
+    )
+        ->name('notificaciones.index');
 
     Route::post(
         '/notificaciones/{notificacion}/leer',
         [NotificacionController::class, 'leer']
-    )->name('notificaciones.leer');
+    )
+        ->name('notificaciones.leer');
 
     Route::post(
         '/notificaciones/leer-todas',
         [NotificacionController::class, 'leerTodas']
-    )->name('notificaciones.leer-todas');
+    )
+        ->name('notificaciones.leer-todas');
 });
 
 Route::middleware(['auth', 'administrador'])
@@ -285,8 +291,8 @@ Route::middleware([
 
 // =========================================================
 // INVENTARIO
-// Operaciones para registrar entradas y recepciones de productos
-// en los almacenes pertenecientes a una empresa.
+// Operaciones para registrar entradas, recepciones y
+// transferencias de productos en los almacenes.
 // =========================================================
 
 Route::middleware([
@@ -298,64 +304,40 @@ Route::middleware([
     ->group(function (): void {
         // -------------------------------------------------
         // FORMULARIO DE ENTRADA SIMPLE
-        // Muestra almacenes y productos disponibles.
         // -------------------------------------------------
-
         Route::get(
             '/empresas/{empresa}/inventario/entradas/crear',
             [EntradaInventarioController::class, 'create']
         )
-            ->middleware(
-                'permission:inventario.registrar_entrada'
-            )
+            ->middleware('permission:inventario.registrar_entrada')
             ->name('entradas.create');
 
         // -------------------------------------------------
         // REGISTRAR ENTRADA SIMPLE
-        // Aumenta la existencia y registra el movimiento.
         // -------------------------------------------------
-
         Route::post(
             '/empresas/{empresa}/inventario/entradas',
             [EntradaInventarioController::class, 'store']
         )
-            ->middleware(
-                'permission:inventario.registrar_entrada'
-            )
+            ->middleware('permission:inventario.registrar_entrada')
             ->name('entradas.store');
 
         // -------------------------------------------------
-        // FORMULARIO DE RECEPCIÓN MÚLTIPLE
-        // Despliega la interfaz de captura con líneas dinámicas.
+        // RECEPCIÓN MÚLTIPLE DE INVENTARIO
         // -------------------------------------------------
-
         Route::get(
             '/empresas/{empresa}/inventario/recepciones/crear',
             [RecepcionInventarioController::class, 'create']
         )
-            ->middleware(
-                'permission:inventario.registrar_entrada'
-            )
+            ->middleware('permission:inventario.registrar_entrada')
             ->name('recepciones.create');
-
-        // -------------------------------------------------
-        // REGISTRAR RECEPCIÓN MÚLTIPLE
-        // Procesa la recepción con líneas de productos y CPP.
-        // -------------------------------------------------
 
         Route::post(
             '/empresas/{empresa}/inventario/recepciones',
             [RecepcionInventarioController::class, 'store']
         )
-            ->middleware(
-                'permission:inventario.registrar_entrada'
-            )
+            ->middleware('permission:inventario.registrar_entrada')
             ->name('recepciones.store');
-
-        // -------------------------------------------------
-        // LISTADO E HISTORIAL DE RECEPCIONES
-        // Muestra la vista con tabla DataTables y el feed AJAX.
-        // -------------------------------------------------
 
         Route::get(
             '/empresas/{empresa}/inventario/recepciones',
@@ -370,11 +352,33 @@ Route::middleware([
         )
             ->middleware('permission:inventario.registrar_entrada')
             ->name('recepciones.data');
+
+        // -------------------------------------------------
+        // TRANSFERENCIAS ENTRE ALMACENES
+        // -------------------------------------------------
+        Route::get(
+            '/empresas/{empresa}/inventario/transferencias',
+            [TransferenciaInventarioController::class, 'index']
+        )->name('transferencias.index');
+
+        Route::get(
+            '/empresas/{empresa}/inventario/transferencias/data',
+            [TransferenciaInventarioController::class, 'data']
+        )->name('transferencias.data');
+
+        Route::get(
+            '/empresas/{empresa}/inventario/transferencias/crear',
+            [TransferenciaInventarioController::class, 'create']
+        )->name('transferencias.create');
+
+        Route::post(
+            '/empresas/{empresa}/inventario/transferencias',
+            [TransferenciaInventarioController::class, 'store']
+        )->name('transferencias.store');
     });
 
 // =========================================================
 // PROVEEDORES
-// Rutas operativas para consultar y administrar proveedores.
 // =========================================================
 
 Route::middleware([
