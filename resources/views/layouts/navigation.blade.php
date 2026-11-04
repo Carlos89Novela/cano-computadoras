@@ -34,6 +34,8 @@
                 request()->routeIs('dashboard'),
         };
 
+        $empresaActual = $usuario->empresa ?? \App\Models\Empresa::query()->where('activo', true)->first();
+
         $empresasNavegacion = $usuario->hasRole('administrador')
             && $usuario->esPropietario()
                 ? \App\Models\Empresa::query()
@@ -44,8 +46,8 @@
                         'nombre',
                     ])
                 : collect();
-
     @endphp
+
     <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
@@ -56,11 +58,13 @@
                         <x-application-logo class="block h-9 w-auto fill-current text-gray-800 dark:text-gray-200" />
                     </a>
                 </div>
+
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="$rutaDashboard" :active="$dashboardActivo">
                         {{ __('Dashboard') }}
                     </x-nav-link>
+
                     @if ($usuario->hasRole('cliente'))
                         <x-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
                             {{ __('Mis equipos') }}
@@ -69,9 +73,10 @@
                             {{ __('Mis reparaciones') }}
                         </x-nav-link>
                     @endif
+
                     @if ($usuario->hasRole('administrador'))
                         <x-nav-link :href="route('admin.ordenes.index')" :active="request()->routeIs('admin.ordenes.*')">
-                            {{__('Administrar reparaciones')}}
+                            {{ __('Administrar reparaciones') }}
                         </x-nav-link>
 
                         <x-nav-link
@@ -80,20 +85,32 @@
                         >
                             {{ __('Servicios y precios') }}
                         </x-nav-link>
-
                     @endif
+
+                    {{-- Enlace directo a Recepción de Inventario en barra principal --}}
+                    @can('inventario.registrar_entrada')
+                        @if ($empresaActual)
+                            <x-nav-link
+                                :href="route('inventario.recepciones.create', $empresaActual)"
+                                :active="request()->routeIs('inventario.recepciones.*')"
+                            >
+                                {{ __('Recepción Inventario') }}
+                            </x-nav-link>
+                        @endif
+                    @endcan
 
                     @if ($usuario->hasRole('supervisor'))
                         <x-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
-                            {{__('Supervisión operativa')}}
+                            {{ __('Supervisión operativa') }}
                         </x-nav-link>
                     @endif
 
                     @if ($usuario->hasRole('empleado'))
                         <x-nav-link :href="route('empleado.dashboard')" :active="request()->routeIs('empleado.*')">
-                            {{__('Reparaciones asignadas')}}
+                            {{ __('Reparaciones asignadas') }}
                         </x-nav-link>
                     @endif
+
                     <x-nav-link
                         :href="route('notificaciones.index')"
                         :active="request()->routeIs('notificaciones.*')"
@@ -180,6 +197,16 @@
                                             Proveedores
                                         </x-dropdown-link>
                                     @endcan
+
+                                    @can('inventario.registrar_entrada')
+                                        <x-dropdown-link
+                                            :href="route('inventario.recepciones.create', [
+                                                'empresa' => $empresaNavegacion->id,
+                                            ])"
+                                        >
+                                            Recepción de inventario
+                                        </x-dropdown-link>
+                                    @endcan
                                 @endforeach
                             @endif
                         @endif
@@ -196,7 +223,7 @@
                             <x-dropdown-link
                                 :href="route('logout')"
                                 onclick="event.preventDefault();
-                                    this.closest('form').submit();"
+                                            this.closest('form').submit();"
                             >
                                 Cerrar sesión
                             </x-dropdown-link>
@@ -234,39 +261,51 @@
             @endif
 
             @if ($usuario->hasRole('administrador'))
-                <x-nav-link
+                <x-responsive-nav-link
                     :href="route('admin.ordenes.index')"
                     :active="request()->routeIs('admin.ordenes.*')">
                     {{ __('Administrar reparaciones') }}
-                </x-nav-link>
+                </x-responsive-nav-link>
 
-                <x-nav-link
+                <x-responsive-nav-link
                     :href="route('admin.servicios.index')"
                     :active="request()->routeIs('admin.servicios.*')">
                     {{ __('Servicios y precios') }}
-                </x-nav-link>
+                </x-responsive-nav-link>
             @endif
+
+            {{-- Enlace Responsive Móvil --}}
+            @can('inventario.registrar_entrada')
+                @if ($empresaActual)
+                    <x-responsive-nav-link
+                        :href="route('inventario.recepciones.create', $empresaActual)"
+                        :active="request()->routeIs('inventario.recepciones.*')"
+                    >
+                        {{ __('Recepción Inventario') }}
+                    </x-responsive-nav-link>
+                @endif
+            @endcan
 
             @if ($usuario->hasRole('supervisor'))
                 <x-responsive-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
-                    {{__('Supervisión operativa')}}
+                    {{ __('Supervisión operativa') }}
                 </x-responsive-nav-link>
             @endif
 
             @if ($usuario->hasRole('empleado'))
                 <x-responsive-nav-link :href="route('empleado.dashboard')" :active="request()->routeIs('empleado.*')">
-                    {{__('Reparaciones asignadas')}}
+                    {{ __('Reparaciones asignadas') }}
                 </x-responsive-nav-link>
             @endif
 
             <x-responsive-nav-link :href="route('notificaciones.index')" :active="request()->routeIs('notificaciones.*')">
-                    {{__('Notificaciones')}}
+                {{ __('Notificaciones') }}
 
-                    @if ($cantidadNotificacionesNoLeidas > 0)
-                        <span class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white">
-                            {{ $cantidadNotificacionesNoLeidas }}
-                        </span>
-                    @endif
+                @if ($cantidadNotificacionesNoLeidas > 0)
+                    <span class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white">
+                        {{ $cantidadNotificacionesNoLeidas }}
+                    </span>
+                @endif
             </x-responsive-nav-link>
         </div>
 
