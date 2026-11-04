@@ -112,7 +112,7 @@
         let recepcionesCache = [];
 
         $(document).ready(function () {
-            const table = $('#tabla-recepciones').DataTable({
+            $('#tabla-recepciones').DataTable({
                 ajax: {
                     url: "{{ route('inventario.recepciones.data', $empresa) }}",
                     dataSrc: function (json) {
@@ -123,13 +123,18 @@
                 columns: [
                     {
                         data: 'folio',
+                        className: 'px-4 py-3',
                         render: function (data) {
                             return `<span class="font-semibold text-white tracking-wide">${data}</span>`;
                         }
                     },
-                    { data: 'recibido_at' },
+                    {
+                        data: 'recibido_at',
+                        className: 'px-4 py-3 whitespace-nowrap text-zinc-300'
+                    },
                     {
                         data: 'tipo',
+                        className: 'px-4 py-3',
                         render: function (data) {
                             let color = 'bg-purple-600/20 text-purple-300 border-purple-800/40';
                             if (data.toLowerCase() === 'compra') {
@@ -140,9 +145,13 @@
                             return `<span class="inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${color}">${data}</span>`;
                         }
                     },
-                    { data: 'almacen' },
+                    {
+                        data: 'almacen',
+                        className: 'px-4 py-3 text-zinc-200'
+                    },
                     {
                         data: null,
+                        className: 'px-4 py-3',
                         render: function (row) {
                             return `<div>
                                 <p class="text-zinc-200 font-medium">${row.proveedor}</p>
@@ -152,23 +161,26 @@
                     },
                     {
                         data: 'total_lineas',
-                        className: 'text-center',
+                        className: 'px-4 py-3 text-center',
                         render: function (data) {
                             return `<span class="rounded bg-zinc-900 px-2 py-0.5 text-xs text-zinc-300 border border-zinc-800">${data}</span>`;
                         }
                     },
                     {
                         data: 'importe_total',
-                        className: 'text-right font-semibold text-emerald-400'
+                        className: 'px-4 py-3 text-right font-semibold text-emerald-400 whitespace-nowrap'
                     },
-                    { data: 'recibido_por' },
+                    {
+                        data: 'recibido_por',
+                        className: 'px-4 py-3 text-zinc-300 whitespace-nowrap'
+                    },
                     {
                         data: null,
-                        className: 'text-center',
+                        className: 'px-4 py-3 text-center',
                         orderable: false,
                         render: function (row) {
                             return `<button type="button" onclick="verDetalle(${row.id})"
-                                class="rounded-lg bg-zinc-800 hover:bg-zinc-700 px-2.5 py-1 text-xs text-purple-300 font-semibold border border-zinc-700/60 transition">
+                                class="rounded-lg bg-zinc-800 hover:bg-zinc-700 px-2.5 py-1 text-xs text-purple-300 font-semibold border border-zinc-700/60 transition whitespace-nowrap">
                                 Ver líneas
                             </button>`;
                         }
