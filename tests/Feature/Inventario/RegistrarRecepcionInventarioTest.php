@@ -26,12 +26,19 @@ class RegistrarRecepcionInventarioTest extends TestCase
     use RefreshDatabase;
 
     private Empresa $empresa;
+
     private Sucursal $sucursal;
+
     private Almacen $almacen;
+
     private Proveedor $proveedor;
+
     private CategoriaProducto $categoria;
+
     private User $actor;
+
     private Producto $productoA;
+
     private Producto $productoB;
 
     protected function setUp(): void
@@ -49,7 +56,7 @@ class RegistrarRecepcionInventarioTest extends TestCase
 
         // 3. Empresa base
         $this->empresa = Empresa::query()->create([
-            'nombre' => 'Cano Computadoras Test ' . Str::random(5),
+            'nombre' => 'Cano Computadoras Test '.Str::random(5),
             'razon_social' => 'Cano Computadoras S.A. de C.V.',
             'rfc' => 'CANO900101XYZ',
             'activo' => true,
@@ -59,7 +66,7 @@ class RegistrarRecepcionInventarioTest extends TestCase
         // 4. Sucursal base
         $this->sucursal = Sucursal::query()->create([
             'empresa_id' => $this->empresa->id,
-            'codigo' => 'SUC-CENTRO-' . Str::upper(Str::random(4)),
+            'codigo' => 'SUC-CENTRO-'.Str::upper(Str::random(4)),
             'nombre' => 'Sucursal Centro',
             'activo' => true,
             'es_principal' => true,
@@ -70,7 +77,7 @@ class RegistrarRecepcionInventarioTest extends TestCase
         $this->almacen = Almacen::query()->create([
             'empresa_id' => $this->empresa->id,
             'sucursal_id' => $this->sucursal->id,
-            'codigo' => 'ALM-GRAL-' . Str::upper(Str::random(4)),
+            'codigo' => 'ALM-GRAL-'.Str::upper(Str::random(4)),
             'nombre' => 'Almacén General',
             'tipo' => Almacen::TIPO_PRINCIPAL,
             'es_virtual' => false,
@@ -82,7 +89,7 @@ class RegistrarRecepcionInventarioTest extends TestCase
         // 6. Proveedor base
         $this->proveedor = Proveedor::query()->create([
             'empresa_id' => $this->empresa->id,
-            'codigo' => 'PROV-' . Str::upper(Str::random(4)),
+            'codigo' => 'PROV-'.Str::upper(Str::random(4)),
             'nombre' => 'Proveedor Mayorista S.A.',
             'activo' => true,
             'creado_por_id' => $this->actor->id,
@@ -91,7 +98,7 @@ class RegistrarRecepcionInventarioTest extends TestCase
         // 7. Categoría de productos requerida
         $this->categoria = CategoriaProducto::query()->create([
             'empresa_id' => $this->empresa->id,
-            'nombre' => 'Componentes y Refacciones ' . Str::random(4),
+            'nombre' => 'Componentes y Refacciones '.Str::random(4),
             'activo' => true,
             'creado_por_id' => $this->actor->id,
         ]);
@@ -100,7 +107,7 @@ class RegistrarRecepcionInventarioTest extends TestCase
         $this->productoA = Producto::query()->create([
             'empresa_id' => $this->empresa->id,
             'categoria_producto_id' => $this->categoria->id,
-            'sku' => 'SKU-DISCO-SSD-' . Str::upper(Str::random(4)),
+            'sku' => 'SKU-DISCO-SSD-'.Str::upper(Str::random(4)),
             'nombre' => 'Disco SSD NVMe 1TB',
             'costo_referencia' => 100.00,
             'precio_base' => 150.00,
@@ -111,7 +118,7 @@ class RegistrarRecepcionInventarioTest extends TestCase
         $this->productoB = Producto::query()->create([
             'empresa_id' => $this->empresa->id,
             'categoria_producto_id' => $this->categoria->id,
-            'sku' => 'SKU-RAM-16GB-' . Str::upper(Str::random(4)),
+            'sku' => 'SKU-RAM-16GB-'.Str::upper(Str::random(4)),
             'nombre' => 'Memoria RAM DDR4 16GB',
             'costo_referencia' => 50.00,
             'precio_base' => 80.00,
@@ -292,7 +299,8 @@ class RegistrarRecepcionInventarioTest extends TestCase
                 $payload
             );
 
-        $response->assertRedirect(route('inventario.entradas.create', $this->empresa));
+
+        $response->assertRedirect(route('inventario.recepciones.index', $this->empresa));
         $response->assertSessionHas('success');
 
         $this->assertDatabaseHas('recepciones_inventario', [
@@ -327,5 +335,20 @@ class RegistrarRecepcionInventarioTest extends TestCase
             );
 
         $response->assertSessionHasErrors(['proveedor_id']);
+    }
+
+    public function endpoint_http_index_y_data_muestran_historial_correctamente(): void
+    {
+        $responseIndex = $this->actingAs($this->actor)
+            ->get(route('inventario.recepciones.index', $this->empresa));
+
+        $responseIndex->assertOk();
+        $responseIndex->assertViewIs('inventario.recepciones.index');
+
+        $responseData = $this->actingAs($this->actor)
+            ->get(route('inventario.recepciones.data', $this->empresa));
+
+        $responseData->assertOk();
+        $responseData->assertJsonStructure(['data']);
     }
 }

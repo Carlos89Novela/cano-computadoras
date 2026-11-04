@@ -337,6 +337,25 @@ Route::middleware([
                 'permission:inventario.registrar_entrada'
             )
             ->name('recepciones.store');
+
+        // -------------------------------------------------
+        // LISTADO E HISTORIAL DE RECEPCIONES
+        // Muestra la vista con tabla DataTables y el feed AJAX.
+        // -------------------------------------------------
+
+        Route::get(
+            '/empresas/{empresa}/inventario/recepciones',
+            [RecepcionInventarioController::class, 'index']
+        )
+            ->middleware('permission:inventario.registrar_entrada')
+            ->name('recepciones.index');
+
+        Route::get(
+            '/empresas/{empresa}/inventario/recepciones/data',
+            [RecepcionInventarioController::class, 'data']
+        )
+            ->middleware('permission:inventario.registrar_entrada')
+            ->name('recepciones.data');
     });
 
 // =========================================================
