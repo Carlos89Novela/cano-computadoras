@@ -1,21 +1,34 @@
 <x-app-layout>
-
     <x-slot name="header">
-        <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
-            Reparación {{ $orden->folio }}
-        </h2>
+        <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                Reparación {{ $orden->folio }}
+            </h2>
+            <div class="flex gap-2">
+                <a href="{{ route('admin.ordenes.pdf', ['orden' => $orden->id]) }}"
+                    target="_blank" rel="noopener noreferrer"
+                    class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 transition">
+                    📄 Descargar PDF
+                </a>
+                <a href="{{ route('admin.ordenes.index') }}"
+                    class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 transition">
+                    ← Volver a órdenes
+                </a>
+            </div>
+        </div>
     </x-slot>
 
-    <div class="py-12">
-        <div class="mx-auto max-w-4xl px-6">
+    <div class="py-8" x-data="{ tab: 'general' }">
+        <div class="mx-auto max-w-6xl px-4 sm:px-6">
 
+            <!-- 1. Encabezado Resumen Fijo -->
             <div class="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
-                <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-purple-300">
                             Resumen de la reparación
                         </p>
-                        <h3 class="mt-2 text-2xl font-bold text-white">
+                        <h3 class="mt-1 text-2xl font-bold text-white tracking-tight">
                             {{ $orden->folio }}
                         </h3>
                     </div>
@@ -25,783 +38,422 @@
                     ])
                 </div>
 
-                <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Cliente</p>
-                        <p class="mt-2 text-sm font-semibold text-white">
+                        <p class="mt-1 text-sm font-semibold text-white truncate">
                             {{ $orden->user?->name ?? 'Cliente no disponible' }}
                         </p>
                     </div>
 
-                    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                    <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Equipo</p>
-                        <p class="mt-2 text-sm font-semibold text-white">
-                            {{ trim(
-                                ($orden->equipo?->marca ?? '')
-                                .' '
-                                .($orden->equipo?->modelo ?? '')
-                            ) ?: 'Equipo no disponible' }}
+                        <p class="mt-1 text-sm font-semibold text-white truncate">
+                            {{ trim(($orden->equipo?->marca ?? '').' '.($orden->equipo?->modelo ?? '')) ?: 'Equipo no disponible' }}
                         </p>
                     </div>
 
-                    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                    <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Costo estimado</p>
-                        <p class="mt-2 text-sm font-semibold text-white">
-                            @if ($orden->costo_estimado !== null)
-                                ${{ number_format((float) $orden->costo_estimado, 2) }}
-                            @else
-                                Pendiente
-                            @endif
+                        <p class="mt-1 text-sm font-semibold text-white">
+                            {{ $orden->costo_estimado !== null ? '$'.number_format((float) $orden->costo_estimado, 2) : 'Pendiente' }}
                         </p>
                     </div>
 
-                    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                    <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Costo final</p>
-                        <p class="mt-2 text-sm font-semibold text-white">
-                            @if ($orden->costo_final !== null)
-                                ${{ number_format((float) $orden->costo_final, 2) }}
-                            @else
-                                Pendiente
-                            @endif
+                        <p class="mt-1 text-sm font-semibold text-emerald-400">
+                            {{ $orden->costo_final !== null ? '$'.number_format((float) $orden->costo_final, 2) : 'Pendiente' }}
                         </p>
                     </div>
                 </div>
             </div>
 
-            @can('deliver', $orden)
-                <section
-                    class="mb-6 rounded-xl border border-emerald-700 bg-emerald-950 p-6"
-                >
-                    <div>
-                        <p class="text-sm font-semibold uppercase text-emerald-300">
-                            Equipo listo para entrega
-                        </p>
+            <!-- 2. Barra de Navegación por Pestañas (Tabs) -->
+            <div class="mb-6 flex space-x-2 border-b border-zinc-800 pb-2">
+                <button type="button"
+                    @click="tab = 'general'"
+                    :class="tab === 'general' ? 'bg-purple-600 text-white font-semibold shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'"
+                    class="rounded-lg px-4 py-2 text-sm transition">
+                    🛠️ Diagnóstico y Estado
+                </button>
 
-                        <h3 class="mt-1 text-xl font-bold text-emerald-100">
-                            Confirmar entrega al cliente
-                        </h3>
+                @can('inventario.ver')
+                    <button type="button"
+                        @click="tab = 'inventario'"
+                        :class="tab === 'inventario' ? 'bg-purple-600 text-white font-semibold shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'"
+                        class="rounded-lg px-4 py-2 text-sm transition flex items-center gap-2">
+                        <span>📦 Refacciones e Inventario</span>
+                        @if($orden->reservasInventario->count() > 0)
+                            <span class="rounded-full bg-purple-950 px-2 py-0.5 text-xs text-purple-200 border border-purple-700/50">
+                                {{ $orden->reservasInventario->count() }}
+                            </span>
+                        @endif
+                    </button>
+                @endcan
 
-                        <p class="mt-2 text-sm text-emerald-200">
-                            Esta acción marcará la orden como entregada y registrará
-                            la fecha actual como fecha de entrega.
-                        </p>
+                <button type="button"
+                    @click="tab = 'historial'"
+                    :class="tab === 'historial' ? 'bg-purple-600 text-white font-semibold shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'"
+                    class="rounded-lg px-4 py-2 text-sm transition flex items-center gap-2">
+                    <span>🕒 Historial de Trabajo</span>
+                    @if($orden->historial->count() > 0)
+                        <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">
+                            {{ $orden->historial->count() }}
+                        </span>
+                    @endif
+                </button>
 
-                        <dl class="mt-5 grid gap-4 sm:grid-cols-3">
-                            <div class="rounded-lg bg-emerald-900 p-4">
-                                <dt class="text-xs font-semibold uppercase text-emerald-300">
-                                    Folio
-                                </dt>
+                @can('deliver', $orden)
+                    <button type="button"
+                        @click="tab = 'entrega'"
+                        :class="tab === 'entrega' ? 'bg-emerald-600 text-white font-semibold shadow-md' : 'text-emerald-400 hover:bg-emerald-950/40'"
+                        class="rounded-lg px-4 py-2 text-sm transition">
+                        ✓ Entrega al Cliente
+                    </button>
+                @endcan
+            </div>
 
-                                <dd class="mt-1 font-semibold text-white">
-                                    {{ $orden->folio }}
-                                </dd>
-                            </div>
+            <!-- 3. Contenido de las Pestañas -->
 
-                            <div class="rounded-lg bg-emerald-900 p-4">
-                                <dt class="text-xs font-semibold uppercase text-emerald-300">
-                                    Estado
-                                </dt>
+            <!-- Pestaña A: Diagnóstico y Estado General -->
+            <div x-show="tab === 'general'" x-cloak>
+                <form action="{{ route('admin.ordenes.update', ['orden' => $orden->id]) }}"
+                    method="POST"
+                    class="space-y-6 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
+                    @csrf
+                    @method('PUT')
 
-                                <dd class="mt-1 font-semibold text-white">
-                                    {{ $orden->estado }}
-                                </dd>
-                            </div>
+                    <div class="grid gap-6 md:grid-cols-2">
+                        <div class="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
+                            <p class="text-xs uppercase tracking-wide text-zinc-400">Cliente titular</p>
+                            <p class="mt-1 font-semibold text-white">{{ $orden->user?->name ?? 'No disponible' }}</p>
+                            <p class="text-xs text-zinc-400">{{ $orden->user?->email ?? 'Sin correo' }}</p>
+                        </div>
 
-                            <div class="rounded-lg bg-emerald-900 p-4">
-                                <dt class="text-xs font-semibold uppercase text-emerald-300">
-                                    Costo final
-                                </dt>
-
-                                <dd class="mt-1 font-semibold text-white">
-                                    ${{ number_format((float) $orden->costo_final, 2) }}
-                                </dd>
-                            </div>
-                        </dl>
+                        <div class="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
+                            <p class="text-xs uppercase tracking-wide text-zinc-400">Equipo en taller</p>
+                            <p class="mt-1 font-semibold text-white">
+                                {{ trim(($orden->equipo?->marca ?? '').' '.($orden->equipo?->modelo ?? '')) ?: 'No disponible' }}
+                            </p>
+                            <p class="text-xs text-zinc-400">Tipo: {{ $orden->equipo?->tipo ?? 'No especificado' }}</p>
+                        </div>
                     </div>
 
-                    <form action="{{ route('operacion.ordenes.entregar', [
-                        'orden' => $orden->id,
-                        ]) }}" method="POST" class="mt-6 space-y-4">
-                        @csrf
+                    <div>
+                        <p class="mb-1 text-xs uppercase tracking-wide text-zinc-400">Falla reportada por el cliente</p>
+                        <div class="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
+                            {{ $orden->problema_reportado }}
+                        </div>
+                    </div>
 
+                    <div>
+                        <label for="estado" class="mb-2 block text-sm font-medium text-zinc-200">
+                            Estado operativo de la reparación
+                        </label>
+                        <select id="estado" name="estado" required class="admin-form-control text-sm">
+                            @foreach ($estados as $estado)
+                                <option value="{{ $estado }}" @selected(old('estado', $orden->estado) === $estado)>
+                                    {{ $estado }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('estado')
+                            <p class="mt-2 text-xs text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label for="diagnostico" class="mb-2 block text-sm font-medium text-zinc-200">
+                            Diagnóstico técnico y resolución
+                        </label>
+                        <textarea id="diagnostico" name="diagnostico" rows="4" maxlength="3000"
+                            class="admin-form-control text-sm"
+                            placeholder="Describe el diagnóstico técnico detallado.">{{ old('diagnostico', $orden->diagnostico) }}</textarea>
+                        @error('diagnostico')
+                            <p class="mt-2 text-xs text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div class="grid gap-6 md:grid-cols-2">
                         <div>
-                            <label
-                                for="comentario_entrega_admin"
-                                class="block font-semibold text-emerald-100"
-                            >
-                                Comentario de entrega opcional
+                            <label for="costo_estimado" class="mb-2 block text-sm font-medium text-zinc-200">
+                                Costo estimado ($)
                             </label>
-
-                            <textarea
-                                id="comentario_entrega_admin"
-                                name="comentario"
-                                rows="3"
-                                maxlength="2000"
-                                class="mt-2 w-full rounded-lg border border-emerald-300 bg-white p-3 text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-emerald-500"
-                                placeholder="Por ejemplo: equipo recibido y revisado por el cliente."
-                            >{{ old('comentario') }}</textarea>
-
-                            <p class="mt-2 text-xs text-emerald-300">
-                                Máximo 2000 caracteres.
-                            </p>
-
-                            @error('comentario')
-                                <p class="mt-2 text-sm text-red-300">
-                                    {{ $message }}
-                                </p>
+                            <input id="costo_estimado" name="costo_estimado" type="number" step="0.01" min="0" max="999999.99"
+                                value="{{ old('costo_estimado', $orden->costo_estimado) }}"
+                                class="admin-form-control text-sm" placeholder="0.00">
+                            @error('costo_estimado')
+                                <p class="mt-2 text-xs text-red-400">{{ $message }}</p>
                             @enderror
                         </div>
 
-                        <button
-                            type="submit"
-                            class="rounded-lg bg-emerald-600 px-6 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                            onclick="return confirm('¿Confirmas que el equipo fue entregado al cliente?');"
-                        >
-                            Confirmar entrega
+                        <div>
+                            <label for="costo_final" class="mb-2 block text-sm font-medium text-zinc-200">
+                                Costo final ($)
+                            </label>
+                            <input id="costo_final" name="costo_final" type="number" step="0.01" min="0" max="999999.99"
+                                value="{{ old('costo_final', $orden->costo_final) }}"
+                                class="admin-form-control text-sm" placeholder="0.00">
+                            @error('costo_final')
+                                <p class="mt-2 text-xs text-red-400">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="comentario" class="mb-2 block text-sm font-medium text-zinc-200">
+                            Comentario interno (historial de taller)
+                        </label>
+                        <textarea id="comentario" name="comentario" rows="2" maxlength="2000"
+                            class="admin-form-control text-sm"
+                            placeholder="Opcional. Visible solo para el personal administrativo y técnico.">{{ old('comentario') }}</textarea>
+                    </div>
+
+                    <div>
+                        <label for="mensaje_cliente" class="mb-2 block text-sm font-medium text-zinc-200">
+                            Mensaje para el cliente (notificación por correo)
+                        </label>
+                        <textarea id="mensaje_cliente" name="mensaje_cliente" rows="2" maxlength="2000"
+                            class="admin-form-control text-sm"
+                            placeholder="Opcional. Se enviará automáticamente por correo al cliente.">{{ old('mensaje_cliente') }}</textarea>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800">
+                        <button type="submit" class="ion-btn ion-btn--primary">
+                            Guardar cambios
                         </button>
-                    </form>
-                </section>
-            @endcan
-
-            <form
-                action="{{ route('admin.ordenes.update', ['orden' => $orden->id]) }}"
-                method="POST"
-                class="space-y-6 rounded-xl bg-white p-8 shadow dark:bg-zinc-900"
-            >
-                @csrf
-                @method('PUT')
-
-                <div class="grid gap-6 md:grid-cols-2">
-
-                    <div>
-                        <p class="text-sm text-gray-500">
-                            Cliente
-                        </p>
-
-                        <p class="font-semibold text-gray-900 dark:text-white">
-                            {{ $orden->user?->name ?? 'Cliente no disponible' }}
-                        </p>
-
-                        <p class="text-sm text-gray-500">
-                            {{ $orden->user?->email ?? 'Correo no disponible' }}
-                        </p>
                     </div>
+                </form>
+            </div>
 
-                    <div>
-                        <p class="text-sm text-gray-500">
-                            Equipo
-                        </p>
+            <!-- Pestaña B: Refacciones e Inventario -->
+            @can('inventario.ver')
+                <div x-show="tab === 'inventario'" x-cloak class="space-y-6">
+                    @can('inventario.consumir')
+                        <section class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
+                            <div class="mb-4">
+                                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-purple-300">
+                                    Comprometer Material
+                                </p>
+                                <h3 class="mt-1 text-lg font-bold text-white">
+                                    Reservar nueva refacción
+                                </h3>
+                            </div>
 
-                        <p class="font-semibold text-gray-900 dark:text-white">
-                            {{ trim(
-                                ($orden->equipo?->marca ?? '')
-                                .' '
-                                .($orden->equipo?->modelo ?? '')
-                            ) ?: 'Equipo no disponible' }}
-                        </p>
-
-                        <p class="text-sm text-gray-500">
-                            {{ $orden->equipo?->tipo ?? 'Tipo no disponible' }}
-                        </p>
-                    </div>
-
-                </div>
-
-                <div>
-                    <p class="mb-2 text-sm text-gray-500">
-                        Problema reportado
-                    </p>
-
-                    <div class="rounded-lg bg-zinc-800 p-4 text-white">
-                        {{ $orden->problema_reportado }}
-                    </div>
-                </div>
-
-                <div>
-                    <label
-                        for="estado"
-                        class="mb-2 block font-medium text-gray-700 dark:text-gray-200"
-                    >
-                        Estado de la reparación
-                    </label>
-
-                    <select
-                        id="estado"
-                        name="estado"
-                        required
-                        aria-describedby="estado-error"
-                        aria-invalid="{{ $errors->has('estado') ? 'true' : 'false' }}"
-                        @class([
-                            'admin-form-control',
-                            'admin-form-control--error' => $errors->has('estado'),
-                        ])
-                    >
-                        @foreach ($estados as $estado)
-                            <option
-                                value="{{ $estado }}"
-                                @selected(old('estado', $orden->estado) === $estado)
-                            >
-                                {{ $estado }}
-                            </option>
-                        @endforeach
-                    </select>
-
-                    @error('estado')
-                        <p
-                            id="estado-error"
-                            class="mt-2 text-sm text-red-500"
-                            role="alert"
-                        >
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <div>
-                    <label
-                        for="diagnostico"
-                        class="mb-2 block font-medium text-gray-700 dark:text-gray-200"
-                    >
-                        Diagnóstico
-                    </label>
-
-                    <textarea
-                        id="diagnostico"
-                        name="diagnostico"
-                        rows="5"
-                        maxlength="3000"
-                        aria-describedby="diagnostico-ayuda diagnostico-error"
-                        aria-invalid="{{ $errors->has('diagnostico') ? 'true' : 'false' }}"
-                        @class([
-                            'admin-form-control',
-                            'admin-form-control--error' => $errors->has('diagnostico'),
-                        ])
-                        placeholder="Describe el diagnóstico técnico."
-                    >{{ old('diagnostico', $orden->diagnostico) }}</textarea>
-
-                    <p
-                        id="diagnostico-ayuda"
-                        class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
-                    >
-                        Máximo 3000 caracteres.
-                    </p>
-
-                    @error('diagnostico')
-                        <p
-                            id="diagnostico-error"
-                            class="mt-2 text-sm text-red-500"
-                            role="alert"
-                        >
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <div class="grid gap-6 md:grid-cols-2">
-
-                    <div>
-                        <label
-                            for="costo_estimado"
-                            class="mb-2 block font-medium text-gray-700 dark:text-gray-200"
-                        >
-                            Costo estimado
-                        </label>
-
-                        <input
-                            id="costo_estimado"
-                            name="costo_estimado"
-                            type="number"
-                            inputmode="decimal"
-                            min="0"
-                            max="999999.99"
-                            step="0.01"
-                            value="{{ old('costo_estimado', $orden->costo_estimado) }}"
-                            aria-describedby="costo-estimado-ayuda costo-estimado-error"
-                            aria-invalid="{{ $errors->has('costo_estimado') ? 'true' : 'false' }}"
-                            @class(['admin-form-control', 'admin-form-control--error' => $errors->has('costo_estimado')])
-                            placeholder="0.00"
-                        >
-                        <p
-                            id="costo-estimado-ayuda"
-                            class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
-                        >
-                            Ingresa el importe sin símbolos, por ejemplo: 1250.00.
-                        </p>
-
-                        @error('costo_estimado')
-                            <p
-                                id="costo-estimado-error"
-                                class="mt-2 text-sm text-red-500"
-                                role="alert"
-                            >
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label
-                            for="costo_final"
-                            class="mb-2 block font-medium text-gray-700 dark:text-gray-200"
-                        >
-                            Costo final
-                        </label>
-
-                        <input
-                            id="costo_final"
-                            name="costo_final"
-                            type="number"
-                            inputmode="decimal"
-                            min="0"
-                            max="999999.99"
-                            step="0.01"
-                            value="{{ old('costo_final', $orden->costo_final) }}"
-                            aria-describedby="costo-final-ayuda costo-final-error"
-                            aria-invalid="{{ $errors->has('costo_final') ? 'true' : 'false' }}"
-                            @class(['admin-form-control', 'admin-form-control--error' => $errors->has('costo_final')])
-                            placeholder="0.00"
-                        >
-
-                        <p
-                            id="costo-final-ayuda"
-                            class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
-                        >
-                            Ingresa el importe sin símbolos, por ejemplo: 1250.00.
-                        </p>
-
-                        @error('costo_final')
-                            <p
-                                id="costo-final-error"
-                                class="mt-2 text-sm text-red-500"
-                                role="alert"
-                            >
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                </div>
-
-                <div>
-                    <label
-                        for="comentario"
-                        class="mb-2 block font-medium text-gray-700 dark:text-gray-200"
-                    >
-                        Comentario interno
-                    </label>
-
-                    <textarea
-                        id="comentario"
-                        name="comentario"
-                        rows="3"
-                        maxlength="2000"
-                        aria-describedby="comentario-ayuda comentario-error"
-                        aria-invalid="{{ $errors->has('comentario') ? 'true' : 'false' }}"
-                        @class([
-                            'admin-form-control',
-                            'admin-form-control--error' => $errors->has('comentario'),
-                        ])
-                        placeholder="Este comentario aparecerá en el historial."
-                    >{{ old('comentario') }}</textarea>
-                    <p
-                        id="comentario-ayuda"
-                        class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
-                    >
-                        Opcional. Solo será visible para el personal administrativo.
-                        Máximo 2000 caracteres.
-                    </p>
-
-                    @error('comentario')
-                        <p
-                            id="comentario-error"
-                            class="mt-2 text-sm text-red-500"
-                            role="alert"
-                        >
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <div>
-                    <label
-                        for="mensaje_cliente"
-                        class="mb-2 block font-medium text-gray-700 dark:text-gray-200"
-                    >
-                        Mensaje para el cliente
-                    </label>
-
-                    <textarea
-                        id="mensaje_cliente"
-                        name="mensaje_cliente"
-                        rows="3"
-                        maxlength="2000"
-                        aria-describedby="mensaje-cliente-ayuda mensaje-cliente-error"
-                        aria-invalid="{{ $errors->has('mensaje_cliente') ? 'true' : 'false' }}"
-                        @class([
-                            'admin-form-control',
-                            'admin-form-control--error' => $errors->has('mensaje_cliente'),
-                        ])
-                        placeholder="Este mensaje será enviado al cliente."
-                    >{{ old('mensaje_cliente') }}</textarea>
-                    <p
-                        id="mensaje-cliente-ayuda"
-                        class="mt-2 text-xs text-gray-500 dark:text-zinc-400"
-                    >
-                        Opcional. Este mensaje será enviado al cliente por correo electrónico.
-                        Máximo 2000 caracteres.
-                    </p>
-
-                    @error('mensaje_cliente')
-                        <p
-                            id="mensaje-cliente-error"
-                            class="mt-2 text-sm text-red-500"
-                            role="alert"
-                        >
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <div class="flex flex-wrap gap-4">
-
-                    <button
-                        type="submit"
-                        class="ion-btn ion-btn--primary"
-                    >
-                        Guardar cambios
-                    </button>
-
-                    <a
-                        href="{{ route('admin.ordenes.index') }}"
-                        class="ion-btn ion-btn--secondary"
-                    >
-                        Cancelar
-                    </a>
-
-                    <a
-                        href="{{ route('admin.ordenes.pdf', ['orden' => $orden->id]) }}"
-                        target="_blank" rel="noopener noreferrer"
-                        class="ion-btn ion-btn--secondary"
-                    >
-                        Descargar comprobante PDF
-                    </a>
-
-                </div>
-
-            </form>
-
-                        @can('inventario.ver')
-                <section class="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
-                    <div class="mb-5">
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-purple-300">
-                            Inventario
-                        </p>
-
-                        <h3 class="mt-2 text-xl font-bold text-white">
-                            Productos comprometidos
-                        </h3>
-
-                        <p class="mt-2 text-sm text-zinc-400">
-                            Reservas de inventario vinculadas con esta orden de servicio.
-                        </p>
-
-                        @can('inventario.consumir')
-                        <div class="mt-6 space-y-4">
                             @forelse ($empresasInventario as $empresaInventario)
-                                <form
-                                    action="{{ route('admin.ordenes.inventario.reservar', [
-                                        'empresa' => $empresaInventario->id,
-                                        'orden' => $orden->id,
-                                    ]) }}"
-                                    method="POST"
-                                >
+                                <form action="{{ route('admin.ordenes.inventario.reservar', ['empresa' => $empresaInventario->id, 'orden' => $orden->id]) }}"
+                                    method="POST" class="mt-4 space-y-4">
                                     @csrf
 
-                                    <div class="mb-4">
-                                        <p class="text-sm font-semibold text-white">
-                                            Reservar desde {{ $empresaInventario->nombre }}
-                                        </p>
-
-                                        <p class="mt-1 text-xs text-zinc-400">
-                                            Selecciona un almacén y un producto con existencia disponible.
-                                        </p>
-                                    </div>
-
-                                    <div class="grid gap-4 md:grid-cols-2">
+                                    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                                         <div>
-                                            <label
-                                                for="almacen-{{ $empresaInventario->id }}"
-                                                class="mb-2 block text-sm font-medium text-zinc-200"
-                                            >
-                                                Almacén
-                                            </label>
-
-                                            <select
-                                                id="almacen-{{ $empresaInventario->id }}"
-                                                name="almacen_id"
-                                                class="admin-form-control"
-                                                required
-                                            >
-                                                <option value="">
-                                                    Selecciona un almacén
-                                                </option>
-
-                                                @foreach (
-                                                    $empresaInventario->existenciasAlmacen
-                                                        ->pluck('almacen')
-                                                        ->filter()
-                                                        ->unique('id')
-                                                    as $almacenDisponible
-                                                )
-                                                    <option
-                                                        value="{{ $almacenDisponible->id }}"
-                                                        @selected(
-                                                            old('almacen_id')
-                                                            == $almacenDisponible->id
-                                                        )
-                                                    >
-                                                        {{ $almacenDisponible->nombre }}
-                                                        ({{ $almacenDisponible->codigo }})
-                                                    </option>
+                                            <label class="mb-1 block text-xs font-medium text-zinc-300">Almacén</label>
+                                            <select name="almacen_id" required class="admin-form-control text-sm">
+                                                <option value="">Selecciona almacén</option>
+                                                @foreach ($empresaInventario->existenciasAlmacen->pluck('almacen')->filter()->unique('id') as $alm)
+                                                    <option value="{{ $alm->id }}">{{ $alm->nombre }}</option>
                                                 @endforeach
                                             </select>
-
-                                            @error('almacen_id')
-                                                <p class="mt-2 text-sm text-red-400">
-                                                    {{ $message }}
-                                                </p>
-                                            @enderror
                                         </div>
 
                                         <div>
-                                            <label
-                                                for="producto-{{ $empresaInventario->id }}"
-                                                class="mb-2 block text-sm font-medium text-zinc-200"
-                                            >
-                                                Producto
-                                            </label>
-
-                                            <select
-                                                id="producto-{{ $empresaInventario->id }}"
-                                                name="producto_id"
-                                                class="admin-form-control"
-                                                required
-                                            >
-                                                <option value="">
-                                                    Selecciona un producto
-                                                </option>
-
-                                                @foreach (
-                                                    $empresaInventario->existenciasAlmacen
-                                                        ->pluck('producto')
-                                                        ->filter()
-                                                        ->unique('id')
-                                                    as $productoDisponible
-                                                )
-                                                    <option
-                                                        value="{{ $productoDisponible->id }}"
-                                                        @selected(
-                                                            old('producto_id')
-                                                            == $productoDisponible->id
-                                                        )
-                                                    >
-                                                        {{ $productoDisponible->nombre }}
-                                                        ({{ $productoDisponible->sku }})
-                                                    </option>
+                                            <label class="mb-1 block text-xs font-medium text-zinc-300">Producto / Refacción</label>
+                                            <select name="producto_id" required class="admin-form-control text-sm">
+                                                <option value="">Selecciona producto</option>
+                                                @foreach ($empresaInventario->existenciasAlmacen->pluck('producto')->filter()->unique('id') as $prod)
+                                                    <option value="{{ $prod->id }}">{{ $prod->nombre }} ({{ $prod->sku }})</option>
                                                 @endforeach
                                             </select>
-
-                                            @error('producto_id')
-                                                <p class="mt-2 text-sm text-red-400">
-                                                    {{ $message }}
-                                                </p>
-                                            @enderror
                                         </div>
 
                                         <div>
-                                            <label
-                                                for="cantidad-reserva-{{ $empresaInventario->id }}"
-                                                class="mb-2 block text-sm font-medium text-zinc-200"
-                                            >
-                                                Cantidad
-                                            </label>
-
-                                            <input
-                                                id="cantidad-reserva-{{ $empresaInventario->id }}"
-                                                type="number"
-                                                name="cantidad"
-                                                value="{{ old('cantidad') }}"
-                                                min="0.0001"
-                                                step="0.0001"
-                                                class="admin-form-control"
-                                                required
-                                            >
-
-                                            @error('cantidad')
-                                                <p class="mt-2 text-sm text-red-400">
-                                                    {{ $message }}
-                                                </p>
-                                            @enderror
+                                            <label class="mb-1 block text-xs font-medium text-zinc-300">Cantidad</label>
+                                            <input type="number" name="cantidad" step="0.0001" min="0.0001" placeholder="1.0000" required
+                                                class="admin-form-control text-sm">
                                         </div>
 
                                         <div>
-                                            <label
-                                                for="motivo-reserva-{{ $empresaInventario->id }}"
-                                                class="mb-2 block text-sm font-medium text-zinc-200"
-                                            >
-                                                Motivo
-                                            </label>
-
-                                            <input
-                                                id="motivo-reserva-{{ $empresaInventario->id }}"
-                                                type="text"
-                                                name="motivo"
-                                                value="{{ old('motivo') }}"
-                                                maxlength="1000"
-                                                class="admin-form-control"
-                                                required
-                                            >
-
-                                            @error('motivo')
-                                                <p class="mt-2 text-sm text-red-400">
-                                                    {{ $message }}
-                                                </p>
-                                            @enderror
+                                            <label class="mb-1 block text-xs font-medium text-zinc-300">Motivo</label>
+                                            <input type="text" name="motivo" placeholder="Ej. Cambio de módulo" required
+                                                class="admin-form-control text-sm">
                                         </div>
                                     </div>
 
-                                    <div class="mt-5">
-                                        <button
-                                            type="submit"
-                                            class="ion-btn ion-btn--primary"
-                                        >
-                                            Reservar producto
+                                    <div class="flex justify-end">
+                                        <button type="submit" class="ion-btn ion-btn--primary text-xs py-2">
+                                            + Reservar refacción
                                         </button>
                                     </div>
                                 </form>
                             @empty
-                                <div class="rounded-xl border border-dashed border-amber-700 bg-amber-950/30 p-5 text-sm text-amber-200">
-                                    No hay productos con existencia disponible para reservar.
+                                <div class="rounded-xl border border-dashed border-zinc-800 p-4 text-sm text-zinc-400">
+                                    No hay existencias disponibles para reservar en los almacenes registrados.
                                 </div>
                             @endforelse
-                        </div>
+                        </section>
                     @endcan
-                    </div>
 
-                    @if ($orden->reservasInventario->isEmpty())
-                        <div class="rounded-xl border border-dashed border-zinc-700 bg-zinc-900 p-5 text-sm text-zinc-300">
-                            Esta orden todavía no tiene productos reservados.
-                        </div>
-                    @else
-                        <div class="space-y-4">
-                            @foreach ($orden->reservasInventario as $reserva)
-                                <article class="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                        <div>
-                                            <p class="font-semibold text-white">
-                                                {{ $reserva->producto?->nombre ?? 'Producto no disponible' }}
-                                            </p>
+                    <!-- Listado de Refacciones Comprometidas -->
+                    <section class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
+                        <h3 class="mb-4 text-lg font-bold text-white">
+                            Refacciones comprometidas en esta orden
+                        </h3>
 
-                                            <p class="mt-1 text-sm text-zinc-400">
-                                                SKU:
-                                                {{ $reserva->producto?->sku ?? 'Sin SKU' }}
-                                            </p>
+                        @if ($orden->reservasInventario->isEmpty())
+                            <div class="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 p-6 text-center text-sm text-zinc-400">
+                                Esta orden aún no tiene refacciones o materiales reservados.
+                            </div>
+                        @else
+                            <div class="space-y-4">
+                                @foreach ($orden->reservasInventario as $reserva)
+                                    <article class="rounded-xl border border-zinc-800 bg-zinc-900/90 p-5">
+                                        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                            <div>
+                                                <p class="font-semibold text-white">
+                                                    {{ $reserva->producto?->nombre ?? 'Producto no disponible' }}
+                                                </p>
+                                                <p class="text-xs text-zinc-400 mt-0.5">
+                                                    SKU: {{ $reserva->producto?->sku ?? 'Sin SKU' }} · Almacén: {{ $reserva->almacen?->nombre ?? 'N/D' }}
+                                                </p>
+                                            </div>
 
-                                            <p class="mt-1 text-sm text-zinc-400">
-                                                Almacén:
-                                                {{ $reserva->almacen?->nombre ?? 'No disponible' }}
-                                            </p>
-                                        </div>
-
-                                        <span class="inline-flex w-fit rounded-full bg-purple-600/20 px-3 py-1 text-xs font-semibold text-purple-200">
-                                            {{ ucfirst($reserva->estado) }}
-                                        </span>
-                                    </div>
-
-                                    <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                                        <div class="rounded-lg bg-zinc-950 p-3">
-                                            <p class="text-xs uppercase tracking-wide text-zinc-500">
-                                                Reservado
-                                            </p>
-
-                                            <p class="mt-1 font-semibold text-white">
-                                                {{ number_format((float) $reserva->cantidad_reservada, 4) }}
-                                            </p>
-                                        </div>
-
-                                        <div class="rounded-lg bg-zinc-950 p-3">
-                                            <p class="text-xs uppercase tracking-wide text-zinc-500">
-                                                Consumido
-                                            </p>
-
-                                            <p class="mt-1 font-semibold text-white">
-                                                {{ number_format((float) $reserva->cantidad_consumida, 4) }}
-                                            </p>
-                                        </div>
-
-                                        <div class="rounded-lg bg-zinc-950 p-3">
-                                            <p class="text-xs uppercase tracking-wide text-zinc-500">
-                                                Liberado
-                                            </p>
-
-                                            <p class="mt-1 font-semibold text-white">
-                                                {{ number_format((float) $reserva->cantidad_liberada, 4) }}
-                                            </p>
-                                        </div>
-
-                                        <div class="rounded-lg bg-zinc-950 p-3">
-                                            <p class="text-xs uppercase tracking-wide text-zinc-500">
-                                                Pendiente
-                                            </p>
-
-                                            <p class="mt-1 font-semibold text-white">
-                                                {{ number_format((float) $reserva->cantidadPendiente(), 4) }}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-4 border-t border-zinc-800 pt-4 text-sm text-zinc-400">
-                                        <p>
-                                            Motivo:
-                                            <span class="text-zinc-200">
-                                                {{ $reserva->motivo }}
+                                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold
+                                                @if($reserva->estado === 'consumida') bg-emerald-600/20 text-emerald-300
+                                                @elseif($reserva->estado === 'liberada') bg-zinc-700/40 text-zinc-300
+                                                @elseif($reserva->estado === 'parcial') bg-amber-600/20 text-amber-300
+                                                @else bg-purple-600/20 text-purple-200 @endif">
+                                                {{ ucfirst($reserva->estado) }}
                                             </span>
-                                        </p>
+                                        </div>
 
-                                        <p class="mt-1">
-                                            Reservado por:
-                                            <span class="text-zinc-200">
-                                                {{ $reserva->reservadoPor?->name ?? 'Usuario no disponible' }}
-                                            </span>
-                                        </p>
-                                    </div>
-                                </article>
-                            @endforeach
-                        </div>
-                    @endif
-                </section>
+                                        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                            <div class="rounded-lg bg-zinc-950 p-2.5 text-center">
+                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500">Reservado</p>
+                                                <p class="mt-0.5 font-semibold text-white text-sm">
+                                                    {{ number_format((float) $reserva->cantidad_reservada, 4) }}
+                                                </p>
+                                            </div>
+                                            <div class="rounded-lg bg-zinc-950 p-2.5 text-center">
+                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500">Consumido</p>
+                                                <p class="mt-0.5 font-semibold text-emerald-400 text-sm">
+                                                    {{ number_format((float) $reserva->cantidad_consumida, 4) }}
+                                                </p>
+                                            </div>
+                                            <div class="rounded-lg bg-zinc-950 p-2.5 text-center">
+                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500">Liberado</p>
+                                                <p class="mt-0.5 font-semibold text-zinc-300 text-sm">
+                                                    {{ number_format((float) $reserva->cantidad_liberada, 4) }}
+                                                </p>
+                                            </div>
+                                            <div class="rounded-lg bg-zinc-950 p-2.5 text-center">
+                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500">Pendiente</p>
+                                                <p class="mt-0.5 font-semibold text-purple-300 text-sm">
+                                                    {{ number_format((float) $reserva->cantidadPendiente(), 4) }}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-3 text-xs text-zinc-400">
+                                            <span>Motivo: <strong class="text-zinc-200">{{ $reserva->motivo }}</strong></span>
+                                            <span class="mx-2">·</span>
+                                            <span>Por: <strong class="text-zinc-200">{{ $reserva->reservadoPor?->name ?? 'N/D' }}</strong></span>
+                                        </div>
+
+                                        @if ($reserva->estaActiva() && (float) $reserva->cantidadPendiente() > 0)
+                                            <div class="mt-4 border-t border-zinc-800/80 pt-3" x-data="{ accion: null }">
+                                                <div class="flex flex-wrap gap-2">
+                                                    <button type="button"
+                                                        @click="accion = (accion === 'consumir' ? null : 'consumir')"
+                                                        class="rounded-lg bg-emerald-600/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 transition">
+                                                        ✓ Consumir pieza en reparación
+                                                    </button>
+                                                    <button type="button"
+                                                        @click="accion = (accion === 'liberar' ? null : 'liberar')"
+                                                        class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 transition">
+                                                        ↩ Liberar al stock
+                                                    </button>
+                                                </div>
+
+                                                <!-- Formulario para Consumir -->
+                                                <div x-show="accion === 'consumir'" x-cloak class="mt-3 rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4">
+                                                    <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">Confirmar consumo físico</p>
+                                                    <form action="{{ route('admin.ordenes.inventario.consumir', ['empresa' => $reserva->empresa_id, 'orden' => $orden->id]) }}" method="POST" class="mt-3 space-y-3">
+                                                        @csrf
+                                                        <input type="hidden" name="almacen_id" value="{{ $reserva->almacen_id }}">
+                                                        <input type="hidden" name="producto_id" value="{{ $reserva->producto_id }}">
+
+                                                        <div class="grid gap-3 sm:grid-cols-2">
+                                                            <div>
+                                                                <label class="block text-xs text-zinc-400">Cantidad (Máx: {{ $reserva->cantidadPendiente() }})</label>
+                                                                <input type="number" step="0.0001" min="0.0001" max="{{ $reserva->cantidadPendiente() }}"
+                                                                    name="cantidad" value="{{ $reserva->cantidadPendiente() }}" required
+                                                                    class="admin-form-control mt-1 text-sm">
+                                                            </div>
+                                                            <div>
+                                                                <label class="block text-xs text-zinc-400">Motivo de consumo</label>
+                                                                <input type="text" name="motivo" placeholder="Ej. Instalado en el equipo" required
+                                                                    class="admin-form-control mt-1 text-sm">
+                                                            </div>
+                                                        </div>
+                                                        <div class="flex justify-end gap-2 pt-2">
+                                                            <button type="button" @click="accion = null" class="px-3 py-1 text-xs text-zinc-400 hover:text-white">Cancelar</button>
+                                                            <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Confirmar consumo</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+
+                                                <!-- Formulario para Liberar -->
+                                                <div x-show="accion === 'liberar'" x-cloak class="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                                                    <p class="text-xs font-semibold uppercase tracking-wide text-zinc-300">Devolver refacción al stock</p>
+                                                    <form action="{{ route('admin.ordenes.inventario.liberar', ['empresa' => $reserva->empresa_id, 'orden' => $orden->id]) }}" method="POST" class="mt-3 space-y-3">
+                                                        @csrf
+                                                        <input type="hidden" name="almacen_id" value="{{ $reserva->almacen_id }}">
+                                                        <input type="hidden" name="producto_id" value="{{ $reserva->producto_id }}">
+
+                                                        <div class="grid gap-3 sm:grid-cols-2">
+                                                            <div>
+                                                                <label class="block text-xs text-zinc-400">Cantidad (Máx: {{ $reserva->cantidadPendiente() }})</label>
+                                                                <input type="number" step="0.0001" min="0.0001" max="{{ $reserva->cantidadPendiente() }}"
+                                                                    name="cantidad" value="{{ $reserva->cantidadPendiente() }}" required
+                                                                    class="admin-form-control mt-1 text-sm">
+                                                            </div>
+                                                            <div>
+                                                                <label class="block text-xs text-zinc-400">Motivo de liberación</label>
+                                                                <input type="text" name="motivo" placeholder="Ej. No se requirió el componente" required
+                                                                    class="admin-form-control mt-1 text-sm">
+                                                            </div>
+                                                        </div>
+                                                        <div class="flex justify-end gap-2 pt-2">
+                                                            <button type="button" @click="accion = null" class="px-3 py-1 text-xs text-zinc-400 hover:text-white">Cancelar</button>
+                                                            <button type="submit" class="rounded-lg bg-zinc-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-zinc-600">Confirmar liberación</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </article>
+                                @endforeach
+                            </div>
+                        @endif
+                    </section>
+                </div>
             @endcan
 
-            <section class="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
-                <div class="mb-5 flex items-center justify-between gap-3">
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
-                            Actividad
-                        </p>
-                        <h3 class="mt-2 text-xl font-bold text-white">
-                            Historial de trabajo
-                        </h3>
-                    </div>
-                </div>
+            <!-- Pestaña C: Historial de Trabajo -->
+            <div x-show="tab === 'historial'" x-cloak class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
+                <h3 class="mb-5 text-lg font-bold text-white">
+                    Historial de cambios y seguimiento técnico
+                </h3>
 
                 @if ($orden->historial->isEmpty())
-                    <div class="rounded-xl border border-dashed border-zinc-700 bg-zinc-900 p-5 text-sm text-zinc-300">
+                    <div class="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 p-6 text-center text-sm text-zinc-400">
                         Aún no hay cambios registrados en esta reparación.
                     </div>
                 @else
                     <div class="space-y-4">
                         @foreach ($orden->historial as $registro)
-                            <div class="flex gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                            <div class="flex gap-4 rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4">
                                 <div class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-purple-600/20 text-purple-200">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
@@ -811,63 +463,75 @@
                                 <div class="flex-1">
                                     <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                         @if ($registro->estado)
-                                            @include('admin.ordenes.partials.estado-badge', [
-                                                'estado' => $registro->estado,
-                                            ])
+                                            @include('admin.ordenes.partials.estado-badge', ['estado' => $registro->estado])
                                         @else
-                                            <span class="text-sm font-semibold text-zinc-200">
-                                                Actualización
-                                            </span>
+                                            <span class="text-sm font-semibold text-zinc-200">Actualización técnica</span>
                                         @endif
                                         <span class="text-xs text-zinc-400">
-                                            {{ $registro->created_at?->format('d/m/Y H:i') ?? 'Fecha no disponible' }}
+                                            {{ $registro->created_at?->format('d/m/Y H:i') ?? 'Sin fecha' }}
                                         </span>
                                     </div>
 
                                     @if (filled($registro->comentarios))
-                                        <div class="mt-3">
-                                            <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                                                Comentario interno
-                                            </p>
-
-                                            <p class="mt-1 text-sm text-zinc-300">
-                                                {{ $registro->comentarios }}
-                                            </p>
+                                        <div class="mt-2.5 rounded-lg bg-zinc-950/70 p-3">
+                                            <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Comentario interno</p>
+                                            <p class="mt-1 text-sm text-zinc-300">{{ $registro->comentarios }}</p>
                                         </div>
                                     @endif
 
                                     @if (filled($registro->mensaje_cliente))
-                                        <div class="mt-3 rounded-lg border border-blue-800 bg-blue-950/40 p-3">
-                                            <p class="text-xs font-semibold uppercase tracking-wide text-blue-300">
-                                                Mensaje para el cliente
-                                            </p>
-
-                                            <p class="mt-1 text-sm text-blue-100">
-                                                {{ $registro->mensaje_cliente }}
-                                            </p>
+                                        <div class="mt-2.5 rounded-lg border border-blue-900/60 bg-blue-950/30 p-3">
+                                            <p class="text-[10px] font-semibold uppercase tracking-wide text-blue-300">Mensaje enviado al cliente</p>
+                                            <p class="mt-1 text-sm text-blue-100">{{ $registro->mensaje_cliente }}</p>
                                         </div>
                                     @endif
 
-                                    @if (
-                                        blank($registro->comentarios)
-                                        && blank($registro->mensaje_cliente)
-                                    )
-                                        <p class="mt-2 text-sm text-zinc-400">
-                                            Sin comentarios adicionales.
-                                        </p>
-                                    @endif
-
                                     <p class="mt-2 text-xs text-zinc-400">
-                                        Por {{ $registro->usuario?->name ?? 'Usuario no disponible' }}
+                                        Por <strong class="text-zinc-300">{{ $registro->usuario?->name ?? 'Usuario del sistema' }}</strong>
                                     </p>
                                 </div>
                             </div>
                         @endforeach
                     </div>
                 @endif
-            </section>
+            </div>
+
+            <!-- Pestaña D: Entrega del Equipo -->
+            @can('deliver', $orden)
+                <div x-show="tab === 'entrega'" x-cloak class="rounded-2xl border border-emerald-800 bg-emerald-950/40 p-6 shadow-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">
+                        Equipo listo para entrega
+                    </p>
+                    <h3 class="mt-1 text-xl font-bold text-white">
+                        Confirmar entrega física al cliente
+                    </h3>
+                    <p class="mt-1 text-sm text-emerald-200/80">
+                        Esta acción registrará la fecha de entrega y marcará la orden como finalizada.
+                    </p>
+
+                    <form action="{{ route('operacion.ordenes.entregar', ['orden' => $orden->id]) }}" method="POST" class="mt-6 space-y-4">
+                        @csrf
+                        <div>
+                            <label for="comentario_entrega_admin" class="block text-sm font-medium text-emerald-100">
+                                Comentario de entrega opcional
+                            </label>
+                            <textarea id="comentario_entrega_admin" name="comentario" rows="3" maxlength="2000"
+                                class="mt-2 w-full rounded-xl border border-emerald-700/60 bg-zinc-900 p-3 text-white placeholder:text-zinc-500 focus:border-emerald-500 focus:ring-emerald-500"
+                                placeholder="Por ejemplo: Equipo entregado con cargador original y probado con el cliente.">{{ old('comentario') }}</textarea>
+                            @error('comentario')
+                                <p class="mt-2 text-xs text-red-300">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <button type="submit"
+                            onclick="return confirm('¿Confirmas que el equipo fue entregado al cliente?');"
+                            class="rounded-lg bg-emerald-600 px-6 py-2.5 font-semibold text-white transition hover:bg-emerald-500">
+                            Confirmar entrega
+                        </button>
+                    </form>
+                </div>
+            @endcan
 
         </div>
     </div>
-
 </x-app-layout>
