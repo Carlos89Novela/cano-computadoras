@@ -292,7 +292,7 @@ Route::middleware([
 // =========================================================
 // INVENTARIO
 // Operaciones para registrar entradas, recepciones y
-// transferencias de productos en los almacenes.
+// transferencias de productos en los almacenes (3 fases).
 // =========================================================
 
 Route::middleware([
@@ -303,7 +303,7 @@ Route::middleware([
     ->name('inventario.')
     ->group(function (): void {
         // -------------------------------------------------
-        // FORMULARIO DE ENTRADA SIMPLE
+        // ENTRADA SIMPLE
         // -------------------------------------------------
         Route::get(
             '/empresas/{empresa}/inventario/entradas/crear',
@@ -312,9 +312,6 @@ Route::middleware([
             ->middleware('permission:inventario.registrar_entrada')
             ->name('entradas.create');
 
-        // -------------------------------------------------
-        // REGISTRAR ENTRADA SIMPLE
-        // -------------------------------------------------
         Route::post(
             '/empresas/{empresa}/inventario/entradas',
             [EntradaInventarioController::class, 'store']
@@ -354,27 +351,28 @@ Route::middleware([
             ->name('recepciones.data');
 
         // -------------------------------------------------
-        // TRANSFERENCIAS ENTRE ALMACENES
+        // TRANSFERENCIAS DE INVENTARIO (3 FASES)
+        // Solicitud -> Despacho a Tránsito -> Recepción Destino
         // -------------------------------------------------
-        Route::get(
-            '/empresas/{empresa}/inventario/transferencias',
-            [TransferenciaInventarioController::class, 'index']
-        )->name('transferencias.index');
+        Route::prefix('empresas/{empresa}/inventario/transferencias')
+            ->name('transferencias.')
+            ->group(function (): void {
+                // Listado y Feed JSON DataTables
+                Route::get('/', [TransferenciaInventarioController::class, 'index'])->name('index');
+                Route::get('/data', [TransferenciaInventarioController::class, 'data'])->name('data');
 
-        Route::get(
-            '/empresas/{empresa}/inventario/transferencias/data',
-            [TransferenciaInventarioController::class, 'data']
-        )->name('transferencias.data');
+                // Fase 1: Solicitud / Requisición
+                Route::get('/solicitar', [TransferenciaInventarioController::class, 'create'])->name('create');
+                Route::post('/', [TransferenciaInventarioController::class, 'store'])->name('store');
 
-        Route::get(
-            '/empresas/{empresa}/inventario/transferencias/crear',
-            [TransferenciaInventarioController::class, 'create']
-        )->name('transferencias.create');
+                // Fase 2: Despacho y Custodia en Tránsito
+                Route::get('/{transferencia}/despachar', [TransferenciaInventarioController::class, 'despacharView'])->name('despachar.view');
+                Route::post('/{transferencia}/despachar', [TransferenciaInventarioController::class, 'despacharStore'])->name('despachar.store');
 
-        Route::post(
-            '/empresas/{empresa}/inventario/transferencias',
-            [TransferenciaInventarioController::class, 'store']
-        )->name('transferencias.store');
+                // Fase 3: Recepción y Validación en Destino
+                Route::get('/{transferencia}/recibir', [TransferenciaInventarioController::class, 'recibirView'])->name('recibir.view');
+                Route::post('/{transferencia}/recibir', [TransferenciaInventarioController::class, 'recibirStore'])->name('recibir.store');
+            });
     });
 
 // =========================================================

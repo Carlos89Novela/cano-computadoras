@@ -12,10 +12,12 @@ use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\RecepcionInventario;
 use App\Models\Sucursal;
+use App\Models\TransferenciaInventario;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class TransferenciaInventarioTest extends TestCase
@@ -43,18 +45,25 @@ class TransferenciaInventarioTest extends TestCase
             'activo' => true,
         ]);
 
-        $sucursal = Sucursal::query()->create([
+        $sucursalOrigen = Sucursal::query()->create([
             'empresa_id' => $this->empresa->id,
-            'codigo' => 'SUC-01',
-            'nombre' => 'Sucursal Centro',
+            'codigo' => 'SUC-MATRIZ',
+            'nombre' => 'Sucursal Matriz',
+            'activo' => true,
+        ]);
+
+        $sucursalDestino = Sucursal::query()->create([
+            'empresa_id' => $this->empresa->id,
+            'codigo' => 'SUC-NORTE',
+            'nombre' => 'Sucursal Norte',
             'activo' => true,
         ]);
 
         $this->almacenOrigen = Almacen::query()->create([
             'empresa_id' => $this->empresa->id,
-            'sucursal_id' => $sucursal->id,
+            'sucursal_id' => $sucursalOrigen->id,
             'codigo' => 'ALM-ORIGEN',
-            'nombre' => 'Almacén Principal',
+            'nombre' => 'Almacén Principal Matriz',
             'tipo' => Almacen::TIPO_PRINCIPAL,
             'es_virtual' => false,
             'permite_existencias' => true,
@@ -63,9 +72,9 @@ class TransferenciaInventarioTest extends TestCase
 
         $this->almacenDestino = Almacen::query()->create([
             'empresa_id' => $this->empresa->id,
-            'sucursal_id' => $sucursal->id,
+            'sucursal_id' => $sucursalDestino->id,
             'codigo' => 'ALM-DESTINO',
-            'nombre' => 'Almacén Taller',
+            'nombre' => 'Almacén Sucursal Norte',
             'tipo' => Almacen::TIPO_SECUNDARIO,
             'es_virtual' => false,
             'permite_existencias' => true,
@@ -81,8 +90,8 @@ class TransferenciaInventarioTest extends TestCase
         $this->producto = Producto::query()->create([
             'empresa_id' => $this->empresa->id,
             'categoria_producto_id' => $categoria->id,
-            'sku' => 'NVME-1TB',
-            'nombre' => 'SSD NVMe 1TB',
+            'sku' => 'SSD-1TB',
+            'nombre' => 'Unidad SSD NVMe 1TB',
             'unidad_medida' => 'pieza',
             'costo_referencia' => '1000.00',
             'precio_base' => '1500.00',
@@ -92,15 +101,19 @@ class TransferenciaInventarioTest extends TestCase
         $this->admin = User::factory()->create();
         $this->admin->assignRole('administrador');
 
-        // Ingresar existencia en almacén de origen
+        Permission::findOrCreate('inventario.transferir', 'web');
+        Permission::findOrCreate('inventario.registrar_entrada', 'web');
+
+        $this->admin->givePermissionTo('inventario.transferir');
+        $this->admin->givePermissionTo('inventario.registrar_entrada');
+
+        // Carga inicial en origen (10 unidades a $1,000 c/u)
         $proveedor = Proveedor::query()->create([
             'empresa_id' => $this->empresa->id,
             'codigo' => 'PROV-01',
-            'nombre' => 'Mayorista',
+            'nombre' => 'Mayorista Tecnológico',
             'activo' => true,
         ]);
-
-        $this->admin->givePermissionTo('inventario.registrar_entrada');
 
         app(RegistrarRecepcionInventario::class)->ejecutar(
             empresa: $this->empresa,
@@ -109,7 +122,7 @@ class TransferenciaInventarioTest extends TestCase
             actor: $this->admin,
             datos: [
                 'tipo' => RecepcionInventario::TIPO_COMPRA,
-                'motivo' => 'Carga inicial para prueba',
+                'motivo' => 'Carga inicial para prueba de traspaso',
                 'lineas' => [
                     [
                         'producto_id' => $this->producto->id,
@@ -122,14 +135,17 @@ class TransferenciaInventarioTest extends TestCase
     }
 
     #[Test]
-    public function transfiere_inventario_correctamente_y_asienta_movimientos_contables(): void
+    public function ejecuta_ciclo_completo_solicitud_despacho_y_recepcion_con_custodia_en_transito(): void
     {
-        $response = $this->actingAs($this->admin)->post(
+        // --------------------------------------------------------------------
+        // FASE 1: Solicitud / Requisición (Sucursal Destino pide a Origen)
+        // --------------------------------------------------------------------
+        $responseSolicitud = $this->actingAs($this->admin)->post(
             route('inventario.transferencias.store', $this->empresa),
             [
                 'almacen_origen_id' => $this->almacenOrigen->id,
                 'almacen_destino_id' => $this->almacenDestino->id,
-                'motivo' => 'Envío de stock a taller',
+                'motivo' => 'Reabastecimiento de mostrador norte',
                 'lineas' => [
                     [
                         'producto_id' => $this->producto->id,
@@ -139,30 +155,118 @@ class TransferenciaInventarioTest extends TestCase
             ]
         );
 
-        $response->assertRedirect(route('inventario.transferencias.index', $this->empresa));
+        $responseSolicitud->assertRedirect(route('inventario.transferencias.index', $this->empresa));
 
-        // Origen debe quedar con 6
-        $stockOrigen = ExistenciaAlmacen::query()
+        /** @var TransferenciaInventario $transferencia */
+        $transferencia = TransferenciaInventario::query()->firstOrFail();
+        $this->assertSame(TransferenciaInventario::ESTADO_SOLICITADA, $transferencia->estado);
+
+        // En Fase 1 no hay afectación de stock físico en origen ni destino
+        $stockOrigenFase1 = ExistenciaAlmacen::query()
             ->where('almacen_id', $this->almacenOrigen->id)
             ->where('producto_id', $this->producto->id)
             ->first();
-        $this->assertSame('6.0000', (string) $stockOrigen?->cantidad);
+        $this->assertSame('10.0000', (string) $stockOrigenFase1?->cantidad);
 
-        // Destino debe quedar con 4
-        $stockDestino = ExistenciaAlmacen::query()
+        $stockDestinoFase1 = ExistenciaAlmacen::query()
             ->where('almacen_id', $this->almacenDestino->id)
             ->where('producto_id', $this->producto->id)
             ->first();
-        $this->assertSame('4.0000', (string) $stockDestino?->cantidad);
+        $this->assertNull($stockDestinoFase1);
 
-        // Se deben haber creado movimientos de salida y entrada
+        // --------------------------------------------------------------------
+        // FASE 2: Despacho a Tránsito (Sucursal Origen autoriza y envía)
+        // --------------------------------------------------------------------
+        $detalle = $transferencia->detalles()->firstOrFail();
+
+        $responseDespacho = $this->actingAs($this->admin)->post(
+            route('inventario.transferencias.despachar.store', [$this->empresa, $transferencia]),
+            [
+                'observaciones' => 'Entregado al repartidor en ruta matriz',
+                'lineas' => [
+                    [
+                        'detalle_id' => $detalle->id,
+                        'cantidad_despachada' => '4.0000',
+                    ],
+                ],
+            ]
+        );
+
+        $responseDespacho->assertRedirect(route('inventario.transferencias.index', $this->empresa));
+        $transferencia->refresh();
+        $this->assertSame(TransferenciaInventario::ESTADO_EN_TRANSITO, $transferencia->estado);
+
+        // Origen descuenta 4 (quedan 6)
+        $stockOrigenFase2 = ExistenciaAlmacen::query()
+            ->where('almacen_id', $this->almacenOrigen->id)
+            ->where('producto_id', $this->producto->id)
+            ->first();
+        $this->assertSame('6.0000', (string) $stockOrigenFase2?->cantidad);
+
+        // Tránsito ahora tiene 4 unidades en custodia
+        $almacenTransito = Almacen::query()->where('tipo', Almacen::TIPO_TRANSITO)->firstOrFail();
+        $stockTransitoFase2 = ExistenciaAlmacen::query()
+            ->where('almacen_id', $almacenTransito->id)
+            ->where('producto_id', $this->producto->id)
+            ->first();
+        $this->assertSame('4.0000', (string) $stockTransitoFase2?->cantidad);
+
+        // Destino AÚN no tiene existencias
+        $stockDestinoFase2 = ExistenciaAlmacen::query()
+            ->where('almacen_id', $this->almacenDestino->id)
+            ->where('producto_id', $this->producto->id)
+            ->first();
+        $this->assertNull($stockDestinoFase2);
+
+        // Bitácora de despacho
         $this->assertDatabaseHas('movimientos_inventario', [
             'almacen_id' => $this->almacenOrigen->id,
             'producto_id' => $this->producto->id,
             'tipo' => MovimientoInventario::TIPO_TRANSFERENCIA_SALIDA,
             'cantidad' => '4.0000',
         ]);
+        $this->assertDatabaseHas('movimientos_inventario', [
+            'almacen_id' => $almacenTransito->id,
+            'producto_id' => $this->producto->id,
+            'tipo' => MovimientoInventario::TIPO_TRANSFERENCIA_TRANSITO,
+            'cantidad' => '4.0000',
+        ]);
 
+        // --------------------------------------------------------------------
+        // FASE 3: Recepción y Validación en Destino
+        // --------------------------------------------------------------------
+        $responseRecepcion = $this->actingAs($this->admin)->post(
+            route('inventario.transferencias.recibir.store', [$this->empresa, $transferencia]),
+            [
+                'observaciones' => 'Recibido completo en mostrador norte',
+                'lineas' => [
+                    [
+                        'detalle_id' => $detalle->id,
+                        'cantidad_recibida' => '4.0000',
+                    ],
+                ],
+            ]
+        );
+
+        $responseRecepcion->assertRedirect(route('inventario.transferencias.index', $this->empresa));
+        $transferencia->refresh();
+        $this->assertSame(TransferenciaInventario::ESTADO_COMPLETADA, $transferencia->estado);
+
+        // Almacén de tránsito queda liquidado (0 unidades)
+        $stockTransitoFase3 = ExistenciaAlmacen::query()
+            ->where('almacen_id', $almacenTransito->id)
+            ->where('producto_id', $this->producto->id)
+            ->first();
+        $this->assertSame('0.0000', (string) $stockTransitoFase3?->cantidad);
+
+        // Destino ingresa las 4 unidades
+        $stockDestinoFase3 = ExistenciaAlmacen::query()
+            ->where('almacen_id', $this->almacenDestino->id)
+            ->where('producto_id', $this->producto->id)
+            ->first();
+        $this->assertSame('4.0000', (string) $stockDestinoFase3?->cantidad);
+
+        // Bitácora de entrada en destino
         $this->assertDatabaseHas('movimientos_inventario', [
             'almacen_id' => $this->almacenDestino->id,
             'producto_id' => $this->producto->id,
