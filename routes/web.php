@@ -122,6 +122,13 @@ Route::middleware(['auth', 'administrador'])
             ->middleware('permission:inventario.consumir')
             ->name('ordenes.inventario.reservar');
 
+        Route::post(
+            '/empresas/{empresa}/ordenes/{orden}/inventario/consumir',
+            [InventarioOrdenController::class, 'consumir']
+        )
+            ->middleware('permission:inventario.consumir')
+            ->name('ordenes.inventario.consumir');
+
         Route::put(
             '/ordenes/{orden}',
             [AdminOrdenServicioController::class, 'update']
