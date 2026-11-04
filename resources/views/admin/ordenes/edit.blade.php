@@ -19,6 +19,13 @@
     </x-slot>
 
     <div class="py-8" x-data="{ tab: 'general' }">
+        @if (session('imprimir_comprobante_url'))
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    window.open('{{ session('imprimir_comprobante_url') }}', '_blank');
+                });
+            </script>
+        @endif
         <div class="mx-auto max-w-6xl px-4 sm:px-6">
 
             <!-- 1. Encabezado Resumen Fijo -->
@@ -509,7 +516,7 @@
                         Esta acción registrará la fecha de entrega y marcará la orden como finalizada.
                     </p>
 
-                    <form action="{{ route('operacion.ordenes.entregar', ['orden' => $orden->id]) }}" method="POST" class="mt-6 space-y-4">
+                    <form action="{{ route('operacion.ordenes.entregar', ['orden' => $orden->id]) }}" method="POST" class="mt-6 space-y-5">
                         @csrf
                         <div>
                             <label for="comentario_entrega_admin" class="block text-sm font-medium text-emerald-100">
@@ -517,17 +524,57 @@
                             </label>
                             <textarea id="comentario_entrega_admin" name="comentario" rows="3" maxlength="2000"
                                 class="mt-2 w-full rounded-xl border border-emerald-700/60 bg-zinc-900 p-3 text-white placeholder:text-zinc-500 focus:border-emerald-500 focus:ring-emerald-500"
-                                placeholder="Por ejemplo: Equipo entregado con cargador original y probado con el cliente.">{{ old('comentario') }}</textarea>
+                                placeholder="Por ejemplo: Equipo entregado probado con el cliente, cargador original y conformidad de servicio.">{{ old('comentario') }}</textarea>
                             @error('comentario')
                                 <p class="mt-2 text-xs text-red-300">{{ $message }}</p>
                             @enderror
                         </div>
 
-                        <button type="submit"
-                            onclick="return confirm('¿Confirmas que el equipo fue entregado al cliente?');"
-                            class="rounded-lg bg-emerald-600 px-6 py-2.5 font-semibold text-white transition hover:bg-emerald-500">
-                            Confirmar entrega
-                        </button>
+                        <!-- Selector de Comprobante -->
+                        <div>
+                            <label class="block text-sm font-medium text-emerald-100 mb-2">
+                                ¿Cómo deseas expedir el comprobante de entrega?
+                            </label>
+                            <div class="grid gap-3 sm:grid-cols-3">
+                                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-emerald-800/80 bg-zinc-900/80 p-3.5 transition hover:border-emerald-500">
+                                    <input type="radio" name="accion_comprobante" value="imprimir" checked
+                                        class="text-emerald-500 focus:ring-emerald-500">
+                                    <div>
+                                        <p class="text-sm font-semibold text-white">📄 Imprimir PDF</p>
+                                        <p class="text-xs text-zinc-400">Abre el comprobante en una nueva pestaña listo para imprimir.</p>
+                                    </div>
+                                </label>
+
+                                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-emerald-800/80 bg-zinc-900/80 p-3.5 transition hover:border-emerald-500">
+                                    <input type="radio" name="accion_comprobante" value="correo"
+                                        class="text-emerald-500 focus:ring-emerald-500">
+                                    <div>
+                                        <p class="text-sm font-semibold text-white">✉️ Enviar por correo</p>
+                                        <p class="text-xs text-zinc-400">Notifica al cliente con el enlace de entrega y resumen digital.</p>
+                                    </div>
+                                </label>
+
+                                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-emerald-800/80 bg-zinc-900/80 p-3.5 transition hover:border-emerald-500">
+                                    <input type="radio" name="accion_comprobante" value="ambas"
+                                        class="text-emerald-500 focus:ring-emerald-500">
+                                    <div>
+                                        <p class="text-sm font-semibold text-white">⚡ Ambas opciones</p>
+                                        <p class="text-xs text-zinc-400">Envía el correo al cliente y abre el documento para impresión física.</p>
+                                    </div>
+                                </label>
+                            </div>
+                            @error('accion_comprobante')
+                                <p class="mt-2 text-xs text-red-300">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div class="pt-2">
+                            <button type="submit"
+                                onclick="return confirm('¿Confirmas que el equipo fue entregado físicamente al cliente?');"
+                                class="rounded-lg bg-emerald-600 px-6 py-2.5 font-semibold text-white transition hover:bg-emerald-500 shadow-lg">
+                                Confirmar entrega
+                            </button>
+                        </div>
                     </form>
                 </div>
             @endcan
