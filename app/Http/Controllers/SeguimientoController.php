@@ -7,19 +7,43 @@ use Illuminate\View\View;
 
 class SeguimientoController extends Controller
 {
-    public function show(string $folio): View
+    public function show(string $token): View
     {
         $orden = OrdenServicio::query()
+            ->select([
+                'id',
+                'folio',
+                'token_seguimiento',
+                'equipo_id',
+                'servicio_id',
+                'estado',
+                'fecha_ingreso',
+                'fecha_entrega',
+                'problema_reportado',
+                'diagnostico',
+                'costo_estimado',
+                'costo_final',
+            ])
             ->with([
-                'equipo',
-                'servicio',
+                'equipo:id,tipo,marca,modelo',
+                'servicio:id,nombre',
                 'historial' => function ($query) {
-                    $query->orderBy('created_at', 'asc');
+                    $query
+                        ->select([
+                            'id',
+                            'orden_servicio_id',
+                            'estado',
+                            'created_at',
+                        ])
+                        ->oldest('created_at');
                 },
             ])
-            ->where('folio', $folio)
+            ->where('token_seguimiento', $token)
             ->firstOrFail();
 
-        return view('seguimiento.show', compact('orden'));
+        return view(
+            'seguimiento.show',
+            compact('orden')
+        );
     }
 }

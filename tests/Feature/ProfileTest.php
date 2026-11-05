@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Equipo;
+use App\Models\OrdenServicio;
 use App\Models\User;
 
 test('profile page is displayed', function () {
@@ -82,4 +84,47 @@ test('correct password must be provided to delete account', function () {
         ->assertRedirect('/profile');
 
     $this->assertNotNull($user->fresh());
+});
+
+test('user cannot delete account when repair orders exist', function () {
+    $user = User::factory()->create();
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $user->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude de prueba',
+        'numero_serie' => 'TEST-PROFILE-001',
+        'descripcion' => 'Equipo creado para probar la protección de la cuenta.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'TEST-PROFILE-ORDER-001',
+        'user_id' => $user->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo tarda demasiado tiempo en iniciar.',
+        'estado' => 'Recibido',
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->from('/profile')
+        ->delete('/profile', [
+            'password' => 'password',
+        ]);
+
+    $response
+        ->assertRedirect('/profile')
+        ->assertSessionHasErrors(
+            ['password'],
+            null,
+            'userDeletion'
+        );
+
+    $this->assertAuthenticatedAs($user);
+    $this->assertModelExists($user);
+    $this->assertModelExists($equipo);
+    $this->assertModelExists($orden);
 });

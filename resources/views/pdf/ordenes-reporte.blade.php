@@ -37,26 +37,7 @@
             font-weight: bold;
             color: #374151;
         }
-        .state-box {
-            display: inline-block;
-            width: 32%;
-            margin: 0 1% 8px 0;
-            padding: 8px 10px;
-            border: 1px solid #e5e7eb;
-            background: #ffffff;
-            box-sizing: border-box;
-        }
-        .state-name {
-            font-size: 11px;
-            color: #4b5563;
-            display: block;
-            margin-bottom: 4px;
-        }
-        .state-total {
-            font-weight: bold;
-            color: #111827;
-            font-size: 13px;
-        }
+        
         table {
             width: 100%;
             border-collapse: collapse;
@@ -79,6 +60,29 @@
         tbody tr:nth-child(even) {
             background: #fafafa;
         }
+
+        .summary-section {
+            margin-top: 12px;
+        }
+
+        .summary-table {
+            width: 100%;
+            margin: 0;
+            border-collapse: separate;
+            border-spacing: 8px 0;
+            table-layout: fixed;
+        }
+
+        .summary-table td {
+            width: 33.333%;
+            padding: 0;
+            vertical-align: top;
+            border: 0;
+        }
+
+        .summary-spacer {
+            height: 8px;
+        }
     </style>
 </head>
 <body>
@@ -90,16 +94,74 @@
     </div>
 
     <div class="summary">
-        <div class="summary-row"><span class="summary-label">Total de órdenes:</span> {{ $totalOrdenes }}</div>
-        <div class="summary-row"><span class="summary-label">Ingresos totales:</span> $ {{ number_format((float) $totalIngresos, 2, '.', ',') }}</div>
+        <div class="summary-row">
+            <span class="summary-label">
+                Total de órdenes:
+            </span>
+
+            {{ $totalOrdenes }}
+        </div>
+
+        <div class="summary-row">
+            <span class="summary-label">
+                Ingresos totales:
+            </span>
+
+            $ {{ number_format(
+                (float) $totalIngresos,
+                2,
+                '.',
+                ','
+            ) }}
+        </div>
+
         @if ($resumenPorEstado->isNotEmpty())
-            <div class="summary-row" style="margin-top: 12px;"><span class="summary-label">Resumen por estado:</span></div>
-            @foreach ($resumenPorEstado as $nombreEstado => $resumen)
-                <div class="state-box">
-                    <span class="state-name">{{ $nombreEstado ?: 'Sin estado' }}</span>
-                    <span class="state-total">{{ $resumen['cantidad'] }} órdenes · $ {{ number_format((float) $resumen['total'], 2, '.', ',') }}</span>
+            <div class="summary-section">
+                <div class="summary-title">
+                    Resumen por estado:
                 </div>
-            @endforeach
+
+                @foreach ($resumenPorEstado->chunk(3) as $grupoEstados)
+                    <table class="summary-table">
+                        <tbody>
+                            <tr>
+                                @foreach ($grupoEstados as $nombreEstado => $resumen)
+                                    <td>
+                                        <div class="summary-card">
+                                            <div class="summary-card-title">
+                                                {{ $nombreEstado }}
+                                            </div>
+
+                                            <div class="summary-card-value">
+                                                {{ $resumen['cantidad'] }}
+
+                                                {{ $resumen['cantidad'] === 1
+                                                    ? 'orden'
+                                                    : 'órdenes' }}
+
+                                                · $ {{ number_format(
+                                                    (float) $resumen['total'],
+                                                    2,
+                                                    '.',
+                                                    ','
+                                                ) }}
+                                            </div>
+                                        </div>
+                                    </td>
+                                @endforeach
+
+                                @for ($i = $grupoEstados->count(); $i < 3; $i++)
+                                    <td></td>
+                                @endfor
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    @unless ($loop->last)
+                        <div class="summary-spacer"></div>
+                    @endunless
+                @endforeach
+            </div>
         @endif
     </div>
 
@@ -114,6 +176,7 @@
                 <th>Costo</th>
             </tr>
         </thead>
+        
         <tbody>
             @forelse ($ordenes as $orden)
                 <tr>

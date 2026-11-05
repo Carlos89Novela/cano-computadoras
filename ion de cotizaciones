@@ -1,0 +1,346 @@
+[1mdiff --git a/app/Http/Controllers/Supervisor/RevisionCotizacionController.php b/app/Http/Controllers/Supervisor/RevisionCotizacionController.php[m
+[1mindex 2e5f447..5911658 100644[m
+[1m--- a/app/Http/Controllers/Supervisor/RevisionCotizacionController.php[m
+[1m+++ b/app/Http/Controllers/Supervisor/RevisionCotizacionController.php[m
+[36m@@ -190,6 +190,10 @@[m [mfunction ($empleado) use ($search): void {[m
+                     'fecha_solicitud' => $orden[m
+                         ->updated_at[m
+                         ->format('d/m/Y H:i'),[m
+[32m+[m[32m                    'acciones' => view([m
+[32m+[m[32m                        'supervisor.cotizaciones.partials.acciones',[m
+[32m+[m[32m                        compact('orden')[m
+[32m+[m[32m                    )->render(),[m
+                     'orden_id' => $orden->id,[m
+                 ];[m
+             })[m
+[1mdiff --git a/resources/views/supervisor/cotizaciones/partials/acciones.blade.php b/resources/views/supervisor/cotizaciones/partials/acciones.blade.php[m
+[1mindex f9b0108..fd437c6 100644[m
+[1m--- a/resources/views/supervisor/cotizaciones/partials/acciones.blade.php[m
+[1m+++ b/resources/views/supervisor/cotizaciones/partials/acciones.blade.php[m
+[36m@@ -1,8 +1,9 @@[m
+[31m-<form[m
+[31m-    action="{{ route('supervisor.cotizaciones.rechazar', ['orden' => $orden->id]) }}"[m
+[31m-    method="POST"[m
+[32m+[m[32m<a[m
+[32m+[m[32m    href="{{ route([m
+[32m+[m[32m        'supervisor.cotizaciones.show',[m
+[32m+[m[32m        ['orden' => $orden->id][m
+[32m+[m[32m    ) }}"[m
+     class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"[m
+ >[m
+[31m-    @csrf[m
+     Revisar cotización[m
+[31m-</form>[m
+\ No newline at end of file[m
+[32m+[m[32m</a>[m
+\ No newline at end of file[m
+[1mdiff --git a/resources/views/supervisor/cotizaciones/show.blade.php b/resources/views/supervisor/cotizaciones/show.blade.php[m
+[1mindex 718d786..5665a01 100644[m
+[1m--- a/resources/views/supervisor/cotizaciones/show.blade.php[m
+[1m+++ b/resources/views/supervisor/cotizaciones/show.blade.php[m
+[36m@@ -1,6 +1,6 @@[m
+ <x-app-layout>[m
+     <x-slot name="header">[m
+[31m-        <div class="flex items-center justify-between gap-4">[m
+[32m+[m[32m        <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">[m
+             <div>[m
+                 <p class="text-sm font-semibold text-blue-500">[m
+                     Revisión de cotización[m
+[36m@@ -12,129 +12,141 @@[m
+             </div>[m
+ [m
+             <a[m
+[31m-                href="{{ route('super            Volver al panel[m
+[32m+[m[32m                href="{{ route('supervisor.dashboard') }}">[m
+[32m+[m[32m                <button[m
+[32m+[m[32m                    type="button"[m
+[32m+[m[32m                    class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"[m
+[32m+[m[32m                >[m
+[32m+[m[32m                    Volver al panel[m
+[32m+[m[32m                </button>[m
+             </a>[m
+         </div>[m
+     </x-slot>[m
+[31m-[m
+     <div class="py-12">[m
+[31m-        <div class="mx-auto max-w-5xl space-y-6 px-6">[m
+[31m-            @if ($errors->any())[m
+[31m-                <div[m
+[31m-                    class="rounded-lg border border-red-700 bg-red-950 p-4 text-red-200"[m
+[31m-                    role="alert"[m
+[31m-                >[m
+[31m-                    <ul class="list-disc space-y-1 pl-5">[m
+[31m-                        @foreach ($errors->all() as $error)[m
+[31m-                            <li>{{ $error }}</li>[m
+[31m-                        @endforeach[m
+[31m-                    </ul>[m
+[32m+[m[32m    <div class="mx-auto max-w-5xl space-y-6 px-6">[m
+[32m+[m[32m        @if ($errors->any())[m
+[32m+[m[32m            <div[m
+[32m+[m[32m                class="rounded-lg border border-red-700 bg-red-950 p-4 text-red-200"[m
+[32m+[m[32m                role="alert"[m
+[32m+[m[32m            >[m
+[32m+[m[32m                <ul class="list-disc space-y-1 pl-5">[m
+[32m+[m[32m                    @foreach ($errors->all() as $error)[m
+[32m+[m[32m                        <li>{{ $error }}</li>[m
+[32m+[m[32m                    @endforeach[m
+[32m+[m[32m                </ul>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m        @endif[m
+[32m+[m
+[32m+[m[32m        <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">[m
+[32m+[m[32m            <h3 class="text-xl font-bold text-gray-900 dark:text-white">[m
+[32m+[m[32m                Diagnóstico y presupuesto[m
+[32m+[m[32m            </h3>[m
+[32m+[m
+[32m+[m[32m            <dl class="mt-6 grid gap-6 md:grid-cols-3">[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                    <dt class="font-semibold text-gray-500">[m
+[32m+[m[32m                        Cliente[m
+[32m+[m[32m                    </dt>[m
+[32m+[m
+[32m+[m[32m                    <dd class="mt-1 text-gray-900 dark:text-white">[m
+[32m+[m[32m                        {{ $orden->user->name }}[m
+[32m+[m[32m                    </dd>[m
+                 </div>[m
+[31m-            @endif[m
+[31m-[m
+[31m-            <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">[m
+[31m-                <h3 class="text-xl font-bold text-gray-900 dark:text-white">[m
+[31m-                    Diagnóstico y presupuesto[m
+[31m-                </h3>[m
+[31m-[m
+[31m-                <dl class="mt-6 space-y-4">[m
+[31m-                    <div>[m
+[31m-                        <dt class="font-semibold text-gray-500">[m
+[31m-                            Cliente[m
+[31m-                        </dt>[m
+[31m-[m
+[31m-                        <dd class="text-gray-900 dark:text-white">[m
+[31m-                            {{ $orden->user->name }}[m
+[31m-                        </dd>[m
+[31m-                    </div>[m
+[31m-[m
+[31m-                    <div>[m
+[31m-                        <dt class="font-semibold text-gray-500">[m
+[31m-                            Diagnóstico[m
+[31m-                        </dt>[m
+[31m-[m
+[31m-                        <dd class="text-gray-900 dark:text-white">[m
+[31m-                            {{ $orden->diagnostico }}[m
+[31m-                        </dd>[m
+[31m-                    </div>[m
+[31m-[m
+[31m-                    <div>[m
+[31m-                        <dt class="font-semibold text-gray-500">[m
+[31m-                            Costo estimado[m
+[31m-                        </dt>[m
+[31m-[m
+[31m-                        <dd class="text-gray-900 dark:text-white">[m
+[31m-                            ${{ number_format((float) $orden->costo_estimado, 2) }}[m
+[31m-                        </dd>[m
+[31m-                    </div>[m
+[31m-                </dl>[m
+[31m-            </section>[m
+[31m-[m
+[31m-            <section class="grid gap-6 md:grid-cols-2">[m
+[31m-                @can('approveQuoteReview', $orden)[m
+[31m-                    <div class="rounded-xl border border-green-700 bg-green-950 p-6">[m
+[31m-                        <h3 class="text-xl font-bold text-green-200">[m
+[31m-                            Aprobar cotización[m
+[31m-                        </h3>[m
+ [m
+[31m-                        <form[m
+[31m-                            action="{{ route('operacion.cotizaciones.aprobar', ['orden' => $orden->id]) }}"[m
+[31m-                            method="POST"[m
+[31m-                            class="mt-5"[m
+[31m-                        >[m
+[31m-                            @csrf[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                    <dt class="font-semibold text-gray-500">[m
+[32m+[m[32m                        Diagnóstico[m
+[32m+[m[32m                    </dt>[m
+ [m
+[31m-                            <button[m
+[31m-                                type="submit"[m
+[31m-                                class="rounded-lg bg-green-600 px-5 py-3 font-semibold text-white"[m
+[31m-                            >[m
+[31m-                                Aprobar cotización[m
+[31m-                            </button>[m
+[31m-                        </form>[m
+[31m-                    </div>[m
+[31m-                @endcan[m
+[31m-[m
+[31m-                @can('rejectQuoteReview', $orden)[m
+[31m-                    <div class="rounded-xl border border-red-700 bg-red-950 p-6">[m
+[31m-                        <h3 class="text-xl font-bold text-red-200">[m
+[31m-                            Rechazar cotización[m
+[31m-                        </h3>[m
+[32m+[m[32m                    <dd class="mt-1 text-gray-900 dark:text-white">[m
+[32m+[m[32m                        {{ $orden->diagnostico }}[m
+[32m+[m[32m                    </dd>[m
+[32m+[m[32m                </div>[m
+[32m+[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                    <dt class="font-semibold text-gray-500">[m
+[32m+[m[32m                        Costo estimado[m
+[32m+[m[32m                    </dt>[m
+[32m+[m
+[32m+[m[32m                    <dd class="mt-1 text-gray-900 dark:text-white">[m
+[32m+[m[32m                        ${{ number_format((float) $orden->costo_estimado, 2) }}[m
+[32m+[m[32m                    </dd>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m            </dl>[m
+[32m+[m[32m        </section>[m
+[32m+[m
+[32m+[m[32m        <section class="grid items-start gap-6 md:grid-cols-2">[m
+[32m+[m[32m            @can('approveQuoteReview', $orden)[m
+[32m+[m[32m                <div class="rounded-xl border border-green-700 bg-green-950 p-6">[m
+[32m+[m[32m                    <h3 class="text-xl font-bold text-green-200">[m
+[32m+[m[32m                        Aprobar cotización[m
+[32m+[m[32m                    </h3>[m
+ [m
+[31m-                        <form[m
+[31m-                            action="{{ route('operacion.cotizaciones.rechazar', ['orden' => $orden->id]) }}"[m
+[31m-                            method="POST"[m
+[31m-                            class="mt-5 space-y-4"[m
+[32m+[m[32m                    <p class="mt-2 text-sm text-green-100">[m
+[32m+[m[32m                        Confirma que el diagnóstico y el costo estimado son correctos.[m
+[32m+[m[32m                    </p>[m
+[32m+[m
+[32m+[m[32m                    <form action="{{ route('operacion.cotizaciones.aprobar', ['orden' => $orden->id]) }}" method="POST" class="mt-5 space-y-4">[m
+[32m+[m
+[32m+[m[32m                        @csrf[m
+[32m+[m
+[32m+[m[32m                        <button[m
+[32m+[m[32m                            type="submit"[m
+[32m+[m[32m                            class="rounded-lg bg-green-600 px-5 py-3 font-semibold text-white hover:bg-green-700"[m
+                         >[m
+[31m-                            @csrf[m
+[31m-[m
+[31m-                            <div>[m
+[31m-                                <label[m
+[31m-                                    for="observacion"[m
+[31m-                                    class="block font-semibold text-red-100"[m
+[31m-                                >[m
+[31m-                                    Motivo del rechazo[m
+[31m-                                </label>[m
+[31m-[m
+[31m-                                <textarea[m
+[31m-                                    id="observacion"[m
+[31m-                                    name="observacion"[m
+[31m-                                    rows="5"[m
+[31m-                                    maxlength="2000"[m
+[31m-                                    required[m
+[31m-                                    class="mt-2 w-full rounded-lg border border-red-700 bg-red-900 p-3 text-white"[m
+[31m-                                >{{ old('observacion') }}</textarea>[m
+[31m-                            </div>[m
+[31m-[m
+[31m-                            <button[m
+[31m-                                type="submit"[m
+[31m-                                class="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white"[m
+[32m+[m[32m                            Aprobar cotización[m
+[32m+[m[32m                        </button>[m
+[32m+[m[32m                    </form>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m            @endcan[m
+[32m+[m
+[32m+[m[32m            @can('rejectQuoteReview', $orden)[m
+[32m+[m[32m                <div class="rounded-xl border border-red-700 bg-red-950 p-6">[m
+[32m+[m[32m                    <h3 class="text-xl font-bold text-red-200">[m
+[32m+[m[32m                        Rechazar cotización[m
+[32m+[m[32m                    </h3>[m
+[32m+[m
+[32m+[m[32m                    <p class="mt-2 text-sm text-red-100">[m
+[32m+[m[32m                        Indica claramente qué información debe corregirse.[m
+[32m+[m[32m                    </p>[m
+[32m+[m
+[32m+[m[32m                <form action="{{ route('operacion.cotizaciones.rechazar', ['orden' => $orden->id]) }}" method="POST" class="mt-5 space-y-4">[m
+[32m+[m[32m                        @csrf[m
+[32m+[m
+[32m+[m[32m                        <div>[m
+[32m+[m[32m                            <label[m
+[32m+[m[32m                                for="observacion"[m
+[32m+[m[32m                                class="block font-semibold text-red-100"[m
+                             >[m
+[31m-                                Rechazar cotización[m
+[31m-                            </button>[m
+[31m-                        </form>[m
+[31m-                    </div>[m
+[31m-                @endcan[m
+[31m-            </section>[m
+[31m-        </div>[m
+[32m+[m[32m                                Motivo del rechazo[m
+[32m+[m[32m                            </label>[m
+[32m+[m
+[32m+[m[32m                            <textarea[m
+[32m+[m[32m                                id="observacion"[m
+[32m+[m[32m                                name="observacion"[m
+[32m+[m[32m                                rows="5"[m
+[32m+[m[32m                                maxlength="2000"[m
+[32m+[m[32m                                required[m
+[32m+[m[32m                                class="mt-2 w-full rounded-lg border border-red-700 bg-red-900 p-3 text-white"[m
+[32m+[m[32m                            >{{ old('observacion') }}</textarea>[m
+[32m+[m
+[32m+[m[32m                            @error('observacion')[m
+[32m+[m[32m                                <p class="mt-2 text-sm text-red-200">[m
+[32m+[m[32m                                    {{ $message }}[m
+[32m+[m[32m                                </p>[m
+[32m+[m[32m                            @enderror[m
+[32m+[m[32m                        </div>[m
+[32m+[m
+[32m+[m[32m                        <button[m
+[32m+[m[32m                            type="submit"[m
+[32m+[m[32m                            class="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700"[m
+[32m+[m[32m                        >[m
+[32m+[m[32m                            Rechazar cotización[m
+[32m+[m[32m                        </button>[m
+[32m+[m[32m                    </form>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m            @endcan[m
+[32m+[m[32m        </section>[m
+     </div>[m
+[31m-</x-app-layout>[m
+\ No newline at end of file[m
+[32m+[m[32m</div>[m
+[32m+[m[32m</x-app-layout>[m
+[1mdiff --git a/resources/views/supervisor/dashboard.blade.php b/resources/views/supervisor/dashboard.blade.php[m
+[1mindex d514988..270f6c5 100644[m
+[1m--- a/resources/views/supervisor/dashboard.blade.php[m
+[1m+++ b/resources/views/supervisor/dashboard.blade.php[m
+[36m@@ -138,6 +138,9 @@[m [mclass="w-full table-auto text-left"[m
+                                 <th class="p-4">[m
+                                     Fecha de solicitud[m
+                                 </th>[m
+[32m+[m[32m                                <th class="p-4 text-center">[m
+[32m+[m[32m                                    Acciones[m
+[32m+[m[32m                                </th>[m
+                             </tr>[m
+                         </thead>[m
+ [m
+[36m@@ -217,6 +220,12 @@[m [mclass="w-full table-auto text-left"[m
+                             {[m
+                                 data: 'fecha_solicitud',[m
+                                 name: 'fecha_solicitud'[m
+[32m+[m[32m                            },[m
+[32m+[m[32m                            {[m
+[32m+[m[32m                                data: 'acciones',[m
+[32m+[m[32m                                name: 'acciones',[m
+[32m+[m[32m                                orderable: false,[m
+[32m+[m[32m                                searchable: false[m
+                             }[m
+                         ],[m
+                         language: {[m
+[36m@@ -269,6 +278,12 @@[m [mclassName: 'whitespace-nowrap',[m
+                             {[m
+                                 targets: 6,[m
+                                 className: 'whitespace-nowrap'[m
+[32m+[m[32m                            },[m
+[32m+[m[32m                            {[m
+[32m+[m[32m                                targets: 7,[m
+[32m+[m[32m                                className: 'whitespace-nowrap text-center',[m
+[32m+[m[32m                                orderable: false,[m
+[32m+[m[32m                                searchable: false[m
+                             }[m
+                         ][m
+                     });[m

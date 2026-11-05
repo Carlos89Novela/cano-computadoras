@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreServicioRequest;
+use App\Http\Requests\Admin\UpdateServicioRequest;
 use App\Models\Servicio;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ServicioController extends Controller
@@ -24,38 +25,12 @@ class ServicioController extends Controller
         return view('admin.servicios.create');
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        $datos = $request->validate([
-            'nombre' => [
-                'required',
-                'string',
-                'max:150',
-                'unique:servicios,nombre',
-            ],
-            'descripcion' => [
-                'nullable',
-                'string',
-                'max:2000',
-            ],
-            'precio' => [
-                'required',
-                'numeric',
-                'min:0',
-                'max:99999999.99',
-            ],
-            'activo' => [
-                'nullable',
-                'boolean',
-            ],
-        ]);
-
-        Servicio::create([
-            'nombre' => $datos['nombre'],
-            'descripcion' => $datos['descripcion'] ?? null,
-            'precio' => $datos['precio'],
-            'activo' => $request->boolean('activo'),
-        ]);
+    public function store(
+        StoreServicioRequest $request
+    ): RedirectResponse {
+        Servicio::query()->create(
+            $request->validated()
+        );
 
         return redirect()
             ->route('admin.servicios.index')
@@ -74,39 +49,12 @@ class ServicioController extends Controller
     }
 
     public function update(
-        Request $request,
+        UpdateServicioRequest $request,
         Servicio $servicio
     ): RedirectResponse {
-        $datos = $request->validate([
-            'nombre' => [
-                'required',
-                'string',
-                'max:150',
-                'unique:servicios,nombre,'.$servicio->id,
-            ],
-            'descripcion' => [
-                'nullable',
-                'string',
-                'max:2000',
-            ],
-            'precio' => [
-                'required',
-                'numeric',
-                'min:0',
-                'max:99999999.99',
-            ],
-            'activo' => [
-                'nullable',
-                'boolean',
-            ],
-        ]);
-
-        $servicio->update([
-            'nombre' => $datos['nombre'],
-            'descripcion' => $datos['descripcion'] ?? null,
-            'precio' => $datos['precio'],
-            'activo' => $request->boolean('activo'),
-        ]);
+        $servicio->update(
+            $request->validated()
+        );
 
         return redirect()
             ->route('admin.servicios.index')

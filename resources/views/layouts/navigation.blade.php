@@ -1,44 +1,146 @@
 <nav x-data="{ open: false }" class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+    @php
+        $usuario = auth()->user();
+
+        $cantidadNotificacionesNoLeidas = $usuario
+            ->unreadNotifications()
+            ->count();
+
+        $rutaDashboard = match (true) {
+            $usuario->hasRole('administrador') =>
+                route('admin.dashboard'),
+
+            $usuario->hasRole('supervisor') =>
+                route('supervisor.dashboard'),
+
+            $usuario->hasRole('empleado') =>
+                route('empleado.dashboard'),
+
+            default =>
+                route('dashboard'),
+        };
+
+        $dashboardActivo = match (true) {
+            $usuario->hasRole('administrador') =>
+                request()->routeIs('admin.dashboard'),
+
+            $usuario->hasRole('supervisor') =>
+                request()->routeIs('supervisor.dashboard'),
+
+            $usuario->hasRole('empleado') =>
+                request()->routeIs('empleado.dashboard'),
+
+            default =>
+                request()->routeIs('dashboard'),
+        };
+
+        $empresaActual = $usuario->empresa ?? \App\Models\Empresa::query()->where('activo', true)->first();
+
+        $empresasNavegacion = $usuario->hasRole('administrador')
+            && $usuario->esPropietario()
+                ? \App\Models\Empresa::query()
+                    ->where('activo', true)
+                    ->orderBy('nombre')
+                    ->get([
+                        'id',
+                        'nombre',
+                    ])
+                : collect();
+    @endphp
+
     <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
             <div class="flex">
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
+                    <a href="{{ $rutaDashboard }}">
                         <x-application-logo class="block h-9 w-auto fill-current text-gray-800 dark:text-gray-200" />
                     </a>
                 </div>
 
-                <!-- Navigation Links -->
+                <!-- Navigation Links (Barra horizontal superior) -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
+                    <x-nav-link :href="$rutaDashboard" :active="$dashboardActivo">
                         {{ __('Dashboard') }}
                     </x-nav-link>
-                    <x-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
-                        {{ __('Mis equipos') }}
-                    </x-nav-link>
-                    <x-nav-link :href="route('ordenes.index')" :active="request()->routeIs('ordenes.*')">
-                        {{ __('Mis reparaciones') }}
-                    </x-nav-link>
-                    @if (auth()->user()->hasRole('administrador'))
+
+                    @if ($usuario->hasRole('cliente'))
+                        <x-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
+                            {{ __('Mis equipos') }}
+                        </x-nav-link>
+                        <x-nav-link :href="route('ordenes.index')" :active="request()->routeIs('ordenes.*')">
+                            {{ __('Mis reparaciones') }}
+                        </x-nav-link>
+                    @endif
+
+                    @if ($usuario->hasRole('administrador'))
+                        <x-nav-link :href="route('admin.ordenes.index')" :active="request()->routeIs('admin.ordenes.*')">
+                            {{ __('Administrar reparaciones') }}
+                        </x-nav-link>
+
                         <x-nav-link
                             :href="route('admin.servicios.index')"
                             :active="request()->routeIs('admin.servicios.*')"
                         >
                             {{ __('Servicios y precios') }}
                         </x-nav-link>
-
                     @endif
+
+                    @if ($usuario->hasRole('supervisor'))
+                        <x-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
+                            {{ __('Supervisión operativa') }}
+                        </x-nav-link>
+                    @endif
+
+                    {{-- Enlaces de Inventario para Administradores y Supervisores --}}
+                    @can('inventario.registrar_entrada')
+                        @if ($empresaActual)
+                            <x-nav-link
+                                :href="route('inventario.recepciones.create', $empresaActual)"
+                                :active="request()->routeIs('inventario.recepciones.*')"
+                            >
+                                {{ __('Recepción Inventario') }}
+                            </x-nav-link>
+                        @endif
+                    @endcan
+
+                    @canany(['inventario.transferir', 'inventario.registrar_entrada'])
+                        @if ($empresaActual)
+                            <x-nav-link
+                                :href="route('inventario.transferencias.index', $empresaActual)"
+                                :active="request()->routeIs('inventario.transferencias.*')"
+                            >
+                                {{ __('Transferencias') }}
+                            </x-nav-link>
+
+                            <x-nav-link
+                                :href="route('inventario.existencias.index', $empresaActual)"
+                                :active="request()->routeIs('inventario.existencias.*') || request()->routeIs('inventario.kardex.*')"
+                            >
+                                {{ __('Existencias / Kardex') }}
+                            </x-nav-link>
+                        @endif
+                    @endcanany
+
+                    @if ($usuario->hasRole('empleado'))
+                        <x-nav-link :href="route('empleado.dashboard')" :active="request()->routeIs('empleado.*')">
+                            {{ __('Reparaciones asignadas') }}
+                        </x-nav-link>
+                    @endif
+
                     <x-nav-link
                         :href="route('notificaciones.index')"
                         :active="request()->routeIs('notificaciones.*')"
                     >
                         Notificaciones
 
-                        @if (auth()->user()->unreadNotifications()->count() > 0)
-                            <span class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white">
-                                {{ auth()->user()->unreadNotifications()->count() }}
+                        @if ($cantidadNotificacionesNoLeidas > 0)
+                            <span
+                                class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white"
+                                aria-label="{{ $cantidadNotificacionesNoLeidas }} notificaciones no leídas"
+                            >
+                                {{ $cantidadNotificacionesNoLeidas }}
                             </span>
                         @endif
                     </x-nav-link>
@@ -61,18 +163,100 @@
                     </x-slot>
 
                     <x-slot name="content">
-                        <x-dropdown-link :href="route('profile.edit')">
-                            {{ __('Profile') }}
-                        </x-dropdown-link>
+                        @if ($usuario->hasRole('administrador'))
+                            <div class="border-b border-gray-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                Administración
+                            </div>
 
-                        <!-- Authentication -->
+                            <x-dropdown-link :href="route('admin.dashboard')">
+                                Panel administrativo
+                            </x-dropdown-link>
+
+                            <x-dropdown-link :href="route('admin.ordenes.index')">
+                                Administrar reparaciones
+                            </x-dropdown-link>
+
+                            <x-dropdown-link :href="route('admin.servicios.index')">
+                                Servicios y precios
+                            </x-dropdown-link>
+
+                            @if ($usuario->esPropietario())
+                                <x-dropdown-link :href="route('admin.usuarios.index')">
+                                    Usuarios y permisos
+                                </x-dropdown-link>
+
+                                @foreach ($empresasNavegacion as $empresaNavegacion)
+                                    <div class="border-y border-gray-200 px-4 py-2 text-xs font-semibold text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                        {{ $empresaNavegacion->nombre }}
+                                    </div>
+
+                                    <x-dropdown-link
+                                        :href="route('admin.empresas.sucursales.index', [
+                                            'empresa' => $empresaNavegacion->id,
+                                        ])"
+                                    >
+                                        Sucursales y almacenes
+                                    </x-dropdown-link>
+
+                                    @can('productos.ver')
+                                        <x-dropdown-link
+                                            :href="route('productos.categorias.index', [
+                                                'empresa' => $empresaNavegacion->id,
+                                            ])"
+                                        >
+                                            Categorías de productos
+                                        </x-dropdown-link>
+
+                                        <x-dropdown-link
+                                            :href="route('proveedores.index', [
+                                                'empresa' => $empresaNavegacion->id,
+                                            ])"
+                                        >
+                                            Proveedores
+                                        </x-dropdown-link>
+                                    @endcan
+                                @endforeach
+                            @endif
+                        @endif
+
+                        {{-- Acceso a inventario desde el desplegable si cuenta con empresa activa --}}
+                        @if ($empresaActual && ($usuario->can('inventario.transferir') || $usuario->can('inventario.registrar_entrada')))
+                            <div class="border-t border-gray-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                Inventario
+                            </div>
+
+                            @can('inventario.registrar_entrada')
+                                <x-dropdown-link :href="route('inventario.recepciones.create', $empresaActual)">
+                                    Recepción de inventario
+                                </x-dropdown-link>
+                            @endcan
+
+                            @canany(['inventario.transferir', 'inventario.registrar_entrada'])
+                                <x-dropdown-link :href="route('inventario.transferencias.index', $empresaActual)">
+                                    Transferencias de inventario
+                                </x-dropdown-link>
+
+                                <x-dropdown-link :href="route('inventario.existencias.index', $empresaActual)">
+                                    Existencias y Kardex
+                                </x-dropdown-link>
+                            @endcanany
+                        @endif
+
+                        <div class="border-t border-gray-200 dark:border-gray-600">
+                            <x-dropdown-link :href="route('profile.edit')">
+                                Mi perfil
+                            </x-dropdown-link>
+                        </div>
+
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
 
-                            <x-dropdown-link :href="route('logout')"
-                                    onclick="event.preventDefault();
-                                                this.closest('form').submit();">
-                                {{ __('Log Out') }}
+                            <x-dropdown-link
+                                :href="route('logout')"
+                                onclick="event.preventDefault();
+                                            this.closest('form').submit();"
+                            >
+                                Cerrar sesión
                             </x-dropdown-link>
                         </form>
                     </x-slot>
@@ -94,29 +278,84 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
+            <x-responsive-nav-link :href="$rutaDashboard" :active="$dashboardActivo">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
-                {{ __('Mis equipos') }}
-            </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('ordenes.index')" :active="request()->routeIs('ordenes.*')">
-                {{ __('Mis reparaciones') }}
-            </x-responsive-nav-link>
-            @if (auth()->user()->hasRole('administrador'))
-                <x-nav-link
+
+            @if ($usuario->hasRole('cliente'))
+                <x-responsive-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
+                    {{ __('Mis equipos') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('ordenes.index')" :active="request()->routeIs('ordenes.*')">
+                    {{ __('Mis reparaciones') }}
+                </x-responsive-nav-link>
+            @endif
+
+            @if ($usuario->hasRole('administrador'))
+                <x-responsive-nav-link
                     :href="route('admin.ordenes.index')"
                     :active="request()->routeIs('admin.ordenes.*')">
                     {{ __('Administrar reparaciones') }}
-                </x-nav-link>
-            @endif
-            @if (auth()->user()->hasRole('administrador'))
-                <x-nav-link
+                </x-responsive-nav-link>
+
+                <x-responsive-nav-link
                     :href="route('admin.servicios.index')"
                     :active="request()->routeIs('admin.servicios.*')">
                     {{ __('Servicios y precios') }}
-                </x-nav-link>
+                </x-responsive-nav-link>
             @endif
+
+            @if ($usuario->hasRole('supervisor'))
+                <x-responsive-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
+                    {{ __('Supervisión operativa') }}
+                </x-responsive-nav-link>
+            @endif
+
+            {{-- Enlaces Responsive Móvil --}}
+            @can('inventario.registrar_entrada')
+                @if ($empresaActual)
+                    <x-responsive-nav-link
+                        :href="route('inventario.recepciones.create', $empresaActual)"
+                        :active="request()->routeIs('inventario.recepciones.*')"
+                    >
+                        {{ __('Recepción Inventario') }}
+                    </x-responsive-nav-link>
+                @endif
+            @endcan
+
+            @canany(['inventario.transferir', 'inventario.registrar_entrada'])
+                @if ($empresaActual)
+                    <x-responsive-nav-link
+                        :href="route('inventario.transferencias.index', $empresaActual)"
+                        :active="request()->routeIs('inventario.transferencias.*')"
+                    >
+                        {{ __('Transferencias Inventario') }}
+                    </x-responsive-nav-link>
+
+                    <x-responsive-nav-link
+                        :href="route('inventario.existencias.index', $empresaActual)"
+                        :active="request()->routeIs('inventario.existencias.*') || request()->routeIs('inventario.kardex.*')"
+                    >
+                        {{ __('Existencias / Kardex') }}
+                    </x-responsive-nav-link>
+                @endif
+            @endcanany
+
+            @if ($usuario->hasRole('empleado'))
+                <x-responsive-nav-link :href="route('empleado.dashboard')" :active="request()->routeIs('empleado.*')">
+                    {{ __('Reparaciones asignadas') }}
+                </x-responsive-nav-link>
+            @endif
+
+            <x-responsive-nav-link :href="route('notificaciones.index')" :active="request()->routeIs('notificaciones.*')">
+                {{ __('Notificaciones') }}
+
+                @if ($cantidadNotificacionesNoLeidas > 0)
+                    <span class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white">
+                        {{ $cantidadNotificacionesNoLeidas }}
+                    </span>
+                @endif
+            </x-responsive-nav-link>
         </div>
 
         <!-- Responsive Settings Options -->
@@ -140,14 +379,6 @@
                                         this.closest('form').submit();">
                         {{ __('Log Out') }}
                     </x-responsive-nav-link>
-                    @if (auth()->user()->hasRole('administrador'))
-                        <x-responsive-nav-link
-                            :href="route('admin.ordenes.index')"
-                            :active="request()->routeIs('admin.ordenes.*')"
-                        >
-                            {{ __('Administrar reparaciones') }}
-                        </x-responsive-nav-link>
-                    @endif
                 </form>
             </div>
         </div>

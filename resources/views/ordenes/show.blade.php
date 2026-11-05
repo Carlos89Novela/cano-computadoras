@@ -121,8 +121,8 @@
                 </div>
 
                 @if (
-                    $orden->estado === 'Esperando autorización' &&
-                    $orden->autorizacion === 'pendiente'
+                    $orden->estado === \App\Enums\EstadoOrden::ESPERANDO_AUTORIZACION->value &&
+                    $orden->autorizacion === \App\Enums\EstadoAutorizacion::PENDIENTE->value
                 )
 
                     <div class="mt-8 rounded-xl border border-yellow-700 bg-yellow-950 p-6">
@@ -150,7 +150,7 @@
                                 <input
                                     type="hidden"
                                     name="decision"
-                                    value="autorizada"
+                                    value="{{ \App\Enums\EstadoAutorizacion::AUTORIZADA->value }}"
                                 >
 
                                 <button
@@ -171,7 +171,7 @@
                                 <input
                                     type="hidden"
                                     name="decision"
-                                    value="rechazada"
+                                    value="{{ \App\Enums\EstadoAutorizacion::RECHAZADA->value }}"
                                 >
 
                                 <button
@@ -186,14 +186,14 @@
 
                     </div>
 
-                @elseif ($orden->autorizacion === 'autorizada')
+                @elseif ($orden->autorizacion === \App\Enums\EstadoAutorizacion::AUTORIZADA->value)
 
                     <div class="mt-8 rounded-lg border border-green-700 bg-green-950 p-5 text-green-200">
                         Presupuesto autorizado el
                         {{ $orden->fecha_autorizacion?->format('d/m/Y H:i') }}.
                     </div>
 
-                @elseif ($orden->autorizacion === 'rechazada')
+                @elseif ($orden->autorizacion === \App\Enums\EstadoAutorizacion::RECHAZADA->value)
 
                     <div class="mt-8 rounded-lg border border-red-700 bg-red-950 p-5 text-red-200">
                         Presupuesto rechazado el
@@ -221,7 +221,7 @@
                                     ->margin(1)
                                     ->generate(
                                         route('seguimiento.show', [
-                                            'folio' => $orden->folio
+                                            'token' => $orden->token_seguimiento,
                                         ])
                                     )
                             !!}
@@ -237,7 +237,7 @@
                             </p>
 
                             <a
-                                href="{{ route('seguimiento.show', ['folio' => $orden->folio]) }}"
+                                href="{{ route('seguimiento.show', ['token' => $orden->token_seguimiento,]) }}"
                                 class="mt-2 inline-block rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500">
                                 Abrir seguimiento público
                             </a>
@@ -294,9 +294,9 @@
                                             </span>
                                         </div>
 
-                                        @if ($registro->comentarios)
+                                        @if (filled($registro->mensaje_cliente))
                                             <p class="mt-3 text-white">
-                                                {{ $registro->comentarios }}
+                                                {{ $registro->mensaje_cliente }}
                                             </p>
                                         @endif
 

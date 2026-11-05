@@ -2,13 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TipoEquipo;
+use App\Http\Requests\StoreEquipoRequest;
+use App\Http\Requests\UpdateEquipoRequest;
 use App\Models\Equipo;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class EquipoController extends Controller
 {
+    use AuthorizesRequests;
+
     public function index(Request $request): View
     {
         $equipos = $request->user()
@@ -21,75 +27,82 @@ class EquipoController extends Controller
 
     public function create(): View
     {
-        return view('equipos.create');
+        $tiposEquipo = TipoEquipo::valores();
+
+        return view(
+            'equipos.create',
+            compact('tiposEquipo')
+        );
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        $datos = $request->validate([
-            'tipo' => ['required', 'string', 'max:100'],
-            'marca' => ['required', 'string', 'max:100'],
-            'modelo' => ['required', 'string', 'max:100'],
-            'numero_serie' => ['nullable', 'string', 'max:150'],
-            'descripcion' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $request->user()->equipos()->create($datos);
+    public function store(
+        StoreEquipoRequest $request
+    ): RedirectResponse {
+        $request->user()
+            ->equipos()
+            ->create($request->validated());
 
         return redirect()
             ->route('equipos.index')
-            ->with('success', 'Equipo registrado correctamente.');
+            ->with(
+                'success',
+                'Equipo registrado correctamente.'
+            );
     }
 
-    public function edit(Request $request, Equipo $equipo): View
-    {
-        $this->verificarPropietario($request, $equipo);
+    public function edit(
+        Equipo $equipo
+    ): View {
+        $this->authorize('view', $equipo);
 
-        return view('equipos.edit', compact('equipo'));
+        $tiposEquipo = TipoEquipo::valores();
+
+        return view(
+            'equipos.edit',
+            compact(
+                'equipo',
+                'tiposEquipo'
+            )
+        );
     }
 
     public function update(
-        Request $request,
+        UpdateEquipoRequest $request,
         Equipo $equipo
     ): RedirectResponse {
-        $this->verificarPropietario($request, $equipo);
-
-        $datos = $request->validate([
-            'tipo' => ['required', 'string', 'max:100'],
-            'marca' => ['required', 'string', 'max:100'],
-            'modelo' => ['required', 'string', 'max:100'],
-            'numero_serie' => ['nullable', 'string', 'max:150'],
-            'descripcion' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $equipo->update($datos);
+        $equipo->update(
+            $request->validated()
+        );
 
         return redirect()
             ->route('equipos.index')
-            ->with('success', 'Equipo actualizado correctamente.');
+            ->with(
+                'success',
+                'Equipo actualizado correctamente.'
+            );
     }
 
     public function destroy(
-        Request $request,
         Equipo $equipo
     ): RedirectResponse {
-        $this->verificarPropietario($request, $equipo);
+        $this->authorize('delete', $equipo);
+
+        if ($equipo->ordenesServicio()->exists()) {
+            return redirect()
+                ->route('equipos.index')
+                ->with(
+                    'error',
+                    'No puedes eliminar un equipo que tiene órdenes de reparación registradas.'
+                );
+        }
 
         $equipo->delete();
 
         return redirect()
             ->route('equipos.index')
-            ->with('success', 'Equipo eliminado correctamente.');
-    }
-
-    private function verificarPropietario(
-        Request $request,
-        Equipo $equipo
-    ): void {
-        abort_unless(
-            $equipo->user_id === $request->user()->id,
-            403,
-            'No tienes permiso para administrar este equipo.'
-        );
+            ->with(
+                'success',
+                'Equipo eliminado correctamente.'
+            );
     }
 }

@@ -27,12 +27,14 @@
                         required
                         class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                     >
-                        @foreach (['Laptop', 'Computadora de escritorio', 'Todo en uno', 'Otro'] as $tipo)
+                        @foreach ($tiposEquipo as $tipoEquipo)
                             <option
-                                value="{{ $tipo }}"
-                                @selected(old('tipo', $equipo->tipo) === $tipo)
+                                value="{{ $tipoEquipo }}"
+                                @selected(
+                                    old('tipo', $equipo->tipo) === $tipoEquipo
+                                )
                             >
-                                {{ $tipo }}
+                                {{ $tipoEquipo }}
                             </option>
                         @endforeach
                     </select>
@@ -53,6 +55,7 @@
                         type="text"
                         value="{{ old('marca', $equipo->marca) }}"
                         required
+                        maxlength="100"
                         class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                     >
 
@@ -72,6 +75,7 @@
                         type="text"
                         value="{{ old('modelo', $equipo->modelo) }}"
                         required
+                        maxlength="100"
                         class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                     >
 
@@ -90,6 +94,7 @@
                         name="numero_serie"
                         type="text"
                         value="{{ old('numero_serie', $equipo->numero_serie) }}"
+                        maxlength="150"
                         class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                     >
 
@@ -107,6 +112,7 @@
                         id="descripcion"
                         name="descripcion"
                         rows="4"
+                        maxlength="1000"
                         class="w-full rounded-lg border-gray-300 bg-white text-black dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                     >{{ old('descripcion', $equipo->descripcion) }}</textarea>
 

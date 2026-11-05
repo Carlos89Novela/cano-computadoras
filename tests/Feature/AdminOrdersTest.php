@@ -1,11 +1,21 @@
 <?php
 
+use App\Enums\EstadoAutorizacion;
+use App\Enums\EstadoOrden;
+use App\Enums\EstadoRevisionCotizacion;
+use App\Models\Almacen;
+use App\Models\CategoriaProducto;
+use App\Models\Empresa;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
+use App\Models\Producto;
+use App\Models\ReservaInventario;
 use App\Models\Servicio;
+use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 test('admin users can access the orders management page', function () {
@@ -172,6 +182,15 @@ test('admin users see a repair summary and activity history in the detail page',
     $admin = User::factory()->create();
     $admin->assignRole('administrador');
 
+    Permission::findOrCreate(
+        'inventario.ver',
+        'web'
+    );
+
+    $admin->givePermissionTo(
+        'inventario.ver'
+    );
+
     $cliente = User::factory()->create(['name' => 'Ana López']);
     $equipo = Equipo::create([
         'user_id' => $cliente->id,
@@ -202,8 +221,208 @@ test('admin users see a repair summary and activity history in the detail page',
 
     $response->assertOk()
         ->assertSee('Resumen de la reparación')
+        ->assertSee('Productos comprometidos')
+        ->assertSee(
+            'Esta orden todavía no tiene productos reservados.'
+        )
         ->assertSee('Historial de trabajo')
         ->assertSee('Se inició la revisión del equipo.');
+});
+
+// ---------------------------------------------------------
+// PANEL SIN PERMISO
+// El detalle administrativo no muestra las reservas cuando
+// el usuario no tiene el permiso inventario.ver.
+// ---------------------------------------------------------
+
+test('inventory reservation panel is hidden without permission', function () {
+    Role::firstOrCreate([
+        'name' => 'administrador',
+        'guard_name' => 'web',
+    ]);
+
+    $admin = User::factory()->create();
+
+    $admin->assignRole(
+        'administrador'
+    );
+
+    $cliente = User::factory()->create();
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude 5420',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-INVENTARIO-SIN-PERMISO',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'El equipo tarda en iniciar.',
+        'estado' => EstadoOrden::EN_REPARACION->value,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->get(
+            route('admin.ordenes.edit', [
+                'orden' => $orden->id,
+            ])
+        );
+
+    $response
+        ->assertOk()
+        ->assertSee('Resumen de la reparación')
+        ->assertDontSee('Productos comprometidos')
+        ->assertDontSee(
+            'Esta orden todavía no tiene productos reservados.'
+        );
+});
+
+// ---------------------------------------------------------
+// PANEL CON RESERVA REAL
+// El administrador con inventario.ver puede consultar el
+// producto y las cantidades vinculadas con la orden.
+// ---------------------------------------------------------
+
+test('admin can see inventory reservation details in order page', function () {
+    Role::firstOrCreate([
+        'name' => 'administrador',
+        'guard_name' => 'web',
+    ]);
+
+    Permission::findOrCreate(
+        'inventario.ver',
+        'web'
+    );
+
+    $admin = User::factory()->create();
+
+    $admin->assignRole(
+        'administrador'
+    );
+
+    $admin->givePermissionTo(
+        'inventario.ver'
+    );
+
+    $cliente = User::factory()->create([
+        'name' => 'Cliente con reserva',
+    ]);
+
+    $empresa = Empresa::query()->create([
+        'nombre' => 'Cano Computadoras',
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $sucursal = Sucursal::query()->create([
+        'empresa_id' => $empresa->id,
+        'codigo' => 'MATRIZ-RESERVA',
+        'nombre' => 'Sucursal principal',
+        'es_principal' => true,
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $almacen = Almacen::query()->create([
+        'empresa_id' => $empresa->id,
+        'sucursal_id' => $sucursal->id,
+        'codigo' => 'ALM-RESERVA',
+        'nombre' => 'Almacén de reparaciones',
+        'tipo' => Almacen::TIPO_PRINCIPAL,
+        'es_virtual' => false,
+        'permite_existencias' => true,
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $categoria = CategoriaProducto::query()->create([
+        'empresa_id' => $empresa->id,
+        'nombre' => 'Almacenamiento',
+        'descripcion' => 'Productos utilizados en reparaciones.',
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $producto = Producto::query()->create([
+        'empresa_id' => $empresa->id,
+        'categoria_producto_id' => $categoria->id,
+        'proveedor_principal_id' => null,
+        'sku' => 'SSD-PANEL-001',
+        'codigo_barras' => '7501111111111',
+        'nombre' => 'Unidad SSD para reparación',
+        'descripcion' => 'Producto mostrado en el detalle de la orden.',
+        'marca' => 'Marca de prueba',
+        'modelo' => 'SSD-PANEL',
+        'unidad_medida' => 'pieza',
+        'costo_referencia' => 900,
+        'precio_base' => 1200,
+        'activo' => true,
+        'creado_por_id' => $admin->id,
+    ]);
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $cliente->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude 5420',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-PANEL-INVENTARIO-001',
+        'user_id' => $cliente->id,
+        'equipo_id' => $equipo->id,
+        'problema_reportado' => 'El almacenamiento presenta fallas.',
+        'estado' => EstadoOrden::EN_REPARACION->value,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    ReservaInventario::query()->create([
+        'empresa_id' => $empresa->id,
+        'almacen_id' => $almacen->id,
+        'producto_id' => $producto->id,
+        'orden_servicio_id' => $orden->id,
+        'cantidad_reservada' => '8.0000',
+        'cantidad_consumida' => '2.0000',
+        'cantidad_liberada' => '1.0000',
+        'estado' => ReservaInventario::ESTADO_PARCIAL,
+        'motivo' => 'Reserva para reemplazar la unidad dañada.',
+        'reservado_por_id' => $admin->id,
+        'actualizado_por_id' => $admin->id,
+        'reservado_at' => now(),
+        'finalizado_at' => null,
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->get(
+            route('admin.ordenes.edit', [
+                'orden' => $orden->id,
+            ])
+        );
+
+    $response
+        ->assertOk()
+        ->assertSee('Productos comprometidos')
+        ->assertSee('Unidad SSD para reparación')
+        ->assertSee('SSD-PANEL-001')
+        ->assertSee('Almacén de reparaciones')
+        ->assertSee('Parcial')
+        ->assertSee('8.0000')
+        ->assertSee('2.0000')
+        ->assertSee('1.0000')
+        ->assertSee('5.0000')
+        ->assertSee(
+            'Reserva para reemplazar la unidad dañada.'
+        )
+        ->assertSee($admin->name)
+        ->assertDontSee(
+            'Esta orden todavía no tiene productos reservados.'
+        );
 });
 
 test('authenticated users can access the dashboard', function () {
@@ -454,6 +673,7 @@ test('the public tracking page shows the order by folio', function () {
 
     $orden = OrdenServicio::create([
         'folio' => 'REP-TRACK-1234',
+        'token_seguimiento' => (string) Str::ulid(),
         'user_id' => $user->id,
         'equipo_id' => $equipo->id,
         'problema_reportado' => 'El equipo no prende.',
@@ -467,7 +687,7 @@ test('the public tracking page shows the order by folio', function () {
         'comentarios' => 'Solicitud de reparación registrada.',
     ]);
 
-    $response = $this->get('/seguimiento/REP-TRACK-1234');
+    $response = $this->get(route('seguimiento.show', ['token' => $orden->token_seguimiento]));
 
     $response->assertOk()
         ->assertSee('REP-TRACK-1234')
@@ -610,7 +830,14 @@ test('users cannot create repair orders for equipment that belongs to another us
         'problema_reportado' => 'El equipo se cae de la red y tarda en responder.',
     ]);
 
-    $response->assertNotFound();
+    $response
+        ->assertRedirect()
+        ->assertSessionHasErrors('equipo_id');
+
+    $this->assertDatabaseMissing('orden_servicios', [
+        'user_id' => $intruder->id,
+        'equipo_id' => $equipo->id,
+    ]);
 });
 
 test('guests cannot access equipment management routes', function () {
@@ -803,7 +1030,13 @@ test('admin order updates create repair history and a user notification', functi
 });
 
 test('users can authorize their own repair only while it is waiting authorization', function () {
+    Role::findOrCreate(
+        'supervisor',
+        'web'
+    );
+
     $usuario = User::factory()->create();
+
     $equipo = Equipo::create([
         'user_id' => $usuario->id,
         'tipo' => 'Desktop',
@@ -816,25 +1049,54 @@ test('users can authorize their own repair only while it is waiting authorizatio
         'user_id' => $usuario->id,
         'equipo_id' => $equipo->id,
         'problema_reportado' => 'Falla al iniciar el sistema.',
-        'estado' => 'Esperando autorización',
+        'diagnostico' => 'Se detectó una falla durante el arranque.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+        'autorizacion' => EstadoAutorizacion::PENDIENTE->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => null,
         'fecha_ingreso' => now()->toDateString(),
     ]);
 
-    $response = $this->actingAs($usuario)->post('/ordenes/'.$orden->id.'/autorizar', [
-        'decision' => 'autorizada',
-    ]);
+    $response = $this
+        ->actingAs($usuario)
+        ->post(
+            route('ordenes.autorizar', [
+                'orden' => $orden->id,
+            ]),
+            [
+                'decision' => EstadoAutorizacion::AUTORIZADA->value,
+            ]
+        );
 
-    $response->assertRedirect(route('ordenes.show', ['orden' => $orden->id]))
-        ->assertSessionHas('success', 'Presupuesto autorizado correctamente.');
+    $response
+        ->assertRedirect(
+            route('ordenes.show', [
+                'orden' => $orden->id,
+            ])
+        )
+        ->assertSessionHas(
+            'success',
+            'Presupuesto autorizado correctamente.'
+        );
 
     $this->assertDatabaseHas('orden_servicios', [
         'id' => $orden->id,
-        'estado' => 'Esperando refacción',
-        'autorizacion' => 'autorizada',
+        'estado' => EstadoOrden::ESPERANDO_REFACCION->value,
+        'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA->value,
     ]);
 
     $orden->refresh();
-    $this->assertNotNull($orden->fecha_autorizacion);
+
+    expect($orden->fecha_autorizacion)
+        ->not->toBeNull()
+        ->and($orden->estado_revision_cotizacion)
+        ->toBe(EstadoRevisionCotizacion::APROBADA)
+        ->and($orden->estado)
+        ->toBe(EstadoOrden::ESPERANDO_REFACCION->value)
+        ->and($orden->autorizacion)
+        ->toBe(EstadoAutorizacion::AUTORIZADA->value);
 });
 
 test('users cannot authorize a repair unless it is waiting authorization', function () {
@@ -859,7 +1121,7 @@ test('users cannot authorize a repair unless it is waiting authorization', funct
         'decision' => 'autorizada',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertForbidden();
 });
 
 test('admin invalid status values are rejected during order update', function () {
@@ -955,4 +1217,114 @@ test('logged in users can access their own order detail page', function () {
     $response->assertOk()
         ->assertSee('REP-OWN-DETAIL')
         ->assertSee('El equipo tarda en arrancar.');
+});
+
+test('a processed budget cannot receive a second decision', function () {
+
+    Role::findOrCreate(
+        'supervisor',
+        'web'
+    );
+
+    $usuario = User::factory()->create();
+
+    $equipo = Equipo::query()->create([
+        'user_id' => $usuario->id,
+        'tipo' => 'Laptop',
+        'marca' => 'Dell',
+        'modelo' => 'Latitude autorización',
+        'numero_serie' => 'AUTH-SECOND-DECISION-001',
+        'descripcion' => 'Equipo para comprobar decisiones duplicadas.',
+    ]);
+
+    $orden = OrdenServicio::query()->create([
+        'folio' => 'REP-SECOND-DECISION-001',
+        'user_id' => $usuario->id,
+        'equipo_id' => $equipo->id,
+        'servicio_id' => null,
+        'problema_reportado' => 'El equipo no inicia correctamente.',
+        'diagnostico' => 'Se detectó una falla durante el arranque.',
+        'costo_estimado' => 850,
+        'estado' => EstadoOrden::ESPERANDO_AUTORIZACION->value,
+        'autorizacion' => EstadoAutorizacion::PENDIENTE->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA,
+        'fecha_autorizacion' => null,
+        'fecha_ingreso' => now()->toDateString(),
+    ]);
+
+    $primeraRespuesta = $this
+        ->actingAs($usuario)
+        ->post(
+            route('ordenes.autorizar', [
+                'orden' => $orden->id,
+            ]),
+            [
+                'decision' => EstadoAutorizacion::AUTORIZADA->value,
+            ]
+        );
+
+    $primeraRespuesta
+        ->assertRedirect(
+            route('ordenes.show', [
+                'orden' => $orden->id,
+            ])
+        )
+        ->assertSessionHas(
+            'success',
+            'Presupuesto autorizado correctamente.'
+        );
+
+    $orden->refresh();
+
+    expect($orden->autorizacion)
+        ->toBe(EstadoAutorizacion::AUTORIZADA->value)
+        ->and($orden->estado)
+        ->toBe(EstadoOrden::ESPERANDO_REFACCION->value)
+        ->and($orden->estado_revision_cotizacion)
+        ->toBe(EstadoRevisionCotizacion::APROBADA)
+        ->and($orden->fecha_autorizacion)
+        ->not->toBeNull();
+
+    $segundaRespuesta = $this
+        ->actingAs($usuario)
+        ->post(
+            route('ordenes.autorizar', [
+                'orden' => $orden->id,
+            ]),
+            [
+                'decision' => EstadoAutorizacion::RECHAZADA->value,
+            ]
+        );
+
+    $segundaRespuesta->assertForbidden();
+
+    $this->assertDatabaseHas('orden_servicios', [
+        'id' => $orden->id,
+        'autorizacion' => EstadoAutorizacion::AUTORIZADA->value,
+        'estado' => EstadoOrden::ESPERANDO_REFACCION->value,
+        'estado_revision_cotizacion' => EstadoRevisionCotizacion::APROBADA->value,
+    ]);
+
+    $this->assertDatabaseMissing('orden_servicios', [
+        'id' => $orden->id,
+        'autorizacion' => EstadoAutorizacion::RECHAZADA->value,
+    ]);
+
+    expect(
+        $orden->historial()
+            ->where(
+                'comentarios',
+                'El cliente autorizó el presupuesto.'
+            )
+            ->count()
+    )->toBe(1);
+
+    expect(
+        $orden->historial()
+            ->where(
+                'comentarios',
+                'El cliente rechazó el presupuesto.'
+            )
+            ->count()
+    )->toBe(0);
 });

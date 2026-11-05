@@ -34,33 +34,14 @@
                             Selecciona una opción
                         </option>
 
-                        <option
-                            value="Laptop"
-                            @selected(old('tipo') === 'Laptop')
-                        >
-                            Laptop
-                        </option>
-
-                        <option
-                            value="Computadora de escritorio"
-                            @selected(old('tipo') === 'Computadora de escritorio')
-                        >
-                            Computadora de escritorio
-                        </option>
-
-                        <option
-                            value="Todo en uno"
-                            @selected(old('tipo') === 'Todo en uno')
-                        >
-                            Todo en uno
-                        </option>
-
-                        <option
-                            value="Otro"
-                            @selected(old('tipo') === 'Otro')
-                        >
-                            Otro
-                        </option>
+                        @foreach ($tiposEquipo as $tipoEquipo)
+                            <option
+                                value="{{ $tipoEquipo }}"
+                                @selected(old('tipo') === $tipoEquipo)
+                            >
+                                {{ $tipoEquipo }}
+                            </option>
+                        @endforeach
                     </select>
 
                     @error('tipo')

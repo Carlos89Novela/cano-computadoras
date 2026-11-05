@@ -2,21 +2,50 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EstadoAutorizacion;
+use App\Enums\EstadoOrden;
+use App\Enums\EstadoRevisionCotizacion;
+use App\Http\Requests\AutorizarOrdenServicioRequest;
+use App\Http\Requests\StoreOrdenServicioRequest;
 use App\Models\Equipo;
 use App\Models\OrdenServicio;
+use App\Models\Servicio;
+use App\Models\User;
+use App\Notifications\PresupuestoAutorizadoPorCliente;
+use App\Notifications\PresupuestoRechazadoPorCliente;
+use App\Services\GeneradorFolioOrden;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
-use App\Models\Servicio;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\Response;
 
-
+/**
+ * Controlador de Órdenes de Servicio para Clientes.
+ *
+ * Gestiona el ciclo de vida de las reparaciones desde la perspectiva del cliente:
+ * - Creación y registro de nuevas solicitudes de reparación con asignación de folio único.
+ * - Seguimiento detallado del avance y bitácora técnica de la orden.
+ * - Autorización o rechazo del presupuesto/cotización técnica previamente aprobada por el taller.
+ * - Notificación automática al personal técnico y supervisores ante decisiones presupuestales.
+ * - Emisión y descarga del comprobante PDF oficial de la orden de servicio.
+ */
 class OrdenServicioController extends Controller
 {
+    use AuthorizesRequests;
+
+    /**
+     * Muestra el catálogo de órdenes de servicio solicitadas por el cliente autenticado.
+     *
+     * @param  Request  $request  Petición HTTP entrante.
+     * @return View Vista con la colección de órdenes del cliente.
+     */
     public function index(Request $request): View
     {
-        // Obtener las órdenes de servicio del usuario autenticado
         $ordenes = OrdenServicio::query()
             ->with('equipo')
             ->where('user_id', $request->user()->id)
@@ -26,14 +55,24 @@ class OrdenServicioController extends Controller
         return view('ordenes.index', compact('ordenes'));
     }
 
+    /**
+     * Presenta el formulario para solicitar una nueva reparación.
+     *
+     * Si el cliente aún no ha registrado ningún equipo en su cuenta, lo redirige
+     * con una alerta al módulo de alta de equipos.
+     *
+     * @param  Request  $request  Petición HTTP entrante.
+     * @return View|RedirectResponse Formulario de alta o redirección a registro de equipo.
+     */
     public function create(Request $request): View|RedirectResponse
     {
-        // Obtener los equipos del usuario autenticado
+        // Obtiene los equipos pertenecientes al cliente ordenados por marca
         $equipos = Equipo::query()
             ->where('user_id', $request->user()->id)
             ->orderBy('marca')
             ->get();
-        // Verificar si el usuario tiene equipos registrados
+
+        // Regla previa: El cliente debe tener al menos un equipo registrado
         if ($equipos->isEmpty()) {
             return redirect()
                 ->route('equipos.create')
@@ -41,10 +80,9 @@ class OrdenServicioController extends Controller
                     'error',
                     'Primero debes registrar un equipo.'
                 );
-        
         }
 
-        // Obtener los servicios disponibles
+        // Catálogo de servicios disponibles activos
         $servicios = Servicio::query()
             ->where('activo', true)
             ->orderBy('nombre')
@@ -53,71 +91,70 @@ class OrdenServicioController extends Controller
         return view('ordenes.create', compact('equipos', 'servicios'));
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        // Validar los datos de la solicitud
-        $datos = $request->validate([
-            'equipo_id' => [
-                'required',
-                'integer',
-                'exists:equipos,id',
-            ],
-            'problema_reportado' => [
-                'required',
-                'string',
-                'min:10',
-                'max:2000',
-            ],
-            'servicio_id' => [
-            'nullable',
-            'integer',
-            'exists:servicios,id',
-            ],
-        ]);
+    /**
+     * Registra una nueva orden de servicio generando un folio garantizado anti-colisiones.
+     *
+     * @param  StoreOrdenServicioRequest  $request  Petición validada con el equipo, problema y servicio.
+     * @param  GeneradorFolioOrden  $generadorFolio  Servicio inyectado para foliado secuencial.
+     * @return RedirectResponse Redirección a la vista de seguimiento de la orden.
+     */
+    public function store(
+        StoreOrdenServicioRequest $request,
+        GeneradorFolioOrden $generadorFolio
+    ): RedirectResponse {
+        $datos = $request->validated();
+        $usuarioId = $request->user()->id;
 
-        // Verificar que el equipo pertenece al usuario autenticado
-        $equipo = Equipo::query()
-            ->where('id', $datos['equipo_id'])
-            ->where('user_id', $request->user()->id)
-            ->firstOrFail();
+        // Creación atómica de la orden y su primer asiento en el historial
+        $orden = DB::transaction(function () use (
+            $datos,
+            $generadorFolio,
+            $usuarioId
+        ): OrdenServicio {
+            $orden = OrdenServicio::query()->create([
+                'folio' => $generadorFolio->generar(),
+                'user_id' => $usuarioId,
+                'equipo_id' => $datos['equipo_id'],
+                'problema_reportado' => $datos['problema_reportado'],
+                'estado' => EstadoOrden::RECIBIDO->value,
+                'fecha_ingreso' => now()->toDateString(),
+                'servicio_id' => $datos['servicio_id'] ?? null,
+            ]);
 
-        // Crear la orden de servicio
-        $orden = OrdenServicio::create([
-            'folio' => $this->generarFolio(),
-            'user_id' => $request->user()->id,
-            'equipo_id' => $equipo->id,
-            'problema_reportado' => $datos['problema_reportado'],
-            'estado' => 'Recibido',
-            'fecha_ingreso' => now()->toDateString(),
-            'servicio_id' => $datos['servicio_id'] ?? null,
-        ]);
+            // Asienta la recepción en el historial cronológico
+            $orden->historial()->create([
+                'user_id' => $usuarioId,
+                'estado' => EstadoOrden::RECIBIDO->value,
+                'comentarios' => 'Solicitud de reparación registrada.',
+            ]);
 
-        // Crear el historial de la orden de servicio
-        $orden->historial()->create([
-            'user_id' => $request->user()->id,
-            'estado' => 'Recibido',
-            'comentarios' => 'Solicitud de reparación registrada.',
-        ]);
+            return $orden;
+        });
 
-        // Redirigir al usuario a la vista de la orden de servicio con un mensaje de éxito
         return redirect()
-            ->route('ordenes.show', ['orden' => $orden->id])
+            ->route('ordenes.show', [
+                'orden' => $orden->id,
+            ])
             ->with(
                 'success',
                 'Solicitud de reparación registrada correctamente.'
             );
     }
 
+    /**
+     * Muestra la cronología y estado actual de una orden de servicio propia del cliente.
+     *
+     * @param  OrdenServicio  $orden  Orden de servicio inyectada por Route Model Binding.
+     * @return View Vista de seguimiento de la orden.
+     *
+     * @throws AuthorizationException Si el usuario autenticado no es el dueño de la orden.
+     */
     public function show(
-        Request $request,
         OrdenServicio $orden
     ): View {
-        abort_unless(
-            (int) $orden->user_id === (int) $request->user()->id,
-            403,
-            'No tienes permiso para consultar esta reparación.'
-        );
-        // Cargar las relaciones necesarias para la vista
+        $this->authorize('view', $orden);
+
+        // Carga ansiosa del equipo, servicio y de la bitácora ordenada cronológicamente
         $orden->load([
             'equipo',
             'servicio',
@@ -130,75 +167,133 @@ class OrdenServicioController extends Controller
         return view('ordenes.show', compact('orden'));
     }
 
-    private function generarFolio(): string
-    {
-        do {
-            $folio = 'REP-'
-                . now()->format('Ymd')
-                . '-'
-                . strtoupper(substr(uniqid(), -5));
-        } while (
-            OrdenServicio::where('folio', $folio)->exists()
-        );
-
-        return $folio;
-    }
-
-    private function verificarPropietario(
-        Request $request,
-        OrdenServicio $orden
-    ): void {
-        abort_unless(
-            $orden->user_id === $request->user()->id,
-            403,
-            'No tienes permiso para consultar esta reparación.'
-        );
-    }
-
+    /**
+     * Procesa la decisión del cliente sobre el presupuesto técnico (autorizar o rechazar).
+     *
+     * Transición y reglas:
+     * - La orden debe tener cotización previamente 'APROBADA' y estado 'ESPERANDO_AUTORIZACION'.
+     * - Si el cliente autoriza: transiciona a 'ESPERANDO_REFACCION'.
+     * - Si el cliente rechaza: transiciona a 'CANCELADO'.
+     * - Despacha notificaciones al técnico asignado y a todos los supervisores.
+     *
+     * @param  AutorizarOrdenServicioRequest  $request  Petición validada con el campo 'decision'.
+     * @param  OrdenServicio  $orden  Orden sujeta a decisión presupuestal.
+     * @return RedirectResponse Redirección a la orden con confirmación.
+     */
     public function autorizar(
-        Request $request,
+        AutorizarOrdenServicioRequest $request,
         OrdenServicio $orden
     ): RedirectResponse {
-        abort_unless(
-            (int) $orden->user_id === (int) $request->user()->id,
-            403,
-            'No tienes permiso para autorizar esta reparación.'
+        $datos = $request->validated();
+        $usuarioId = $request->user()->id;
+
+        // Ejecución transaccional protegida con bloqueo pesimista
+        $ordenActualizada = DB::transaction(
+            function () use (
+                $datos,
+                $orden,
+                $usuarioId
+            ): OrdenServicio {
+                $ordenBloqueada = OrdenServicio::query()
+                    ->lockForUpdate()
+                    ->findOrFail($orden->id);
+
+                // Comprueba que la cotización haya sido visada por la supervisión
+                abort_unless(
+                    $ordenBloqueada->estado_revision_cotizacion
+                        === EstadoRevisionCotizacion::APROBADA,
+                    422,
+                    'La cotización no cuenta con aprobación interna.'
+                );
+
+                // Comprueba que la orden esté en espera de decisión del cliente
+                abort_unless(
+                    $ordenBloqueada->estado
+                        === EstadoOrden::ESPERANDO_AUTORIZACION->value,
+                    422,
+                    'La reparación no está esperando autorización.'
+                );
+
+                // Evita doble autorización o cambio de decisión posterior
+                abort_unless(
+                    $ordenBloqueada->autorizacion
+                        === EstadoAutorizacion::PENDIENTE->value,
+                    422,
+                    'El presupuesto ya fue autorizado o rechazado.'
+                );
+
+                $autorizada = $datos['decision']
+                    === EstadoAutorizacion::AUTORIZADA->value;
+
+                // Actualiza decisión y estado operativo correspondiente
+                $ordenBloqueada->update([
+                    'autorizacion' => $datos['decision'],
+                    'fecha_autorizacion' => now(),
+                    'estado' => $autorizada
+                        ? EstadoOrden::ESPERANDO_REFACCION->value
+                        : EstadoOrden::CANCELADO->value,
+                ]);
+
+                // Asienta el evento en el historial
+                $ordenBloqueada->historial()->create([
+                    'user_id' => $usuarioId,
+                    'estado' => $ordenBloqueada->estado,
+                    'comentarios' => $autorizada
+                        ? 'El cliente autorizó el presupuesto.'
+                        : 'El cliente rechazó el presupuesto.',
+                    'mensaje_cliente' => null,
+                ]);
+
+                return $ordenBloqueada;
+            }
         );
 
-        $datos = $request->validate([
-            'decision' => [
-                'required',
-                'string',
-                'in:autorizada,rechazada',
-            ],
-        ]);
+        $autorizada = $ordenActualizada->autorizacion
+            === EstadoAutorizacion::AUTORIZADA->value;
 
-        abort_unless(
-            $orden->estado === 'Esperando autorización',
-            422,
-            'La reparación no está esperando autorización.'
+        // Preparación de la notificación según la decisión
+        $notificacion = $autorizada
+            ? new PresupuestoAutorizadoPorCliente(
+                $ordenActualizada
+            )
+            : new PresupuestoRechazadoPorCliente(
+                $ordenActualizada
+            );
+
+        $destinatarios = collect();
+
+        // Agrega al técnico asignado si existe asignación activa
+        $asignacionActiva = $ordenActualizada
+            ->asignacionActiva()
+            ->with('empleado')
+            ->first();
+
+        if ($asignacionActiva !== null) {
+            $destinatarios->push(
+                $asignacionActiva->empleado
+            );
+        }
+
+        // Agrega a todos los supervisores del sistema
+        $supervisores = User::role('supervisor')
+            ->get();
+
+        $destinatarios = $destinatarios
+            ->concat($supervisores)
+            ->unique(
+                fn (User $usuario): int => $usuario->id
+            )
+            ->values();
+
+        Notification::send(
+            $destinatarios,
+            $notificacion
         );
-
-        $autorizada = $datos['decision'] === 'autorizada';
-
-        $orden->update([
-            'autorizacion' => $datos['decision'],
-            'fecha_autorizacion' => now(),
-            'estado' => $autorizada
-                ? 'Esperando refacción'
-                : 'Cancelado',
-        ]);
-
-        $orden->historial()->create([
-            'user_id' => $request->user()->id,
-            'estado' => $orden->estado,
-            'comentarios' => $autorizada
-                ? 'El cliente autorizó el presupuesto.'
-                : 'El cliente rechazó el presupuesto.',
-        ]);
 
         return redirect()
-            ->route('ordenes.show', ['orden' => $orden->id])
+            ->route('ordenes.show', [
+                'orden' => $ordenActualizada->id,
+            ])
             ->with(
                 'success',
                 $autorizada
@@ -207,16 +302,20 @@ class OrdenServicioController extends Controller
             );
     }
 
+    /**
+     * Genera y descarga el comprobante en PDF oficial de la orden de servicio.
+     *
+     * @param  OrdenServicio  $orden  Orden de servicio a imprimir.
+     * @return Response Descarga del documento PDF formateado en hoja A4 portrait.
+     *
+     * @throws AuthorizationException Si el usuario no tiene permisos de descarga sobre la orden.
+     */
     public function pdf(
-        Request $request,
         OrdenServicio $orden
     ): Response {
-        abort_unless(
-            (int) $orden->user_id === (int) $request->user()->id,
-            403,
-            'No tienes permiso para descargar esta orden.'
-        );
+        $this->authorize('downloadPdf', $orden);
 
+        // Carga de modelos asociados para la plantilla del reporte
         $orden->load([
             'user',
             'equipo',

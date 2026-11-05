@@ -10,14 +10,23 @@ class NotificacionController extends Controller
 {
     public function index(Request $request): View
     {
-        $notificaciones = $request->user()
+        $usuario = $request->user();
+
+        $notificaciones = $usuario
             ->notifications()
             ->latest()
             ->paginate(10);
 
+        $notificacionesNoLeidas = $usuario
+            ->unreadNotifications()
+            ->count();
+
         return view(
             'notificaciones.index',
-            compact('notificaciones')
+            compact(
+                'notificaciones',
+                'notificacionesNoLeidas'
+            )
         );
     }
 
@@ -25,23 +34,80 @@ class NotificacionController extends Controller
         Request $request,
         string $notificacion
     ): RedirectResponse {
-        $registro = $request->user()
-            ->notifications()
-            ->findOrFail($notificacion);
+        $usuario = $request->user();
 
-        $registro->markAsRead();
+        $registro = $usuario
+            ->notifications()
+            ->whereKey($notificacion)
+            ->firstOrFail();
+
+        if ($registro->unread()) {
+            $registro->markAsRead();
+        }
+
+        $url = $registro->data['url'] ?? null;
+
+        if (is_string($url) && $url !== '') {
+            $ruta = parse_url(
+                $url,
+                PHP_URL_PATH
+            );
+
+            $consulta = parse_url(
+                $url,
+                PHP_URL_QUERY
+            );
+
+            if (is_string($ruta)) {
+                $destinosPermitidos = [
+                    '/supervisor/cotizaciones/',
+                    '/empleado/ordenes/',
+                    '/ordenes/',
+                ];
+
+                $esDestinoPermitido = collect(
+                    $destinosPermitidos
+                )->contains(
+                    fn (string $prefijo): bool => str_starts_with($ruta, $prefijo)
+                );
+
+                if ($esDestinoPermitido) {
+                    $destino = $ruta;
+
+                    if (
+                        is_string($consulta)
+                        && $consulta !== ''
+                    ) {
+                        $destino .= '?'.$consulta;
+                    }
+
+                    return redirect()->to($destino);
+                }
+            }
+        }
 
         $ordenId = $registro->data['orden_id'] ?? null;
 
-        if ($ordenId) {
+        if (
+            is_numeric($ordenId)
+            && $usuario
+                ->ordenesServicio()
+                ->whereKey((int) $ordenId)
+                ->exists()
+        ) {
             return redirect()->route(
                 'ordenes.show',
-                ['orden' => $ordenId]
+                [
+                    'orden' => (int) $ordenId,
+                ]
             );
         }
 
         return redirect()
-            ->route('notificaciones.index');
+            ->route('notificaciones.index')
+            ->withErrors([
+                'notificacion' => 'La notificación no contiene un destino disponible.',
+            ]);
     }
 
     public function leerTodas(

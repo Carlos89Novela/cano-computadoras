@@ -13,8 +13,8 @@ class AdministradorMiddleware
         Closure $next
     ): Response {
         if (
-            !$request->user() ||
-            !$request->user()->hasRole('administrador')
+            ! $request->user()
+            || ! $request->user()->hasRole('administrador')
         ) {
             abort(
                 403,
