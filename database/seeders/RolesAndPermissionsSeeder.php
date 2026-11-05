@@ -130,6 +130,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'inventario.devolver',
             'inventario.ver_movimientos',
             'inventario.exportar',
+            'inventario.registrar_entrada',
+            'inventario.transferir',
         ];
 
         // Garantiza que cada permiso exista en la base de datos bajo el guard 'web'

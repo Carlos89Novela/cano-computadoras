@@ -16,6 +16,7 @@ use App\Models\TransferenciaInventario;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
@@ -273,5 +274,46 @@ class TransferenciaInventarioTest extends TestCase
             'tipo' => MovimientoInventario::TIPO_TRANSFERENCIA_ENTRADA,
             'cantidad' => '4.0000',
         ]);
+    }
+
+    #[Test]
+    public function bloquea_despacho_a_usuario_no_asignado_a_la_sucursal_origen(): void
+    {
+        // Usuario supervisor asignado exclusivamente a Sucursal Norte
+        $supervisorNorte = User::factory()->create();
+        $supervisorNorte->assignRole('supervisor');
+        Permission::findOrCreate('inventario.transferir', 'web');
+        $supervisorNorte->givePermissionTo('inventario.transferir');
+
+        $sucursalNorte = Sucursal::query()->where('codigo', 'SUC-NORTE')->firstOrFail();
+        $supervisorNorte->sucursales()->attach($sucursalNorte->id, [
+            'activo' => true,
+            'es_principal' => true,
+        ]);
+
+        // Se crea una requisición donde el origen es Matriz y destino es Norte
+        /** @var TransferenciaInventario $transferencia */
+        $transferencia = TransferenciaInventario::query()->create([
+            'empresa_id' => $this->empresa->id,
+            'almacen_origen_id' => $this->almacenOrigen->id,
+            'almacen_destino_id' => $this->almacenDestino->id,
+            'grupo_id' => (string) Str::uuid(),
+            'folio' => 'TRF-TEST-SEGURIDAD',
+            'estado' => TransferenciaInventario::ESTADO_SOLICITADA,
+            'motivo' => 'Prueba de restricción por sucursal',
+            'total_lineas' => 1,
+            'costo_total' => '1000.0000',
+            'creado_por_id' => $this->admin->id,
+            'solicitado_por_id' => $this->admin->id,
+            'transferido_at' => now(),
+            'solicitado_at' => now(),
+        ]);
+
+        // El supervisor de Sucursal Norte intenta despachar desde Almacén Matriz -> Debe retornar 403 Forbidden
+        $response = $this->actingAs($supervisorNorte)->get(
+            route('inventario.transferencias.despachar.view', [$this->empresa, $transferencia])
+        );
+
+        $response->assertStatus(403);
     }
 }

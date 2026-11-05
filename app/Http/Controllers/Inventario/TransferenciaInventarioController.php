@@ -27,11 +27,23 @@ class TransferenciaInventarioController extends Controller
 
     public function data(Empresa $empresa): JsonResponse
     {
+        /** @var User $actor */
+        $actor = auth()->user();
+        $sucursalesPermitidas = $actor->sucursalesOperativasIds($empresa->id);
+
         $transferencias = TransferenciaInventario::query()
             ->where('empresa_id', $empresa->id)
+            ->where(function ($q) use ($sucursalesPermitidas) {
+                $q->whereHas('almacenOrigen', function ($sub) use ($sucursalesPermitidas) {
+                    $sub->whereIn('sucursal_id', $sucursalesPermitidas);
+                })
+                    ->orWhereHas('almacenDestino', function ($sub) use ($sucursalesPermitidas) {
+                        $sub->whereIn('sucursal_id', $sucursalesPermitidas);
+                    });
+            })
             ->with([
-                'almacenOrigen:id,nombre,codigo',
-                'almacenDestino:id,nombre,codigo',
+                'almacenOrigen:id,nombre,codigo,sucursal_id',
+                'almacenDestino:id,nombre,codigo,sucursal_id',
                 'solicitadoPor:id,name',
                 'despachadoPor:id,name',
                 'recibidoPor:id,name',
@@ -40,7 +52,13 @@ class TransferenciaInventarioController extends Controller
             ->latest('id')
             ->get();
 
-        $data = $transferencias->map(function (TransferenciaInventario $t) use ($empresa) {
+        $data = $transferencias->map(function (TransferenciaInventario $t) use ($empresa, $actor) {
+            $puedeDespachar = $t->estado === TransferenciaInventario::ESTADO_SOLICITADA
+                && $actor->puedeGestionarAlmacen($t->almacenOrigen);
+
+            $puedeRecibir = $t->estado === TransferenciaInventario::ESTADO_EN_TRANSITO
+                && $actor->puedeGestionarAlmacen($t->almacenDestino);
+
             return [
                 'id' => $t->id,
                 'folio' => $t->folio,
@@ -55,9 +73,9 @@ class TransferenciaInventarioController extends Controller
                 'recibido_por' => $t->recibidoPor->name ?? '---',
                 'fecha_creacion' => $t->created_at?->format('d/m/Y H:i') ?? '---',
                 'acciones' => [
-                    'puede_despachar' => $t->estado === TransferenciaInventario::ESTADO_SOLICITADA,
+                    'puede_despachar' => $puedeDespachar,
                     'url_despachar' => route('inventario.transferencias.despachar.view', [$empresa, $t]),
-                    'puede_recibir' => $t->estado === TransferenciaInventario::ESTADO_EN_TRANSITO,
+                    'puede_recibir' => $puedeRecibir,
                     'url_recibir' => route('inventario.transferencias.recibir.view', [$empresa, $t]),
                 ],
                 'detalles' => $t->detalles->map(function (TransferenciaInventarioDetalle $det) {
@@ -79,7 +97,19 @@ class TransferenciaInventarioController extends Controller
 
     public function create(Empresa $empresa): View
     {
-        $almacenes = $empresa->almacenes()
+        /** @var User $actor */
+        $actor = auth()->user();
+        $sucursalesPermitidas = $actor->sucursalesOperativasIds($empresa->id);
+
+        $almacenesDestino = $empresa->almacenes()
+            ->where('activo', true)
+            ->where('permite_existencias', true)
+            ->where('es_virtual', false)
+            ->whereIn('sucursal_id', $sucursalesPermitidas)
+            ->orderBy('nombre')
+            ->get();
+
+        $almacenesOrigen = $empresa->almacenes()
             ->where('activo', true)
             ->where('permite_existencias', true)
             ->where('es_virtual', false)
@@ -91,7 +121,15 @@ class TransferenciaInventarioController extends Controller
             ->orderBy('nombre')
             ->get(['id', 'sku', 'nombre']);
 
-        return view('inventario.transferencias.create', compact('empresa', 'almacenes', 'productos'));
+        /** @var view-string $view */
+        $view = 'inventario.transferencias.create';
+
+        return view($view, [
+            'empresa' => $empresa,
+            'almacenesOrigen' => $almacenesOrigen,
+            'almacenesDestino' => $almacenesDestino,
+            'productos' => $productos,
+        ]);
     }
 
     public function store(
@@ -107,6 +145,12 @@ class TransferenciaInventarioController extends Controller
 
         /** @var User $actor */
         $actor = $request->user();
+
+        abort_unless(
+            $actor->puedeGestionarAlmacen($destino),
+            403,
+            'No tienes permiso para solicitar mercancía hacia este almacén de destino.'
+        );
 
         $transferencia = $action->ejecutar(
             empresa: $empresa,
@@ -125,6 +169,14 @@ class TransferenciaInventarioController extends Controller
     {
         abort_unless($transferencia->estado === TransferenciaInventario::ESTADO_SOLICITADA, 404);
 
+        /** @var User $actor */
+        $actor = auth()->user();
+        abort_unless(
+            $actor->puedeGestionarAlmacen($transferencia->almacenOrigen),
+            403,
+            'No tienes permisos para despachar mercancía de esta sucursal.'
+        );
+
         $transferencia->load(['almacenOrigen', 'almacenDestino', 'detalles.producto']);
 
         /** @var view-string $view */
@@ -142,6 +194,12 @@ class TransferenciaInventarioController extends Controller
         /** @var User $actor */
         $actor = $request->user();
 
+        abort_unless(
+            $actor->puedeGestionarAlmacen($transferencia->almacenOrigen),
+            403,
+            'No tienes permisos para despachar mercancía de esta sucursal.'
+        );
+
         $action->ejecutar(
             transferencia: $transferencia,
             actor: $actor,
@@ -156,6 +214,14 @@ class TransferenciaInventarioController extends Controller
     public function recibirView(Empresa $empresa, TransferenciaInventario $transferencia): View
     {
         abort_unless($transferencia->estado === TransferenciaInventario::ESTADO_EN_TRANSITO, 404);
+
+        /** @var User $actor */
+        $actor = auth()->user();
+        abort_unless(
+            $actor->puedeGestionarAlmacen($transferencia->almacenDestino),
+            403,
+            'No tienes permisos para recibir mercancía en esta sucursal.'
+        );
 
         $transferencia->load(['almacenOrigen', 'almacenDestino', 'detalles.producto']);
 
@@ -173,6 +239,12 @@ class TransferenciaInventarioController extends Controller
     ): RedirectResponse {
         /** @var User $actor */
         $actor = $request->user();
+
+        abort_unless(
+            $actor->puedeGestionarAlmacen($transferencia->almacenDestino),
+            403,
+            'No tienes permisos para recibir mercancía en esta sucursal.'
+        );
 
         $action->ejecutar(
             transferencia: $transferencia,

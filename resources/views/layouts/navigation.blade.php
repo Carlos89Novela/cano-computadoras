@@ -207,6 +207,16 @@
                                             Recepción de inventario
                                         </x-dropdown-link>
                                     @endcan
+
+                                    @canany(['inventario.transferir', 'inventario.registrar_entrada'])
+                                        <x-dropdown-link
+                                            :href="route('inventario.transferencias.index', [
+                                                'empresa' => $empresaNavegacion->id,
+                                            ])"
+                                        >
+                                            Transferencias de inventario
+                                        </x-dropdown-link>
+                                    @endcanany
                                 @endforeach
                             @endif
                         @endif
@@ -285,6 +295,17 @@
                     </x-responsive-nav-link>
                 @endif
             @endcan
+
+            @canany(['inventario.transferir', 'inventario.registrar_entrada'])
+                @if ($empresaActual)
+                    <x-responsive-nav-link
+                        :href="route('inventario.transferencias.index', $empresaActual)"
+                        :active="request()->routeIs('inventario.transferencias.*')"
+                    >
+                        {{ __('Transferencias Inventario') }}
+                    </x-responsive-nav-link>
+                @endif
+            @endcanany
 
             @if ($usuario->hasRole('supervisor'))
                 <x-responsive-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">

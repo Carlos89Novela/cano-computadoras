@@ -3,10 +3,10 @@
         <div class="flex items-center justify-between">
             <div>
                 <h2 class="text-xl font-semibold text-white leading-tight">
-                    Registrar Transferencia entre Almacenes
+                    Solicitar Requisición de Mercancía
                 </h2>
                 <p class="text-xs text-zinc-400 mt-1">
-                    Empresa: <span class="font-medium text-purple-300">{{ $empresa->nombre }}</span>
+                    Empresa: <span class="font-medium text-purple-300">{{ $empresa->nombre }}</span> | Fase 1 del ciclo de transferencias
                 </p>
             </div>
             <a href="{{ route('inventario.transferencias.index', $empresa) }}"
@@ -23,15 +23,20 @@
 
                 <!-- 1. Encabezado de Reubicación -->
                 <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-purple-300 mb-4">1. Datos de Reubicación</p>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-purple-300 mb-4">
+                        1. Datos de Reubicación
+                    </p>
 
                     <div class="grid gap-4 md:grid-cols-2">
+                        <!-- Almacén Origen (Proveedor del stock) -->
                         <div>
-                            <label class="block text-xs font-medium text-zinc-300 mb-1">Almacén Origen (Salida) *</label>
+                            <label class="block text-xs font-medium text-zinc-300 mb-1">
+                                Almacén Proveedor (Origen / Salida) *
+                            </label>
                             <select name="almacen_origen_id" required
                                     class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500">
-                                <option value="">-- Seleccionar origen --</option>
-                                @foreach($almacenes as $alm)
+                                <option value="">-- Seleccionar almacén que enviará --</option>
+                                @foreach($almacenesOrigen as $alm)
                                     <option value="{{ $alm->id }}" @selected(old('almacen_origen_id') == $alm->id)>
                                         {{ $alm->nombre }} ({{ $alm->codigo }})
                                     </option>
@@ -40,12 +45,15 @@
                             @error('almacen_origen_id') <p class="mt-1 text-xs text-rose-400">{{ $message }}</p> @enderror
                         </div>
 
+                        <!-- Almacén Destino (Requiriente / Limitado a sucursales autorizadas) -->
                         <div>
-                            <label class="block text-xs font-medium text-zinc-300 mb-1">Almacén Destino (Entrada) *</label>
+                            <label class="block text-xs font-medium text-zinc-300 mb-1">
+                                Almacén Requiriente (Destino / Entrada) *
+                            </label>
                             <select name="almacen_destino_id" required
                                     class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500">
-                                <option value="">-- Seleccionar destino --</option>
-                                @foreach($almacenes as $alm)
+                                <option value="">-- Seleccionar tu almacén --</option>
+                                @foreach($almacenesDestino as $alm)
                                     <option value="{{ $alm->id }}" @selected(old('almacen_destino_id') == $alm->id)>
                                         {{ $alm->nombre }} ({{ $alm->codigo }})
                                     </option>
@@ -57,7 +65,7 @@
 
                     <div class="mt-4">
                         <label class="block text-xs font-medium text-zinc-300 mb-1">Motivo / Justificación *</label>
-                        <textarea name="motivo" rows="2" required placeholder="Ej. Transferencia de mercancía para mostrador"
+                        <textarea name="motivo" rows="2" required placeholder="Ej. Reabastecimiento de mostrador por baja existencia"
                                   class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500">{{ old('motivo') }}</textarea>
                         @error('motivo') <p class="mt-1 text-xs text-rose-400">{{ $message }}</p> @enderror
                     </div>
@@ -126,7 +134,7 @@
                     </a>
                     <button type="submit"
                             class="rounded-lg bg-purple-600 px-6 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 transition">
-                        Confirmar y Ejecutar Transferencia
+                        Confirmar y Solicitar Requisición
                     </button>
                 </div>
             </form>

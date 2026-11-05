@@ -163,6 +163,48 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Retorna la lista de IDs de sucursales que el usuario puede operar.
+     * Propietarios y Administradores globales tienen alcance total sobre la empresa.
+     *
+     * @return list<int>
+     */
+    public function sucursalesOperativasIds(int $empresaId): array
+    {
+        if ($this->esPropietario() || ($this->hasRole('administrador') && ! $this->sucursales()->exists())) {
+            /** @var list<int> */
+            return Sucursal::query()
+                ->where('empresa_id', $empresaId)
+                ->where('activo', true)
+                ->pluck('id')
+                ->all();
+        }
+
+        /** @var list<int> */
+        return $this->sucursales()
+            ->where('sucursales.empresa_id', $empresaId)
+            ->where('sucursales.activo', true)
+            ->wherePivot('activo', true)
+            ->pluck('sucursales.id')
+            ->all();
+    }
+
+    /**
+     * Determina si el usuario tiene permiso operativo sobre un almacén físico.
+     */
+    public function puedeGestionarAlmacen(Almacen $almacen): bool
+    {
+        if ($almacen->es_virtual) {
+            return true;
+        }
+
+        if ($almacen->sucursal_id === null) {
+            return false;
+        }
+
+        return in_array($almacen->sucursal_id, $this->sucursalesOperativasIds($almacen->empresa_id), true);
+    }
+
+    /**
      * @return HasMany<ExistenciaAlmacen, $this>
      */
     public function existenciasActualizadas(): HasMany
