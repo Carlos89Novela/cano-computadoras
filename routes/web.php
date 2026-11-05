@@ -16,6 +16,7 @@ use App\Http\Controllers\Inventario\RecepcionInventarioController;
 use App\Http\Controllers\Inventario\TransferenciaInventarioController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
+use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
 use App\Http\Controllers\Productos\ProductoController;
 use App\Http\Controllers\ProfileController;
@@ -451,6 +452,26 @@ Route::middleware([
         )
             ->middleware('permission:productos.cambiar_estado')
             ->name('estado.update');
+    });
+
+// =========================================================
+// PUNTO DE VENTA / MOSTRADOR (POS)
+// Control de turnos de caja, ventas de mostrador y sync offline
+// =========================================================
+
+Route::middleware([
+    'auth',
+    'verified',
+])
+    ->prefix('pos')
+    ->name('pos.')
+    ->group(function (): void {
+        Route::get('/', [PosController::class, 'index'])->name('index');
+        Route::get('/catalogo', [PosController::class, 'catalogo'])->name('catalogo');
+        Route::post('/caja/apertura', [PosController::class, 'aperturaCaja'])->name('caja.apertura');
+        Route::post('/caja/cierre', [PosController::class, 'cierreCaja'])->name('caja.cierre');
+        Route::post('/ventas', [PosController::class, 'storeVenta'])->name('ventas.store');
+        Route::post('/sincronizar-offline', [PosController::class, 'sincronizarOffline'])->name('sincronizar.offline');
     });
 
 Route::middleware([
