@@ -49,20 +49,20 @@ class RecepcionInventarioController extends Controller
                 'id' => $rec->id,
                 'folio' => $rec->folio,
                 'tipo' => ucfirst(str_replace('_', ' ', $rec->tipo)),
-                'almacen' => $rec->almacen->nombre . ' (' . $rec->almacen->codigo . ')',
+                'almacen' => $rec->almacen->nombre.' ('.$rec->almacen->codigo.')',
                 'proveedor' => $proveedorNombre,
                 'referencia_externa' => $rec->referencia_externa ?? '—',
                 'motivo' => $rec->motivo,
                 'total_lineas' => $rec->total_lineas,
-                'importe_total' => '$' . number_format((float) $rec->importe_total, 2),
+                'importe_total' => '$'.number_format((float) $rec->importe_total, 2),
                 'recibido_por' => $recibidoPorNombre,
                 'recibido_at' => $rec->recibido_at->format('d/m/Y H:i'),
                 'detalles' => $rec->detalles->map(function (RecepcionInventarioDetalle $det) {
                     return [
-                        'producto' => $det->producto->sku . ' - ' . $det->producto->nombre,
+                        'producto' => $det->producto->sku.' - '.$det->producto->nombre,
                         'cantidad' => number_format((float) $det->cantidad, 2),
-                        'costo_unitario' => '$' . number_format((float) $det->costo_unitario, 2),
-                        'subtotal' => '$' . number_format((float) $det->subtotal, 2),
+                        'costo_unitario' => '$'.number_format((float) $det->costo_unitario, 2),
+                        'subtotal' => '$'.number_format((float) $det->subtotal, 2),
                     ];
                 }),
             ];

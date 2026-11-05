@@ -299,7 +299,6 @@ class RegistrarRecepcionInventarioTest extends TestCase
                 $payload
             );
 
-
         $response->assertRedirect(route('inventario.recepciones.index', $this->empresa));
         $response->assertSessionHas('success');
 

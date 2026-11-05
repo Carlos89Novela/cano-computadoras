@@ -23,12 +23,19 @@ class ReservarInventarioOrdenTest extends TestCase
     use RefreshDatabase;
 
     private Empresa $empresa;
+
     private Sucursal $sucursal;
+
     private Almacen $almacen;
+
     private CategoriaProducto $categoria;
+
     private Producto $producto;
+
     private User $cliente;
+
     private User $admin;
+
     private OrdenServicio $orden;
 
     protected function setUp(): void
