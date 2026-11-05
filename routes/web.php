@@ -11,6 +11,7 @@ use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardContro
 use App\Http\Controllers\Empleado\OrdenAsignadaController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\Inventario\EntradaInventarioController;
+use App\Http\Controllers\Inventario\InventarioKardexController;
 use App\Http\Controllers\Inventario\RecepcionInventarioController;
 use App\Http\Controllers\Inventario\TransferenciaInventarioController;
 use App\Http\Controllers\NotificacionController;
@@ -373,6 +374,29 @@ Route::middleware([
                 Route::get('/{transferencia}/recibir', [TransferenciaInventarioController::class, 'recibirView'])->name('recibir.view');
                 Route::post('/{transferencia}/recibir', [TransferenciaInventarioController::class, 'recibirStore'])->name('recibir.store');
             });
+
+        // -------------------------------------------------
+        // CONSULTA DE EXISTENCIAS Y KARDEX
+        // -------------------------------------------------
+        Route::get(
+            '/empresas/{empresa}/inventario/existencias',
+            [InventarioKardexController::class, 'index']
+        )->name('existencias.index');
+
+        Route::get(
+            '/empresas/{empresa}/inventario/existencias/data',
+            [InventarioKardexController::class, 'dataExistencias']
+        )->name('existencias.data');
+
+        Route::get(
+            '/empresas/{empresa}/inventario/kardex/{producto}/{almacen?}',
+            [InventarioKardexController::class, 'kardex']
+        )->name('kardex.show');
+
+        Route::get(
+            '/empresas/{empresa}/inventario/kardex-data/{producto}/{almacen?}',
+            [InventarioKardexController::class, 'dataKardex']
+        )->name('kardex.data');
     });
 
 // =========================================================

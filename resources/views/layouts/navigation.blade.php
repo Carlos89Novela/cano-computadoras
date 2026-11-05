@@ -217,6 +217,15 @@
                                             Transferencias de inventario
                                         </x-dropdown-link>
                                     @endcanany
+                                    @canany(['inventario.transferir', 'inventario.registrar_entrada'])
+                                        <x-dropdown-link
+                                            :href="route('inventario.existencias.index', [
+                                                'empresa' => $empresaNavegacion->id,
+                                            ])"
+                                        >
+                                            Existencias y Kardex
+                                        </x-dropdown-link>
+                                    @endcanany
                                 @endforeach
                             @endif
                         @endif
