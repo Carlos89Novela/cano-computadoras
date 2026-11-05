@@ -59,7 +59,7 @@
                     </a>
                 </div>
 
-                <!-- Navigation Links -->
+                <!-- Navigation Links (Barra horizontal superior) -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="$rutaDashboard" :active="$dashboardActivo">
                         {{ __('Dashboard') }}
@@ -87,7 +87,13 @@
                         </x-nav-link>
                     @endif
 
-                    {{-- Enlace directo a Recepción de Inventario en barra principal --}}
+                    @if ($usuario->hasRole('supervisor'))
+                        <x-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
+                            {{ __('Supervisión operativa') }}
+                        </x-nav-link>
+                    @endif
+
+                    {{-- Enlaces de Inventario para Administradores y Supervisores --}}
                     @can('inventario.registrar_entrada')
                         @if ($empresaActual)
                             <x-nav-link
@@ -99,11 +105,23 @@
                         @endif
                     @endcan
 
-                    @if ($usuario->hasRole('supervisor'))
-                        <x-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
-                            {{ __('Supervisión operativa') }}
-                        </x-nav-link>
-                    @endif
+                    @canany(['inventario.transferir', 'inventario.registrar_entrada'])
+                        @if ($empresaActual)
+                            <x-nav-link
+                                :href="route('inventario.transferencias.index', $empresaActual)"
+                                :active="request()->routeIs('inventario.transferencias.*')"
+                            >
+                                {{ __('Transferencias') }}
+                            </x-nav-link>
+
+                            <x-nav-link
+                                :href="route('inventario.existencias.index', $empresaActual)"
+                                :active="request()->routeIs('inventario.existencias.*') || request()->routeIs('inventario.kardex.*')"
+                            >
+                                {{ __('Existencias / Kardex') }}
+                            </x-nav-link>
+                        @endif
+                    @endcanany
 
                     @if ($usuario->hasRole('empleado'))
                         <x-nav-link :href="route('empleado.dashboard')" :active="request()->routeIs('empleado.*')">
@@ -197,37 +215,31 @@
                                             Proveedores
                                         </x-dropdown-link>
                                     @endcan
-
-                                    @can('inventario.registrar_entrada')
-                                        <x-dropdown-link
-                                            :href="route('inventario.recepciones.create', [
-                                                'empresa' => $empresaNavegacion->id,
-                                            ])"
-                                        >
-                                            Recepción de inventario
-                                        </x-dropdown-link>
-                                    @endcan
-
-                                    @canany(['inventario.transferir', 'inventario.registrar_entrada'])
-                                        <x-dropdown-link
-                                            :href="route('inventario.transferencias.index', [
-                                                'empresa' => $empresaNavegacion->id,
-                                            ])"
-                                        >
-                                            Transferencias de inventario
-                                        </x-dropdown-link>
-                                    @endcanany
-                                    @canany(['inventario.transferir', 'inventario.registrar_entrada'])
-                                        <x-dropdown-link
-                                            :href="route('inventario.existencias.index', [
-                                                'empresa' => $empresaNavegacion->id,
-                                            ])"
-                                        >
-                                            Existencias y Kardex
-                                        </x-dropdown-link>
-                                    @endcanany
                                 @endforeach
                             @endif
+                        @endif
+
+                        {{-- Acceso a inventario desde el desplegable si cuenta con empresa activa --}}
+                        @if ($empresaActual && ($usuario->can('inventario.transferir') || $usuario->can('inventario.registrar_entrada')))
+                            <div class="border-t border-gray-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                Inventario
+                            </div>
+
+                            @can('inventario.registrar_entrada')
+                                <x-dropdown-link :href="route('inventario.recepciones.create', $empresaActual)">
+                                    Recepción de inventario
+                                </x-dropdown-link>
+                            @endcan
+
+                            @canany(['inventario.transferir', 'inventario.registrar_entrada'])
+                                <x-dropdown-link :href="route('inventario.transferencias.index', $empresaActual)">
+                                    Transferencias de inventario
+                                </x-dropdown-link>
+
+                                <x-dropdown-link :href="route('inventario.existencias.index', $empresaActual)">
+                                    Existencias y Kardex
+                                </x-dropdown-link>
+                            @endcanany
                         @endif
 
                         <div class="border-t border-gray-200 dark:border-gray-600">
@@ -293,7 +305,13 @@
                 </x-responsive-nav-link>
             @endif
 
-            {{-- Enlace Responsive Móvil --}}
+            @if ($usuario->hasRole('supervisor'))
+                <x-responsive-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
+                    {{ __('Supervisión operativa') }}
+                </x-responsive-nav-link>
+            @endif
+
+            {{-- Enlaces Responsive Móvil --}}
             @can('inventario.registrar_entrada')
                 @if ($empresaActual)
                     <x-responsive-nav-link
@@ -313,14 +331,15 @@
                     >
                         {{ __('Transferencias Inventario') }}
                     </x-responsive-nav-link>
+
+                    <x-responsive-nav-link
+                        :href="route('inventario.existencias.index', $empresaActual)"
+                        :active="request()->routeIs('inventario.existencias.*') || request()->routeIs('inventario.kardex.*')"
+                    >
+                        {{ __('Existencias / Kardex') }}
+                    </x-responsive-nav-link>
                 @endif
             @endcanany
-
-            @if ($usuario->hasRole('supervisor'))
-                <x-responsive-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
-                    {{ __('Supervisión operativa') }}
-                </x-responsive-nav-link>
-            @endif
 
             @if ($usuario->hasRole('empleado'))
                 <x-responsive-nav-link :href="route('empleado.dashboard')" :active="request()->routeIs('empleado.*')">

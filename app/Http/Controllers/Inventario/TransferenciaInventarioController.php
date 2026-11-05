@@ -37,13 +37,13 @@ class TransferenciaInventarioController extends Controller
                 $q->whereHas('almacenOrigen', function ($sub) use ($sucursalesPermitidas) {
                     $sub->whereIn('sucursal_id', $sucursalesPermitidas);
                 })
-                    ->orWhereHas('almacenDestino', function ($sub) use ($sucursalesPermitidas) {
-                        $sub->whereIn('sucursal_id', $sucursalesPermitidas);
-                    });
+                ->orWhereHas('almacenDestino', function ($sub) use ($sucursalesPermitidas) {
+                    $sub->whereIn('sucursal_id', $sucursalesPermitidas);
+                });
             })
             ->with([
-                'almacenOrigen:id,nombre,codigo,sucursal_id',
-                'almacenDestino:id,nombre,codigo,sucursal_id',
+                'almacenOrigen:id,empresa_id,nombre,codigo,sucursal_id,es_virtual',
+                'almacenDestino:id,empresa_id,nombre,codigo,sucursal_id,es_virtual',
                 'solicitadoPor:id,name',
                 'despachadoPor:id,name',
                 'recibidoPor:id,name',
