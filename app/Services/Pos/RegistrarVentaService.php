@@ -139,20 +139,25 @@ class RegistrarVentaService
                     throw new RuntimeException("Stock insuficiente para el producto [{$producto->sku} - {$producto->nombre}]. Disponible: {$cantidadDisponible}, Solicitado: {$cantidad}.");
                 }
 
-                $precioUnitario = (float) $linea['precio_unitario'];
+                // El precio de mostrador ya incluye el IVA (ej: $550.00)
+                $precioConIva = (float) $linea['precio_unitario'];
                 $descuentoUnitario = (float) ($linea['descuento_unitario'] ?? 0.0);
                 $tasaIva = isset($linea['tasa_iva']) ? (float) $linea['tasa_iva'] : 0.1600;
 
-                $precioConDescuento = max(0.0, $precioUnitario - $descuentoUnitario);
-                $subtotalLinea = round($precioConDescuento * $cantidad, 4);
-                $ivaUnitario = round($precioConDescuento * $tasaIva, 4);
-                $ivaLinea = round($ivaUnitario * $cantidad, 4);
-                $totalLinea = round($subtotalLinea + $ivaLinea, 2);
+                // Desglose del IVA (precio sin IVA = precio / (1 + tasa))
+                $precioUnitarioNeto = round($precioConIva / (1.0 + $tasaIva), 4);
+                $descuentoNeto = round($descuentoUnitario / (1.0 + $tasaIva), 4);
+                $precioNetoCobrado = max(0.0, $precioUnitarioNeto - $descuentoNeto);
+
+                $subtotalLinea = round($precioNetoCobrado * $cantidad, 2);
+                $totalLinea = round(max(0.0, $precioConIva - $descuentoUnitario) * $cantidad, 2);
+                $ivaLinea = round($totalLinea - $subtotalLinea, 2);
+                $ivaUnitario = $cantidad > 0 ? round($ivaLinea / $cantidad, 4) : 0.0;
 
                 $costoLinea = round($costoUnitarioPromedio * $cantidad, 4);
 
                 $subtotalSinImpuestos += $subtotalLinea;
-                $descuentoTotal += round($descuentoUnitario * $cantidad, 4);
+                $descuentoTotal += round($descuentoNeto * $cantidad, 2);
                 $ivaTotal += $ivaLinea;
                 $totalVenta += $totalLinea;
                 $costoTotalInventario += $costoLinea;
@@ -168,8 +173,8 @@ class RegistrarVentaService
                     'clave_sat_unidad' => 'H87',
                     'cantidad' => $cantidad,
                     'costo_unitario_promedio' => $costoUnitarioPromedio,
-                    'precio_unitario' => $precioUnitario,
-                    'descuento_unitario' => $descuentoUnitario,
+                    'precio_unitario' => $precioUnitarioNeto,
+                    'descuento_unitario' => $descuentoNeto,
                     'tasa_iva' => $tasaIva,
                     'monto_iva_unitario' => $ivaUnitario,
                     'subtotal' => $subtotalLinea,
@@ -245,16 +250,17 @@ class RegistrarVentaService
                     'empresa_id' => $empresa->id,
                     'almacen_id' => $almacen->id,
                     'producto_id' => $detalleItem['producto_id'],
+                    'grupo_id' => (string) Str::uuid(),
+                    'folio' => 'MOV-'.now()->format('YmdHisv').'-'.Str::upper(Str::random(6)),
                     'tipo' => MovimientoInventario::TIPO_SALIDA,
+                    'motivo' => 'Venta en mostrador POS',
                     'cantidad' => $detalleItem['cantidad'],
                     'costo_unitario' => $costoUnit,
-                    'costo_total' => round($costoUnit * (float) $detalleItem['cantidad'], 4),
-                    'stock_anterior' => $stockAnterior,
-                    'stock_nuevo' => $stockNuevo,
-                    'referencia_type' => Venta::class,
+                    'existencia_anterior' => $stockAnterior,
+                    'existencia_nueva' => $stockNuevo,
                     'referencia_id' => $venta->id,
-                    'concepto' => "Venta de mostrador POS: {$folio}",
-                    'creado_por_id' => $cajero->id,
+                    'referencia_tipo' => Venta::class,
+                    'usuario_id' => $venta->user_id,
                 ]);
             }
 

@@ -8,7 +8,8 @@
             aperturaCaja: '{{ route('pos.caja.apertura') }}',
             cierreCaja: '{{ route('pos.caja.cierre') }}',
             ventaStore: '{{ route('pos.ventas.store') }}',
-            sincronizarOffline: '{{ route('pos.sincronizar.offline') }}'
+            sincronizarOffline: '{{ route('pos.sincronizar.offline') }}',
+            ultimasVentas: '{{ route('pos.ultimas-ventas') }}'
         },
         csrfToken: '{{ csrf_token() }}'
     })" x-init="initPos()" class="min-h-screen bg-slate-950 text-slate-100 p-4 lg:p-6">
@@ -31,8 +32,8 @@
                         </span>
                     </h1>
                     <p class="text-xs text-slate-400">
-                        Sucursal: <strong class="text-slate-200" x-text="sucursal ? sucursal.nombre : 'Sin asignar'"></strong> |
-                        Almacén: <strong class="text-slate-200" x-text="almacen ? almacen.nombre : 'Sin almacén'"></strong>
+                        Sucursal: <strong class="text-slate-200" x-text="sucursal ? sucursal.nombre : '{{ $sucursal?->nombre ?? 'Sucursal Principal' }}'"></strong> |
+                        Almacén: <strong class="text-slate-200" x-text="almacen ? almacen.nombre : '{{ $almacen?->nombre ?? 'Almacén Principal' }}'"></strong>
                     </p>
                 </div>
             </div>
@@ -56,9 +57,32 @@
                 </template>
 
                 <template x-if="turnoActivo">
-                    <button @click="modalCierre = true" class="px-4 py-2 bg-rose-600/20 border border-rose-500/30 hover:bg-rose-600/30 text-rose-300 rounded-lg text-sm font-medium transition">
-                        Cerrar Turno #<span x-text="turnoActivo.id"></span>
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            @click="abrirModalReimpresion()"
+                            class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 shadow-sm transition">
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                            </svg>
+                            Reimprimir Ticket
+                        </button>
+
+                        <button @click="modalCierre = true" class="px-4 py-2 bg-rose-600/20 border border-rose-500/30 hover:bg-rose-600/30 text-rose-300 rounded-lg text-sm font-medium transition">
+                            Cerrar Turno #<span x-text="turnoActivo.id"></span>
+                        </button>
+
+                        @can('pos.devoluciones')
+                            <button type="button"
+                                    @click="modalDevolucion = true"
+                                    class="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                                </svg>
+                                Devolución / Nota de Crédito
+                            </button>
+                        @endcan
+                    </div>
                 </template>
             </div>
         </header>
@@ -89,7 +113,7 @@
                     <div class="relative">
                         <input type="text" x-model="searchQuery" @keydown.enter.prevent="buscarYAgregarDirecto()"
                                placeholder="Escanear código de barras o buscar por nombre / SKU..."
-                               class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 pl-11 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                               class="w-full !bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 pl-11 text-sm !text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
                         <div class="absolute left-3.5 top-3.5 text-slate-500">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -127,11 +151,11 @@
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <div>
                             <label class="text-slate-400 block mb-1">Cliente</label>
-                            <input type="text" x-model="cliente.nombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white">
+                            <input type="text" x-model="cliente.nombre" class="w-full !bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white focus:outline-none focus:border-indigo-500">
                         </div>
                         <div>
                             <label class="text-slate-400 block mb-1">RFC Fiscal</label>
-                            <input type="text" x-model="cliente.rfc" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white uppercase font-mono">
+                            <input type="text" x-model="cliente.rfc" class="w-full !bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white uppercase font-mono focus:outline-none focus:border-indigo-500">
                         </div>
                     </div>
 
@@ -206,7 +230,7 @@
                                 <div>
                                     <label class="text-slate-400 block mb-1">Monto Recibido</label>
                                     <input type="number" step="0.50" x-model.number="montoRecibido"
-                                           class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-sm">
+                                           class="w-full !bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-sm focus:outline-none focus:border-indigo-500">
                                 </div>
                                 <div>
                                     <label class="text-slate-400 block mb-1">Cambio</label>
@@ -227,68 +251,164 @@
         </template>
 
         {{-- Modal: Apertura de Turno --}}
-        <div x-show="modalApertura" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4">
+        <div x-show="modalApertura" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
                 <h3 class="text-base font-bold text-white">Apertura de Turno de Caja</h3>
                 <div>
-                    <label class="text-xs text-slate-400 block mb-1">Fondo Inicial en Efectivo ($)</label>
+                    <label class="text-xs text-slate-300 block mb-1 font-medium">Fondo Inicial en Efectivo ($)</label>
                     <input type="number" step="10" x-model.number="formApertura.monto_inicial"
-                           class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono">
+                           style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
+                           class="w-full rounded-xl px-3 py-2 font-mono text-base focus:outline-none">
                 </div>
                 <div>
-                    <label class="text-xs text-slate-400 block mb-1">Observaciones</label>
-                    <textarea x-model="formApertura.observaciones" rows="2" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs"></textarea>
+                    <label class="text-xs text-slate-300 block mb-1 font-medium">Observaciones</label>
+                    <textarea x-model="formApertura.observaciones" rows="2"
+                              placeholder="Notas opcionales de apertura..."
+                              style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
+                              class="w-full rounded-xl px-3 py-2 text-xs focus:outline-none"></textarea>
                 </div>
-                <div class="flex gap-2">
-                    <button @click="modalApertura = false" class="flex-1 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">Cancelar</button>
-                    <button @click="abrirTurnoCaja()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold">Abrir Caja</button>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" @click="modalApertura = false" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition">Cancelar</button>
+                    <button type="button" @click="abrirTurnoCaja()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/30 transition">Abrir Caja</button>
                 </div>
             </div>
         </div>
 
         {{-- Modal: Cierre de Turno --}}
-        <div x-show="modalCierre" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4">
+        <div x-show="modalCierre" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
                 <h3 class="text-base font-bold text-white">Corte y Cierre de Turno</h3>
                 <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
                     <div class="flex justify-between text-slate-400">
                         <span>Fondo Inicial:</span>
-                        <span class="text-white" x-text="`$${Number(turnoActivo?.monto_inicial || 0).toFixed(2)}`"></span>
+                        <span class="text-white font-mono" x-text="`$${Number(turnoActivo?.monto_inicial || 0).toFixed(2)}`"></span>
                     </div>
                     <div class="flex justify-between text-slate-400">
                         <span>Ventas Efectivo:</span>
-                        <span class="text-white" x-text="`$${Number(turnoActivo?.total_ventas_efectivo || 0).toFixed(2)}`"></span>
+                        <span class="text-white font-mono" x-text="`$${Number(turnoActivo?.total_ventas_efectivo || 0).toFixed(2)}`"></span>
                     </div>
                     <div class="flex justify-between font-bold text-white pt-1 border-t border-slate-800">
                         <span>Efectivo Esperado en Caja:</span>
-                        <span class="text-indigo-400" x-text="`$${Number(turnoActivo?.monto_esperado_efectivo || 0).toFixed(2)}`"></span>
+                        <span class="text-indigo-400 font-mono text-sm" x-text="`$${Number(turnoActivo?.monto_esperado_efectivo || 0).toFixed(2)}`"></span>
                     </div>
                 </div>
 
                 <div>
-                    <label class="text-xs text-slate-400 block mb-1">Efectivo Real Contado en Caja ($)</label>
+                    <label class="text-xs text-slate-300 block mb-1 font-medium">Efectivo Real Contado en Caja ($)</label>
                     <input type="number" step="0.50" x-model.number="formCierre.monto_real_efectivo"
-                           class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono">
+                           style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
+                           class="w-full rounded-xl px-3 py-2 font-mono text-base focus:outline-none">
                 </div>
                 <div>
-                    <label class="text-xs text-slate-400 block mb-1">Notas de Cierre</label>
-                    <textarea x-model="formCierre.observaciones" rows="2" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs"></textarea>
+                    <label class="text-xs text-slate-300 block mb-1 font-medium">Notas de Cierre</label>
+                    <textarea x-model="formCierre.observaciones" rows="2"
+                              placeholder="Observaciones de arqueo o discrepancias..."
+                              style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
+                              class="w-full rounded-xl px-3 py-2 text-xs focus:outline-none"></textarea>
                 </div>
-                <div class="flex gap-2">
-                    <button @click="modalCierre = false" class="flex-1 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">Volver</button>
-                    <button @click="cerrarTurnoCaja()" class="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold">Confirmar Cierre</button>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" @click="modalCierre = false" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition">Volver</button>
+                    <button type="button" @click="cerrarTurnoCaja()" class="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-rose-600/30 transition">Confirmar Cierre</button>
                 </div>
             </div>
         </div>
 
+        {{-- Modal de Reimpresión de Tickets --}}
+        <div x-show="modalReimpresion"
+             x-cloak
+             class="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modalReimpresion = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                        </svg>
+                        Reimpresión de Ventas Recientes
+                    </h3>
+                    <button @click="modalReimpresion = false" class="text-slate-400 hover:text-white text-lg font-bold leading-none">&times;</button>
+                </div>
+
+                <div class="mt-4 max-h-80 overflow-y-auto space-y-2 pr-1">
+                    <template x-if="cargandoVentas">
+                        <p class="text-center text-xs text-slate-400 py-4">Cargando ventas del turno...</p>
+                    </template>
+                    <template x-if="!cargandoVentas && ventasRecientes.length === 0">
+                        <p class="text-center text-xs text-slate-400 py-4">No hay ventas registradas en este turno.</p>
+                    </template>
+                    <template x-for="v in ventasRecientes" :key="v.id">
+                        <div class="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl hover:border-slate-700 transition">
+                            <div>
+                                <div class="font-bold text-emerald-400 text-xs" x-text="v.folio"></div>
+                                <div class="text-[11px] text-slate-300" x-text="v.cliente_nombre"></div>
+                                <div class="text-[10px] text-slate-500" x-text="formatearFecha(v.created_at)"></div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-bold text-white font-mono" x-text="'$' + Number(v.total).toFixed(2)"></span>
+                                <button
+                                    type="button"
+                                    @click="lanzarImpresion(v.uuid || v.id)"
+                                    class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow">
+                                    Imprimir
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-800 flex justify-end">
+                    <button type="button" @click="modalReimpresion = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 rounded-xl">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- Modal de Devolución --}}
+        @can('pos.devoluciones')
+            <div x-show="modalDevolucion" x-cloak class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div @click.away="modalDevolucion = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                            <h3 class="text-sm font-bold text-white">Autorización de Devolución (Supervisor)</h3>
+                        </div>
+                        <button type="button" @click="modalDevolucion = false" class="text-slate-400 hover:text-white">&times;</button>
+                    </div>
+
+                    <form @submit.prevent="procesarDevolucionModal()" class="space-y-4">
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1 font-medium">Folio de Venta *</label>
+                            <input type="text" x-model="formDevolucion.venta_folio" required placeholder="ej. VTA-MATRIZ-20261105-0001"
+                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white uppercase focus:outline-none focus:border-amber-500">
+                        </div>
+
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1 font-medium">Motivo de Devolución *</label>
+                            <textarea x-model="formDevolucion.motivo" rows="2" required placeholder="Producto defectuoso, cambio por garantía, etc."
+                                      class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"></textarea>
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                            <button type="button" @click="modalDevolucion = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition">
+                                Cerrar
+                            </button>
+                            <button type="submit" :disabled="devolucionEnProceso" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                                <span x-show="!devolucionEnProceso">Autorizar y Registrar Devolución</span>
+                                <span x-show="devolucionEnProceso">Procesando...</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endcan
     </div>
 
     {{-- Script Reactivo Alpine.js + Motor Offline IndexedDB --}}
     <script>
         function posTerminal(config) {
             return {
-                sucursal: config.sucursal,
-                almacen: config.almacen,
+                sucursal: config.sucursal || { id: 1, nombre: 'Sucursal Principal' },
+                almacen: config.almacen || { id: 1, nombre: 'Almacén Principal' },
                 turnoActivo: config.turnoInicial,
                 routes: config.routes,
                 csrf: config.csrfToken,
@@ -310,6 +430,18 @@
                 formaPagoSat: '01',
                 montoRecibido: 0,
 
+                modalReimpresion: false,
+                cargandoVentas: false,
+                ventasRecientes: [],
+
+                modalDevolucion: false,
+                formDevolucion: {
+                    venta_folio: '',
+                    motivo: '',
+                    detalles: []
+                },
+                devolucionEnProceso: false,
+
                 db: null,
 
                 async initPos() {
@@ -321,7 +453,12 @@
                         this.isOnline = false;
                     });
 
-                    await this.initIndexedDB();
+                    try {
+                        await this.initIndexedDB();
+                    } catch (err) {
+                        console.warn('No se pudo inicializar IndexedDB:', err);
+                    }
+
                     await this.cargarCatalogo();
                     await this.actualizarContadorOffline();
                 },
@@ -347,29 +484,75 @@
                 },
 
                 async cargarCatalogo() {
-                    if (this.isOnline && this.almacen) {
+                    const almacenId = this.almacen?.id || 1;
+
+                    if (this.isOnline) {
                         try {
-                            const res = await fetch(`${this.routes.catalogo}?almacen_id=${this.almacen.id}`);
+                            const res = await fetch(`${this.routes.catalogo}?almacen_id=${almacenId}`, {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            });
+
                             if (res.ok) {
-                                this.productos = await res.json();
-                                const tx = this.db.transaction('catalogo', 'readwrite');
-                                const store = tx.objectStore('catalogo');
-                                store.clear();
-                                this.productos.forEach(p => store.put(p));
-                                return;
+                                const data = await res.json();
+                                if (Array.isArray(data) && data.length > 0) {
+                                    this.productos = data;
+
+                                    if (this.db) {
+                                        const tx = this.db.transaction('catalogo', 'readwrite');
+                                        const store = tx.objectStore('catalogo');
+                                        store.clear();
+                                        data.forEach(p => store.put(p));
+                                    }
+                                    return;
+                                }
                             }
                         } catch (e) {
-                            console.warn('Falla de red, cargando catálogo de IndexedDB');
+                            console.warn('Falla al conectar con el servidor, leyendo almacenamiento local:', e);
                         }
                     }
 
-                    // Fallback a almacenamiento local si está desconectado
-                    const tx = this.db.transaction('catalogo', 'readonly');
-                    const store = tx.objectStore('catalogo');
-                    const req = store.getAll();
-                    req.onsuccess = () => {
-                        this.productos = req.result || [];
-                    };
+                    if (this.db) {
+                        const tx = this.db.transaction('catalogo', 'readonly');
+                        const store = tx.objectStore('catalogo');
+                        const req = store.getAll();
+                        req.onsuccess = () => {
+                            if (req.result && req.result.length > 0) {
+                                this.productos = req.result;
+                            }
+                        };
+                    }
+                },
+
+                async abrirModalReimpresion() {
+                    this.modalReimpresion = true;
+                    this.cargandoVentas = true;
+                    try {
+                        const sucursalId = this.sucursal?.id || 1;
+                        const res = await fetch(`${this.routes.ultimasVentas}?sucursal_id=${sucursalId}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (res.ok) {
+                            this.ventasRecientes = await res.json();
+                        }
+                    } catch (e) {
+                        console.error('Error al cargar ventas recientes:', e);
+                    } finally {
+                        this.cargandoVentas = false;
+                    }
+                },
+
+                lanzarImpresion(uuid) {
+                    const url = `/pos/ventas/${uuid}/ticket`;
+                    window.open(url, 'Ticket POS', 'width=380,height=600,top=100,left=100,toolbar=no,menubar=no,scrollbars=yes');
+                },
+
+                formatearFecha(fechaStr) {
+                    if (!fechaStr) return '';
+                    const f = new Date(fechaStr);
+                    return f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 },
 
                 get productosFiltrados() {
@@ -455,8 +638,8 @@
 
                     const payloadVenta = {
                         uuid: uuidVenta,
-                        sucursal_id: this.sucursal.id,
-                        almacen_id: this.almacen.id,
+                        sucursal_id: this.sucursal?.id || 1,
+                        almacen_id: this.almacen?.id || 1,
                         caja_turno_id: this.turnoActivo?.id || null,
                         cliente_nombre: this.cliente.nombre,
                         cliente_rfc: this.cliente.rfc,
@@ -489,7 +672,8 @@
 
                             const data = await res.json();
                             if (res.ok) {
-                                alert(`Venta completada. Folio: ${data.folio}`);
+                                const idTicket = data.venta?.uuid || data.venta_id || uuidVenta;
+                                this.lanzarImpresion(idTicket);
                                 this.vaciarCarrito();
                                 this.isProcessing = false;
                                 return;
@@ -499,7 +683,6 @@
                         }
                     }
 
-                    // Flujo Offline: Guardar en cola IndexedDB
                     await this.guardarVentaOffline(payloadVenta);
                     alert(`Venta guardada en modo desconectado. UUID: ${uuidVenta}. Se sincronizará al volver la conexión.`);
                     this.vaciarCarrito();
@@ -579,7 +762,7 @@
                             'Accept': 'application/json'
                         },
                         body: JSON.stringify({
-                            sucursal_id: this.sucursal.id,
+                            sucursal_id: this.sucursal?.id || 1,
                             monto_inicial: this.formApertura.monto_inicial,
                             observaciones: this.formApertura.observaciones
                         })
@@ -594,6 +777,8 @@
                 },
 
                 async cerrarTurnoCaja() {
+                    if (!this.turnoActivo) return;
+
                     const res = await fetch(this.routes.cierreCaja, {
                         method: 'POST',
                         headers: {
@@ -614,6 +799,49 @@
                         this.modalCierre = false;
                     } else {
                         alert(data.message || 'Error cerrando caja');
+                    }
+                },
+
+                async procesarDevolucionModal() {
+                    if (!this.formDevolucion.venta_folio || !this.formDevolucion.motivo) {
+                        alert('Por favor complete todos los campos requeridos.');
+                        return;
+                    }
+
+                    this.devolucionEnProceso = true;
+
+                    try {
+                        const res = await fetch("{{ route('pos.devoluciones.store') }}", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': this.csrf,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                venta_folio: this.formDevolucion.venta_folio,
+                                motivo: this.formDevolucion.motivo,
+                                almacen_id: this.almacen?.id || 1,
+                                caja_turno_id: this.turnoActivo?.id || null,
+                                detalles: [{ detalle_id: 1, cantidad: 1 }]
+                            })
+                        });
+
+                        const data = await res.json();
+
+                        if (res.ok) {
+                            alert(data.message);
+                            this.modalDevolucion = false;
+                            this.formDevolucion.venta_folio = '';
+                            this.formDevolucion.motivo = '';
+                            await this.cargarCatalogo();
+                        } else {
+                            alert(data.message || 'Error al procesar la devolución.');
+                        }
+                    } catch (e) {
+                        alert('Error de conexión al procesar la devolución.');
+                    } finally {
+                        this.devolucionEnProceso = false;
                     }
                 }
             };

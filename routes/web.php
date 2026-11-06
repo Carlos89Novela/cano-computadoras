@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioCont
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
 use App\Http\Controllers\Admin\SucursalController;
 use App\Http\Controllers\Admin\UsuarioController;
+use App\Http\Controllers\Compras\OrdenCompraController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
 use App\Http\Controllers\Empleado\OrdenAsignadaController;
@@ -71,32 +72,27 @@ Route::middleware('auth')->group(function () {
     Route::post(
         '/ordenes/{orden}/autorizar',
         [OrdenServicioController::class, 'autorizar']
-    )
-        ->name('ordenes.autorizar');
+    )->name('ordenes.autorizar');
 
     Route::get(
         '/ordenes/{orden}/pdf',
         [OrdenServicioController::class, 'pdf']
-    )
-        ->name('ordenes.pdf');
+    )->name('ordenes.pdf');
 
     Route::get(
         '/notificaciones',
         [NotificacionController::class, 'index']
-    )
-        ->name('notificaciones.index');
+    )->name('notificaciones.index');
 
     Route::post(
         '/notificaciones/{notificacion}/leer',
         [NotificacionController::class, 'leer']
-    )
-        ->name('notificaciones.leer');
+    )->name('notificaciones.leer');
 
     Route::post(
         '/notificaciones/leer-todas',
         [NotificacionController::class, 'leerTodas']
-    )
-        ->name('notificaciones.leer-todas');
+    )->name('notificaciones.leer-todas');
 });
 
 Route::middleware(['auth', 'administrador'])
@@ -352,6 +348,11 @@ Route::middleware([
             ->middleware('permission:inventario.registrar_entrada')
             ->name('recepciones.data');
 
+        Route::get(
+            '/empresas/{empresa}/inventario/ordenes-compra/{orden}/detalles',
+            [RecepcionInventarioController::class, 'ordenCompraData']
+        )->name('recepciones.orden-data');
+
         // -------------------------------------------------
         // TRANSFERENCIAS DE INVENTARIO (3 FASES)
         // Solicitud -> Despacho a Tránsito -> Recepción Destino
@@ -359,7 +360,6 @@ Route::middleware([
         Route::prefix('empresas/{empresa}/inventario/transferencias')
             ->name('transferencias.')
             ->group(function (): void {
-                // Listado y Feed JSON DataTables
                 Route::get('/', [TransferenciaInventarioController::class, 'index'])->name('index');
                 Route::get('/data', [TransferenciaInventarioController::class, 'data'])->name('data');
 
@@ -456,7 +456,7 @@ Route::middleware([
 
 // =========================================================
 // PUNTO DE VENTA / MOSTRADOR (POS)
-// Control de turnos de caja, ventas de mostrador y sync offline
+// Control de turnos de caja, ventas de mostrador y devoluciones
 // =========================================================
 
 Route::middleware([
@@ -472,6 +472,14 @@ Route::middleware([
         Route::post('/caja/cierre', [PosController::class, 'cierreCaja'])->name('caja.cierre');
         Route::post('/ventas', [PosController::class, 'storeVenta'])->name('ventas.store');
         Route::post('/sincronizar-offline', [PosController::class, 'sincronizarOffline'])->name('sincronizar.offline');
+        Route::get('/ticket/{venta}', [PosController::class, 'ticket'])->name('ticket');
+        Route::get('/ultimas-ventas', [PosController::class, 'ultimasVentas'])->name('ultimas-ventas');
+        Route::get('/ventas/{uuid}/ticket', [PosController::class, 'reimprimirTicket'])->name('ventas.ticket');
+
+        // Devoluciones en Punto de Venta (exclusivo para supervisores y administradores)
+        Route::post('/devoluciones', [PosController::class, 'devolucion'])
+            ->middleware('permission:pos.devoluciones')
+            ->name('devoluciones.store');
     });
 
 Route::middleware([
@@ -574,6 +582,28 @@ Route::middleware([
             '/ordenes/{orden}/entregar',
             [EntregaOrdenController::class, 'store']
         )->name('ordenes.entregar');
+    });
+
+// =========================================================
+// ÓRDENES DE COMPRA A PROVEEDORES
+// =========================================================
+Route::middleware([
+    'auth',
+    'verified',
+])
+    ->prefix('operacion/compras')
+    ->name('compras.ordenes.')
+    ->group(function (): void {
+        Route::get('/', [OrdenCompraController::class, 'index'])->name('index');
+        Route::get('/crear', [OrdenCompraController::class, 'create'])->name('create');
+        Route::post('/', [OrdenCompraController::class, 'store'])->name('store');
+        Route::get('/{orden}', [OrdenCompraController::class, 'show'])->name('show');
+        Route::get('/{orden}/pdf', [OrdenCompraController::class, 'pdf'])->name('pdf');
+        Route::patch('/{orden}/solicitar', [OrdenCompraController::class, 'solicitar'])->name('solicitar');
+        Route::patch('/{orden}/autorizar', [OrdenCompraController::class, 'autorizar'])
+            ->middleware('permission:compras.autorizar')
+            ->name('autorizar');
+        Route::patch('/{orden}/cancelar', [OrdenCompraController::class, 'cancelar'])->name('cancelar');
     });
 
 require __DIR__.'/auth.php';

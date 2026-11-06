@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Pos;
 use App\Http\Controllers\Controller;
 use App\Models\Almacen;
 use App\Models\CajaTurno;
+use App\Models\Empresa;
 use App\Models\ExistenciaAlmacen;
 use App\Models\Producto;
 use App\Models\Sucursal;
 use App\Models\User;
+use App\Models\Venta;
+use App\Services\Pos\ProcesarDevolucionPosService;
 use App\Services\Pos\RegistrarVentaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,25 +30,57 @@ class PosController extends Controller
         $user = $request->user();
         $empresaId = $this->resolveEmpresaId($user);
 
+        // 1. Resolver sucursal asignada o fallback a la primera activa de la empresa
         /** @var Sucursal|null $sucursal */
-        $sucursal = Sucursal::query()->where('empresa_id', $empresaId)->first();
-        $sucursalId = $sucursal !== null ? (int) $sucursal->id : 0;
+        $sucursal = $user->sucursales()->first();
 
+        if (! $sucursal) {
+            /** @var Sucursal|null $sucursal */
+            $sucursal = Sucursal::query()->where('empresa_id', $empresaId)->first();
+        }
+
+        $sucursalId = $sucursal !== null ? (int) $sucursal->id : null;
+
+        // 2. Resolver almacén físico de la sucursal que permita existencias
         /** @var Almacen|null $almacen */
-        $almacen = Almacen::query()
-            ->where('empresa_id', $empresaId)
-            ->where('sucursal_id', $sucursalId)
-            ->where('es_activo', true)
-            ->first();
+        $almacen = null;
 
+        if ($sucursalId !== null) {
+            $almacen = Almacen::query()
+                ->where('empresa_id', $empresaId)
+                ->where('sucursal_id', $sucursalId)
+                ->where('activo', true)
+                ->where('permite_existencias', true)
+                ->where('tipo', Almacen::TIPO_PRINCIPAL)
+                ->first()
+                ?? Almacen::query()
+                    ->where('empresa_id', $empresaId)
+                    ->where('sucursal_id', $sucursalId)
+                    ->where('activo', true)
+                    ->where('permite_existencias', true)
+                    ->first();
+        }
+
+        if (! $almacen) {
+            $almacen = Almacen::query()
+                ->where('empresa_id', $empresaId)
+                ->where('activo', true)
+                ->where('permite_existencias', true)
+                ->first();
+        }
+
+        // 3. Resolver turno de caja activo para el usuario
         /** @var CajaTurno|null $turnoActivo */
-        $turnoActivo = CajaTurno::query()
-            ->where('empresa_id', $empresaId)
-            ->where('sucursal_id', $sucursalId)
-            ->where('user_id', $user->id)
-            ->where('estado', 'abierto')
-            ->latest('id')
-            ->first();
+        $turnoActivo = null;
+        if ($sucursalId !== null) {
+            $turnoActivo = CajaTurno::query()
+                ->where('empresa_id', $empresaId)
+                ->where('sucursal_id', $sucursalId)
+                ->where('user_id', $user->id)
+                ->where('estado', 'abierto')
+                ->latest('id')
+                ->first();
+        }
 
         /** @var view-string $viewName */
         $viewName = 'pos.index';
@@ -323,6 +358,122 @@ class PosController extends Controller
         /** @var int|string|null $empresaId */
         $empresaId = $user->getAttribute('empresa_id');
 
-        return (int) $empresaId;
+        if (! empty($empresaId)) {
+            return (int) $empresaId;
+        }
+
+        // Fallback: Tomar la primera empresa activa de la base de datos
+        $idEmpresa = Empresa::query()->value('id');
+
+        return $idEmpresa !== null ? (int) $idEmpresa : 1;
+    }
+
+    public function ticket(Request $request, Venta $venta): View
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $empresaId = $this->resolveEmpresaId($user);
+
+        if ((int) $venta->empresa_id !== $empresaId) {
+            abort(403, 'No autorizado para ver este ticket.');
+        }
+
+        $venta->load(['detalles', 'pagos', 'sucursal', 'user']);
+
+        /** @var view-string $viewName */
+        $viewName = 'pos.ticket';
+
+        return view($viewName, [
+            'venta' => $venta,
+            'empresa' => $venta->empresa,
+        ]);
+    }
+
+    /**
+     * Devuelve las últimas ventas realizadas en el turno activo para reimpresión.
+     */
+    public function ultimasVentas(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $sucursalId = $request->input('sucursal_id');
+
+        $turno = CajaTurno::query()
+            ->where('sucursal_id', $sucursalId)
+            ->where('estado', 'abierto')
+            ->latest('id')
+            ->first();
+
+        if (! $turno) {
+            return response()->json([]);
+        }
+
+        $ventas = Venta::query()
+            ->where('caja_turno_id', $turno->id)
+            ->with(['detalles'])
+            ->latest('id')
+            ->take(15)
+            ->get(['id', 'uuid', 'folio', 'cliente_nombre', 'total', 'created_at']);
+
+        return response()->json($ventas);
+    }
+
+    /**
+     * Renderiza la vista del ticket térmico para una venta existente (reimpresión).
+     */
+    public function reimprimirTicket(string $uuid): View
+    {
+        $venta = Venta::query()
+            ->with(['detalles', 'pagos', 'sucursal.empresa', 'user', 'almacen'])
+            ->where('uuid', $uuid)
+            ->orWhere('id', $uuid)
+            ->firstOrFail();
+
+        return view('pos.ticket', compact('venta'));
+    }
+
+    public function devolucion(Request $request, ProcesarDevolucionPosService $service): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $empresaId = $this->resolveEmpresaId($user);
+
+        /** @var array{
+         *     venta_folio: string,
+         *     motivo: string,
+         *     almacen_id: int,
+         *     caja_turno_id?: int|null,
+         *     detalles: array<int, array{detalle_id: int, cantidad: float|int|numeric-string}>
+         * } $validated */
+        $validated = $request->validate([
+            'venta_folio' => ['required', 'string'],
+            'motivo' => ['required', 'string', 'min:5', 'max:500'],
+            'almacen_id' => ['required', 'integer'],
+            'caja_turno_id' => ['nullable', 'integer'],
+            'detalles' => ['required', 'array', 'min:1'],
+            'detalles.*.detalle_id' => ['required', 'integer'],
+            'detalles.*.cantidad' => ['required', 'numeric', 'gt:0'],
+        ]);
+
+        /** @var Almacen $almacen */
+        $almacen = Almacen::query()
+            ->where('empresa_id', $empresaId)
+            ->findOrFail($validated['almacen_id']);
+
+        /** @var CajaTurno|null $turno */
+        $turno = null;
+        if (! empty($validated['caja_turno_id'])) {
+            $turno = CajaTurno::query()->find($validated['caja_turno_id']);
+        }
+
+        try {
+            $venta = $service->ejecutar($validated, $user, $almacen, $turno);
+
+            return response()->json([
+                'message' => "Devolución de la venta {$venta->folio} procesada exitosamente.",
+                'folio' => $venta->folio,
+            ]);
+        } catch (Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 }

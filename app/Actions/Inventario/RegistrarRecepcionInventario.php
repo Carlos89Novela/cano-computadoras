@@ -6,6 +6,8 @@ use App\Models\Almacen;
 use App\Models\Empresa;
 use App\Models\ExistenciaAlmacen;
 use App\Models\MovimientoInventario;
+use App\Models\OrdenCompra;
+use App\Models\OrdenCompraDetalle;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\RecepcionInventario;
@@ -22,11 +24,13 @@ class RegistrarRecepcionInventario
     // ---------------------------------------------------------
     // REGISTRAR RECEPCIÓN
     // Normaliza y valida un documento que puede contener una o
-    // varias líneas de productos para un mismo almacén.
+    // varias líneas de productos para un mismo almacén, admitiendo
+    // opcionalmente el enlace a una Orden de Compra previa.
     // ---------------------------------------------------------
 
     /**
      * @param  array{
+     *     orden_compra_id?: mixed,
      *     tipo?: mixed,
      *     referencia_externa?: mixed,
      *     motivo?: mixed,
@@ -63,13 +67,14 @@ class RegistrarRecepcionInventario
 
     // ---------------------------------------------------------
     // NORMALIZAR DOCUMENTO
-    // Limpia el tipo, la referencia, el motivo y cada una de
-    // las líneas antes de aplicar las reglas de negocio.
+    // Limpia el tipo, la orden de compra, la referencia, el motivo
+    // y cada una de las líneas antes de aplicar las reglas.
     // ---------------------------------------------------------
 
     /**
      * @param  array<string, mixed>  $datos
      * @return array{
+     *     orden_compra_id: int|null,
      *     tipo: string,
      *     referencia_externa: string|null,
      *     motivo: string,
@@ -84,6 +89,11 @@ class RegistrarRecepcionInventario
     private function normalizarDatos(
         array $datos
     ): array {
+        $ordenCompraId = filter_var(
+            $datos['orden_compra_id'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
         $tipo = $datos['tipo'] ?? '';
         $referenciaExterna = $datos['referencia_externa'] ?? null;
         $motivo = $datos['motivo'] ?? '';
@@ -145,6 +155,7 @@ class RegistrarRecepcionInventario
         }
 
         return [
+            'orden_compra_id' => $ordenCompraId !== false ? (int) $ordenCompraId : null,
             'tipo' => $tipoNormalizado,
             'referencia_externa' => $referenciaNormalizada,
             'motivo' => $motivoNormalizado,
@@ -154,8 +165,7 @@ class RegistrarRecepcionInventario
 
     // ---------------------------------------------------------
     // NORMALIZAR DECIMAL
-    // Convierte números válidos a una representación uniforme
-    // con cuatro posiciones decimales.
+    // Convierte números a representación uniforme de 4 decimales.
     // ---------------------------------------------------------
 
     private function normalizarDecimal(
@@ -192,6 +202,7 @@ class RegistrarRecepcionInventario
 
     /**
      * @param  array{
+     *     orden_compra_id: int|null,
      *     tipo: string,
      *     referencia_externa: string|null,
      *     motivo: string,
@@ -210,25 +221,11 @@ class RegistrarRecepcionInventario
         User $actor,
         array $datos
     ): void {
-        // -----------------------------------------------------
-        // PERMISO
-        // El usuario requiere el permiso de registrar entrada.
-        // -----------------------------------------------------
-
-        if (
-            ! $actor->can(
-                'inventario.registrar_entrada'
-            )
-        ) {
+        if (! $actor->can('inventario.registrar_entrada')) {
             throw new AuthorizationException(
                 'No tienes permiso para registrar entradas de inventario.'
             );
         }
-
-        // -----------------------------------------------------
-        // ALMACÉN DE LA EMPRESA
-        // El almacén debe pertenecer a la empresa indicada.
-        // -----------------------------------------------------
 
         if ($almacen->empresa_id !== $empresa->id) {
             throw new AuthorizationException(
@@ -236,21 +233,11 @@ class RegistrarRecepcionInventario
             );
         }
 
-        // -----------------------------------------------------
-        // EMPRESA ACTIVA
-        // La empresa no debe encontrarse inactiva.
-        // -----------------------------------------------------
-
         if (! $empresa->activo) {
             throw ValidationException::withMessages([
                 'empresa' => 'No se pueden registrar recepciones para una empresa inactiva.',
             ]);
         }
-
-        // -----------------------------------------------------
-        // ALMACÉN ACTIVO
-        // El almacén debe estar habilitado operativamente.
-        // -----------------------------------------------------
 
         if (! $almacen->activo) {
             throw ValidationException::withMessages([
@@ -258,22 +245,11 @@ class RegistrarRecepcionInventario
             ]);
         }
 
-        // -----------------------------------------------------
-        // ALMACÉN CON EXISTENCIAS
-        // El almacén debe permitir administrar existencias.
-        // -----------------------------------------------------
-
         if (! $almacen->permite_existencias) {
             throw ValidationException::withMessages([
                 'almacen' => 'El almacén seleccionado no permite manejar existencias.',
             ]);
         }
-
-        // -----------------------------------------------------
-        // SUCURSAL DEL ALMACÉN FÍSICO
-        // Los almacenes físicos deben pertenecer a una sucursal
-        // activa de la misma empresa.
-        // -----------------------------------------------------
 
         if (! $almacen->es_virtual) {
             $sucursal = $almacen->sucursal;
@@ -297,11 +273,6 @@ class RegistrarRecepcionInventario
             }
         }
 
-        // -----------------------------------------------------
-        // TIPO DE RECEPCIÓN
-        // Debe ser uno de los tipos permitidos por el modelo.
-        // -----------------------------------------------------
-
         if (
             ! in_array(
                 $datos['tipo'],
@@ -313,12 +284,6 @@ class RegistrarRecepcionInventario
                 'tipo' => 'El tipo de recepción no es válido.',
             ]);
         }
-
-        // -----------------------------------------------------
-        // PROVEEDOR
-        // Obligatorio en compras y opcional en los demás tipos.
-        // Debe pertenecer a la empresa y encontrarse activo.
-        // -----------------------------------------------------
 
         if (
             $datos['tipo'] === RecepcionInventario::TIPO_COMPRA
@@ -343,10 +308,29 @@ class RegistrarRecepcionInventario
             }
         }
 
-        // -----------------------------------------------------
-        // REFERENCIA EXTERNA
-        // Longitud máxima de 150 caracteres si se proporciona.
-        // -----------------------------------------------------
+        // Validación de orden de compra si viene referenciada
+        if ($datos['orden_compra_id'] !== null) {
+            /** @var OrdenCompra|null $ordenCompra */
+            $ordenCompra = OrdenCompra::query()->find($datos['orden_compra_id']);
+
+            if ($ordenCompra === null) {
+                throw ValidationException::withMessages([
+                    'orden_compra_id' => 'La orden de compra especificada no existe.',
+                ]);
+            }
+
+            if ($ordenCompra->empresa_id !== $empresa->id) {
+                throw new AuthorizationException(
+                    'La orden de compra no pertenece a la empresa indicada.'
+                );
+            }
+
+            if (! in_array($ordenCompra->estado, ['autorizada', 'recibida_parcial'], true)) {
+                throw ValidationException::withMessages([
+                    'orden_compra_id' => 'Solo se pueden recibir órdenes en estado autorizada o recibida parcial.',
+                ]);
+            }
+        }
 
         if (
             $datos['referencia_externa'] !== null
@@ -357,11 +341,6 @@ class RegistrarRecepcionInventario
             ]);
         }
 
-        // -----------------------------------------------------
-        // MOTIVO
-        // Justificación requerida de hasta 1000 caracteres.
-        // -----------------------------------------------------
-
         if (
             $datos['motivo'] === ''
             || mb_strlen($datos['motivo']) > 1000
@@ -370,11 +349,6 @@ class RegistrarRecepcionInventario
                 'motivo' => 'Debes indicar un motivo válido de hasta 1000 caracteres.',
             ]);
         }
-
-        // -----------------------------------------------------
-        // LÍNEAS
-        // Debe existir al menos una línea sin productos repetidos.
-        // -----------------------------------------------------
 
         if (empty($datos['lineas'])) {
             throw ValidationException::withMessages([
@@ -453,11 +427,13 @@ class RegistrarRecepcionInventario
     // ---------------------------------------------------------
     // REGISTRAR TRANSACCIÓN
     // Ejecuta de forma atómica la creación del documento,
-    // sus líneas, las existencias y los movimientos.
+    // sus líneas, las existencias, los movimientos y actualiza
+    // la orden de compra si viene referenciada.
     // ---------------------------------------------------------
 
     /**
      * @param  array{
+     *     orden_compra_id: int|null,
      *     tipo: string,
      *     referencia_externa: string|null,
      *     motivo: string,
@@ -484,12 +460,6 @@ class RegistrarRecepcionInventario
                 $actor,
                 $datos
             ): RecepcionInventario {
-                // ---------------------------------------------
-                // BLOQUEO DE ENTIDADES PRINCIPALES
-                // Evita modificaciones concurrentes de empresa,
-                // almacén y proveedor.
-                // ---------------------------------------------
-
                 $empresaBloqueada = Empresa::query()
                     ->lockForUpdate()
                     ->findOrFail($empresa->id);
@@ -504,11 +474,12 @@ class RegistrarRecepcionInventario
                         ->findOrFail($proveedor->id)
                     : null;
 
-                // ---------------------------------------------
-                // BLOQUEO DE PRODUCTOS
-                // Ordena los IDs para prevenir bloqueos mutuos
-                // en concurrencia.
-                // ---------------------------------------------
+                $ordenCompraBloqueada = $datos['orden_compra_id'] !== null
+                    ? OrdenCompra::query()
+                        ->with(['detalles'])
+                        ->lockForUpdate()
+                        ->findOrFail($datos['orden_compra_id'])
+                    : null;
 
                 $productoIds = array_column(
                     $datos['lineas'],
@@ -523,11 +494,6 @@ class RegistrarRecepcionInventario
                     ->lockForUpdate()
                     ->get();
 
-                // ---------------------------------------------
-                // REVALIDACIÓN BAJO BLOQUEO
-                // Asegura la consistencia con el estado actual.
-                // ---------------------------------------------
-
                 $this->validar(
                     empresa: $empresaBloqueada,
                     almacen: $almacenBloqueado,
@@ -535,11 +501,6 @@ class RegistrarRecepcionInventario
                     actor: $actor,
                     datos: $datos
                 );
-
-                // ---------------------------------------------
-                // TOTALES Y AGRUPADORES
-                // Genera UUID compartido y calcula importe total.
-                // ---------------------------------------------
 
                 $grupoId = (string) Str::uuid();
                 $folioRecepcion = $this->generarFolioRecepcion();
@@ -562,16 +523,12 @@ class RegistrarRecepcionInventario
                     default => MovimientoInventario::TIPO_ENTRADA,
                 };
 
-                // ---------------------------------------------
-                // CREACIÓN DEL ENCABEZADO
-                // Persiste el documento maestro de la recepción.
-                // ---------------------------------------------
-
                 /** @var RecepcionInventario $recepcion */
                 $recepcion = RecepcionInventario::query()->create([
                     'empresa_id' => $empresaBloqueada->id,
                     'almacen_id' => $almacenBloqueado->id,
                     'proveedor_id' => $proveedorBloqueado?->id,
+                    'orden_compra_id' => $ordenCompraBloqueada?->id,
                     'grupo_id' => $grupoId,
                     'folio' => $folioRecepcion,
                     'tipo' => $datos['tipo'],
@@ -582,12 +539,6 @@ class RegistrarRecepcionInventario
                     'recibido_por_id' => $actor->id,
                     'recibido_at' => $recibidoAt,
                 ]);
-
-                // ---------------------------------------------
-                // PROCESAMIENTO DE LÍNEAS
-                // Registra cada detalle, actualiza la existencia
-                // y asienta el movimiento correspondiente.
-                // ---------------------------------------------
 
                 foreach ($datos['lineas'] as $linea) {
                     $productoId = $linea['producto_id'];
@@ -697,6 +648,46 @@ class RegistrarRecepcionInventario
                     ]);
                 }
 
+                // ---------------------------------------------
+                // ACTUALIZACIÓN DE ORDEN DE COMPRA
+                // Acumula la cantidad recibida por partida y
+                // recalcula el estado de entrega de la orden.
+                // ---------------------------------------------
+
+                if ($ordenCompraBloqueada !== null) {
+                    foreach ($datos['lineas'] as $linea) {
+                        /** @var OrdenCompraDetalle|null $detalleOrden */
+                        $detalleOrden = $ordenCompraBloqueada->detalles
+                            ->firstWhere('producto_id', $linea['producto_id']);
+
+                        if ($detalleOrden !== null) {
+                            $nuevaCantidadRecibida = bcadd(
+                                (string) $detalleOrden->cantidad_recibida,
+                                $linea['cantidad'],
+                                4
+                            );
+
+                            $detalleOrden->update([
+                                'cantidad_recibida' => $nuevaCantidadRecibida,
+                            ]);
+                        }
+                    }
+
+                    $ordenCompraBloqueada->refresh();
+                    $completada = true;
+                    /** @var OrdenCompraDetalle $det */
+                    foreach ($ordenCompraBloqueada->detalles as $det) {
+                        if (bccomp((string) $det->cantidad_recibida, (string) $det->cantidad, 4) < 0) {
+                            $completada = false;
+                            break;
+                        }
+                    }
+
+                    $ordenCompraBloqueada->update([
+                        'estado' => $completada ? 'recibida_total' : 'recibida_parcial',
+                    ]);
+                }
+
                 $recepcionActualizada = $recepcion->fresh();
 
                 if ($recepcionActualizada === null) {
@@ -709,6 +700,7 @@ class RegistrarRecepcionInventario
                     'empresa',
                     'almacen',
                     'proveedor',
+                    'ordenCompra',
                     'recibidoPor',
                     'detalles.producto',
                 ]);
@@ -719,14 +711,12 @@ class RegistrarRecepcionInventario
 
     // ---------------------------------------------------------
     // GENERAR FOLIO DE RECEPCIÓN
-    // Genera un identificador legible y único para el documento.
     // ---------------------------------------------------------
 
     private function generarFolioRecepcion(): string
     {
         return 'REC-'
             .now()->format('YmdHisv')
-            .'-'
             .Str::upper(
                 Str::random(6)
             );
@@ -734,14 +724,12 @@ class RegistrarRecepcionInventario
 
     // ---------------------------------------------------------
     // GENERAR FOLIO DE MOVIMIENTO
-    // Genera un identificador único para cada movimiento de línea.
     // ---------------------------------------------------------
 
     private function generarFolioMovimiento(): string
     {
         return 'MOV-'
             .now()->format('YmdHisv')
-            .'-'
             .Str::upper(
                 Str::random(6)
             );
