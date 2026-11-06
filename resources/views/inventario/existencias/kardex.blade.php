@@ -12,6 +12,19 @@
                     @endif
                 </p>
             </div>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('inventario.kardex.pdf', ['empresa' => $empresa, 'producto' => $producto, 'almacen' => $almacen?->id]) }}"
+                   class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Descargar Kardex PDF
+                </a>
+                <a href="{{ route('inventario.existencias.index', $empresa) }}"
+                   class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition">
+                    ← Volver a Existencias
+                </a>
+            </div>
             <a href="{{ route('inventario.existencias.index', $empresa) }}"
                class="rounded-lg bg-zinc-800 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 transition">
                 ← Volver a existencias
