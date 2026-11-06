@@ -72,6 +72,9 @@ class RecepcionInventario extends Model
         'importe_total',
         'recibido_por_id',
         'recibido_at',
+        'proveedor_id',
+        'orden_compra_id',
+        'tipo',
     ];
 
     // ---------------------------------------------------------
@@ -187,5 +190,10 @@ class RecepcionInventario extends Model
             self::TIPO_DEVOLUCION,
             self::TIPO_AJUSTE_POSITIVO,
         ];
+    }
+
+    public function ordenCompra(): BelongsTo
+    {
+        return $this->belongsTo(OrdenCompra::class, 'orden_compra_id');
     }
 }
