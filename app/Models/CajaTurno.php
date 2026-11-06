@@ -82,4 +82,9 @@ class CajaTurno extends Model
     {
         return $this->hasMany(VentaPago::class, 'caja_turno_id');
     }
+
+    public function movimientos(): HasMany
+    {
+        return $this->hasMany(CajaMovimiento::class, 'caja_turno_id');
+    }
 }
