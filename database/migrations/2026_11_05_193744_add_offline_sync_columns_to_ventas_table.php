@@ -8,16 +8,20 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('ventas', function (Blueprint $table) {
-            $table->string('origen_registro', 20)->default('online')->after('estado');
-            $table->timestamp('sincronizado_at')->nullable()->after('origen_registro');
-        });
+        if (Schema::hasTable('ventas') && ! Schema::hasColumn('ventas', 'origen_registro')) {
+            Schema::table('ventas', function (Blueprint $table) {
+                $table->enum('origen_registro', ['online', 'offline'])->default('online')->after('estado');
+                $table->timestamp('sincronizado_at')->nullable()->after('origen_registro');
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('ventas', function (Blueprint $table) {
-            $table->dropColumn(['origen_registro', 'sincronizado_at']);
-        });
+        if (Schema::hasTable('ventas') && Schema::hasColumn('ventas', 'origen_registro')) {
+            Schema::table('ventas', function (Blueprint $table) {
+                $table->dropColumn(['origen_registro', 'sincronizado_at']);
+            });
+        }
     }
 };

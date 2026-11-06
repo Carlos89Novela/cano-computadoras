@@ -8,15 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('venta_detalles', function (Blueprint $table) {
-            $table->uuid('uuid')->nullable()->after('id')->unique();
-        });
+        if (Schema::hasTable('venta_detalles') && ! Schema::hasColumn('venta_detalles', 'uuid')) {
+            Schema::table('venta_detalles', function (Blueprint $table) {
+                $table->uuid('uuid')->nullable()->after('id')->unique();
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('venta_detalles', function (Blueprint $table) {
-            $table->dropColumn('uuid');
-        });
+        if (Schema::hasTable('venta_detalles') && Schema::hasColumn('venta_detalles', 'uuid')) {
+            Schema::table('venta_detalles', function (Blueprint $table) {
+                $table->dropColumn('uuid');
+            });
+        }
     }
 };
