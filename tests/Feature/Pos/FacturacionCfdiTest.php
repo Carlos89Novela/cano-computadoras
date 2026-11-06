@@ -17,6 +17,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -222,5 +223,23 @@ class FacturacionCfdiTest extends TestCase
         $this->assertSame('facturada', $venta2->estado_facturacion);
         $this->assertNotNull($venta1->uuid_fiscal);
         $this->assertNotNull($venta2->uuid_fiscal);
+    }
+
+    #[Test]
+    public function usuario_puede_descargar_representacion_impresa_en_pdf(): void
+    {
+        $venta = $this->crearVentaPrueba('V-PDF-001', 'facturada');
+        $venta->update([
+            'uuid_fiscal' => (string) Str::uuid(),
+            'serie_folio_factura' => 'POS-V-PDF-001',
+            'facturado_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin)->get(
+            route('facturacion.ventas.descargar-pdf', $venta)
+        );
+
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
     }
 }
