@@ -5,7 +5,6 @@ namespace App\Http\Requests\Auth;
 use App\Models\User;
 use App\Services\Auditoria\RegistrarAcceso;
 use Illuminate\Auth\Events\Lockout;
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -16,10 +15,11 @@ use Illuminate\Validation\ValidationException;
  * Solicitud de Validación y Seguridad para el Inicio de Sesión.
  *
  * Encapsula la autenticación robusta y la defensa contra ataques de fuerza bruta:
- * - Validación sintáctica de correo y contraseña.
- * - Limitación de tasa (Rate Limiting) por combinación de correo normalizado e IP (máximo 5 intentos).
+ * - Soporte de autenticación dual: Correo Electrónico Institucional o Número de Empleado.
+ * - Validación sintáctica de identificador y contraseña.
+ * - Limitación de tasa (Rate Limiting) por identificador normalizado e IP (máximo 5 intentos).
  * - Telemetría de seguridad automática mediante `RegistrarAcceso`:
- *   - Registra eventos de 'inicio_fallido' ante contraseñas incorrectas.
+ *   - Registra eventos de 'inicio_fallido' ante credenciales incorrectas.
  *   - Registra eventos de 'bloqueo_temporal' cuando se activa el límite de intentos.
  * - Despacho del evento `Lockout` para alertas del sistema.
  */
@@ -36,46 +36,50 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Reglas de validación aplicables a las credenciales provistas.
+     * Reglas de validación para el inicio de sesión.
      *
-     * @return array<string, ValidationRule|array<mixed>|string> Reglas de validación.
+     * @return array<string, array<int, string>>
      */
     public function rules(): array
     {
         return [
-            // Correo del usuario registrado
-            'email' => ['required', 'string', 'email'],
-            // Contraseña en texto plano para validación contra el hash
+            'login' => ['required', 'string'],
             'password' => ['required', 'string'],
         ];
     }
 
     /**
-     * Intenta autenticar las credenciales del usuario controlando el limitador de tasa.
+     * Intenta autenticar las credenciales proporcionadas.
      *
-     * @throws ValidationException Si el límite de intentos fue excedido o las credenciales son inválidas.
+     * @throws ValidationException
      */
     public function authenticate(): void
     {
-        // Verifica si la IP y el correo están temporalmente bloqueados por exceso de intentos
+        // Verifica si la IP y el identificador están temporalmente bloqueados por exceso de intentos
         $this->ensureIsNotRateLimited();
 
+        $login = trim((string) $this->input('login'));
+        $esCorreo = (bool) filter_var($login, FILTER_VALIDATE_EMAIL);
+        $campoIdentificador = $esCorreo ? 'email' : 'numero_empleado';
+
+        $credenciales = [
+            $campoIdentificador => $login,
+            'password' => (string) $this->input('password'),
+        ];
+
         // Intenta autenticar con el guard web de Laravel
-        if (
-            ! Auth::attempt(
-                $this->only('email', 'password'),
-                $this->boolean('remember')
-            )
-        ) {
+        if (! Auth::attempt($credenciales, $this->boolean('remember'))) {
             // Incrementa el contador de intentos fallidos en la clave de limitación
             RateLimiter::hit($this->throttleKey());
 
-            $correo = (string) $this->input('email');
-
-            // Intenta localizar si el usuario existe para enriquecer el registro de auditoría
+            // Intenta localizar al usuario para enriquecer la telemetría de auditoría
+            /** @var User|null $usuario */
             $usuario = User::query()
-                ->where('email', $correo)
+                ->where('email', $login)
+                ->orWhere('numero_empleado', $login)
                 ->first();
+
+            $correoAuditoria = $usuario instanceof User ? $usuario->email : $login;
 
             // Registra el fallo de autenticación en la bitácora de seguridad
             app(RegistrarAcceso::class)->registrar(
@@ -83,12 +87,12 @@ class LoginRequest extends FormRequest
                 resultado: 'fallido',
                 request: $this,
                 usuario: $usuario,
-                correoIntentado: $correo,
+                correoIntentado: $correoAuditoria,
                 motivoFallo: 'Credenciales inválidas.'
             );
 
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                'login' => trans('auth.failed'),
             ]);
         }
 
@@ -114,12 +118,14 @@ class LoginRequest extends FormRequest
         // Calcula los segundos restantes antes de que expire la penalización
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
+        $login = trim((string) $this->input('login'));
+
         // Registra el incidente de bloqueo temporal por fuerza bruta
         app(RegistrarAcceso::class)->registrar(
             evento: 'bloqueo_temporal',
             resultado: 'bloqueado',
             request: $this,
-            correoIntentado: (string) $this->input('email'),
+            correoIntentado: $login,
             motivoFallo: 'Demasiados intentos de inicio de sesión.',
             metadatos: [
                 'segundos_restantes' => $seconds,
@@ -127,7 +133,7 @@ class LoginRequest extends FormRequest
         );
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
+            'login' => trans('auth.throttle', [
                 'seconds' => $seconds,
                 'minutes' => ceil($seconds / 60),
             ]),
@@ -135,12 +141,14 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Construye la clave única de limitación de tasa basada en el correo en minúsculas y la IP del cliente.
+     * Construye la clave única de limitación de tasa basada en el identificador normalizado y la IP.
      *
      * @return string Clave de limitación de tasa.
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        $login = trim((string) $this->input('login'));
+
+        return Str::transliterate(Str::lower($login).'|'.$this->ip());
     }
 }

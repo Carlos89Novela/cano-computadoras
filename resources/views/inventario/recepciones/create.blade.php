@@ -2,34 +2,39 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <div>
-                <h2 class="font-bold text-2xl text-gray-100 leading-tight">
-                    Recepción de Inventario
+                <h2 class="text-xl font-bold tracking-tight text-white">
+                    Recepción de Mercancía en Almacén
                 </h2>
-                <p class="text-sm text-gray-400 mt-1">
-                    Empresa: <span class="font-semibold text-purple-400">{{ $empresa->nombre }}</span>
+                <p class="text-xs text-slate-400 mt-1">
+                    Ingreso múltiple de artículos con cálculo de Costo Promedio Ponderado (CPP) y enlace a Órdenes de Compra.
                 </p>
             </div>
-            <a href="{{ route('dashboard') }}" class="text-sm font-medium text-gray-400 hover:text-white transition">
-                &larr; Volver al panel
+            <a href="{{ route('inventario.recepciones.index', $empresa) }}"
+               class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition">
+                ← Ver Historial de Recepciones
             </a>
         </div>
     </x-slot>
 
-    <div class="py-8 text-gray-200" x-data="recepcionForm()">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+    <div class="py-6" x-data="recepcionMercancia({
+        empresaId: {{ $empresa->id }},
+        catalogoProductos: {{ Js::from($productos) }},
+        ordenesCompra: {{ Js::from($ordenesCompra) }},
+        urlOrdenData: '{{ route('inventario.recepciones.orden-data', ['empresa' => $empresa->id, 'orden' => ':ORDEN_ID:']) }}'
+    })">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
+            {{-- Mensajes de Notificación --}}
             @if (session('success'))
-                <div class="p-4 bg-emerald-950/60 border border-emerald-600/50 text-emerald-300 rounded-lg shadow-lg">
-                    <p class="font-medium flex items-center gap-2">
-                        <span>✔</span> {{ session('success') }}
-                    </p>
+                <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl text-xs font-medium">
+                    {{ session('success') }}
                 </div>
             @endif
 
             @if ($errors->any())
-                <div class="p-4 bg-rose-950/60 border border-rose-600/50 text-rose-300 rounded-lg shadow-lg">
-                    <p class="font-semibold mb-1">Por favor verifica los siguientes campos:</p>
-                    <ul class="list-disc list-inside text-sm space-y-1">
+                <div class="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl text-xs font-medium space-y-1">
+                    <div class="font-bold">Por favor corrige los siguientes errores:</div>
+                    <ul class="list-disc pl-5">
                         @foreach ($errors->all() as $error)
                             <li>{{ $error }}</li>
                         @endforeach
@@ -40,222 +45,314 @@
             <form action="{{ route('inventario.recepciones.store', $empresa) }}" method="POST" class="space-y-6">
                 @csrf
 
-                <!-- Sección 1: Encabezado -->
-                <div class="bg-gray-900 border border-gray-800 overflow-hidden shadow-xl sm:rounded-xl p-6">
-                    <h3 class="text-lg font-semibold text-white border-b border-gray-800 pb-3 mb-5 flex items-center gap-2">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-xs text-white">1</span>
-                        Encabezado de la Recepción
+                {{-- Campo oculto para la orden vinculada --}}
+                <input type="hidden" name="orden_compra_id" :value="form.orden_compra_id">
+
+                {{-- Panel 1: Parámetros del Documento y Logística --}}
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider pb-2 border-b border-slate-800">
+                        1. Información General y Origen
                     </h3>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <!-- Almacén -->
-                        <div>
-                            <label for="almacen_id" class="block text-sm font-medium text-gray-300">
-                                Almacén de Destino <span class="text-rose-400">*</span>
-                            </label>
-                            <select id="almacen_id" name="almacen_id" required
-                                class="mt-1.5 block w-full rounded-lg bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
-                                <option value="" class="bg-gray-800 text-gray-400">-- Seleccionar Almacén --</option>
-                                @foreach ($almacenes as $almacen)
-                                    <option value="{{ $almacen->id }}" class="bg-gray-800 text-gray-100" {{ old('almacen_id') == $almacen->id ? 'selected' : '' }}>
-                                        {{ $almacen->nombre }} ({{$almacen->codigo }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <!-- Tipo de Recepción -->
-                        <div>
-                            <label for="tipo" class="block text-sm font-medium text-gray-300">
-                                Tipo de Entrada <span class="text-rose-400">*</span>
-                            </label>
-                            <select id="tipo" name="tipo" x-model="tipo" required
-                                class="mt-1.5 block w-full rounded-lg bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
-                                @foreach ($tipos as $tipoItem)
-                                    <option value="{{ $tipoItem }}" class="bg-gray-800 text-gray-100" {{ old('tipo', 'compra') === $tipoItem ? 'selected' : '' }}>
-                                        {{ ucfirst(str_replace('_', ' ', $tipoItem)) }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <!-- Proveedor (Condicional) -->
-                        <div x-show="tipo === 'compra'" x-cloak>
-                            <label for="proveedor_id" class="block text-sm font-medium text-gray-300">
-                                Proveedor <span class="text-rose-400">*</span>
-                            </label>
-                            <select id="proveedor_id" name="proveedor_id" :required="tipo === 'compra'"
-                                class="mt-1.5 block w-full rounded-lg bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
-                                <option value="" class="bg-gray-800 text-gray-400">-- Seleccionar Proveedor --</option>
-                                @foreach ($proveedores as $proveedor)
-                                    <option value="{{ $proveedor->id }}" class="bg-gray-800 text-gray-100" {{ old('proveedor_id') == $proveedor->id ? 'selected' : '' }}>
-                                        {{ $proveedor->nombre }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <!-- Referencia Externa -->
-                        <div>
-                            <label for="referencia_externa" class="block text-sm font-medium text-gray-300">
-                                Referencia Externa (Factura / Remisión)
-                            </label>
-                            <input type="text" id="referencia_externa" name="referencia_externa"
-                                value="{{ old('referencia_externa') }}" placeholder="Ej. FAC-2026-001"
-                                class="mt-1.5 block w-full rounded-lg bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
-                        </div>
-
-                        <!-- Motivo -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        {{-- Enlace a Orden de Compra --}}
                         <div class="md:col-span-2">
-                            <label for="motivo" class="block text-sm font-medium text-gray-300">
-                                Motivo / Justificación <span class="text-rose-400">*</span>
+                            <label class="text-xs text-slate-300 block mb-1 font-medium">
+                                Enlazar a Orden de Compra (Opcional)
                             </label>
-                            <input type="text" id="motivo" name="motivo" required
-                                value="{{ old('motivo') }}" placeholder="Ej. Compra mensual de componentes de ensamble"
-                                class="mt-1.5 block w-full rounded-lg bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
+                            <select x-model="form.orden_compra_id" @change="cargarDatosOrdenCompra()"
+                                    class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                                <option value="">-- Entrada Directa / Sin Orden Previa --</option>
+                                <template x-for="oc in ordenesCompra" :key="oc.id">
+                                    <option :value="oc.id" x-text="`${oc.folio} - ${oc.proveedor?.razon_social || oc.proveedor?.nombre_comercial || 'Proveedor'} [${oc.estado.toUpperCase()}]`"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        {{-- Tipo de Recepción --}}
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1 font-medium">Tipo de Entrada *</label>
+                            <select name="tipo" x-model="form.tipo" required
+                                    class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                                @foreach ($tipos as $tipo)
+                                    <option value="{{ $tipo }}">{{ ucfirst(str_replace('_', ' ', $tipo)) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Almacén Destino --}}
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1 font-medium">Almacén Destino *</label>
+                            <select name="almacen_id" x-model.number="form.almacen_id" required :disabled="form.orden_compra_id !== ''"
+                                    class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50">
+                                <option value="">Seleccione almacén...</option>
+                                @foreach ($almacenes as $alm)
+                                    <option value="{{ $alm->id }}">{{ $alm->nombre }} ({{ $alm->codigo }})</option>
+                                @endforeach
+                            </select>
+                            {{-- Respaldo si el campo está disabled --}}
+                            <template x-if="form.orden_compra_id !== ''">
+                                <input type="hidden" name="almacen_id" :value="form.almacen_id">
+                            </template>
+                        </div>
+
+                        {{-- Proveedor --}}
+                        <div class="md:col-span-2">
+                            <label class="text-xs text-slate-300 block mb-1 font-medium">Proveedor *</label>
+                            <select name="proveedor_id" x-model.number="form.proveedor_id" required :disabled="form.orden_compra_id !== ''"
+                                    class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50">
+                                <option value="">Seleccione proveedor...</option>
+                                @foreach ($proveedores as $prov)
+                                    <option value="{{ $prov->id }}">{{ $prov->razon_social ?? $prov->nombre_comercial ?? $prov->nombre }} ({{ $prov->rfc }})</option>
+                                @endforeach
+                            </select>
+                            <template x-if="form.orden_compra_id !== ''">
+                                <input type="hidden" name="proveedor_id" :value="form.proveedor_id">
+                            </template>
+                        </div>
+
+                        {{-- Factura / Remisión Externa --}}
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1 font-medium">Factura / Remisión</label>
+                            <input type="text" name="referencia_externa" x-model="form.referencia_externa" placeholder="ej. FAC-A-8941"
+                                   class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white uppercase focus:outline-none focus:border-indigo-500">
+                        </div>
+
+                        {{-- Justificación / Motivo --}}
+                        <div>
+                            <label class="text-xs text-slate-300 block mb-1 font-medium">Motivo de Recepción *</label>
+                            <input type="text" name="motivo" x-model="form.motivo" required placeholder="ej. Surtido de pedido de refacciones"
+                                   class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
                         </div>
                     </div>
                 </div>
 
-                <!-- Sección 2: Tabla de Líneas Dinámicas -->
-                <div class="bg-gray-900 border border-gray-800 overflow-hidden shadow-xl sm:rounded-xl p-6">
-                    <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-5">
+                {{-- Panel 2: Desglose de Partidas Recibidas --}}
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-800">
                         <div>
-                            <h3 class="text-lg font-semibold text-white flex items-center gap-2">
-                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-xs text-white">2</span>
-                                Líneas de Productos
+                            <h3 class="text-sm font-bold text-white uppercase tracking-wider">
+                                2. Partidas y Existencias
                             </h3>
-                            <p class="text-xs text-gray-400 mt-0.5">
-                                Agrega los artículos recibidos con sus cantidades y costos pactados.
-                            </p>
+                            <p class="text-[11px] text-slate-400">Verifica la cantidad física que ingresa y el costo unitario para el recálculo del Costo Promedio.</p>
                         </div>
-                        <button type="button" @click="agregarLinea()"
-                            class="inline-flex items-center px-4 py-2 border border-purple-500/30 text-sm font-medium rounded-lg text-purple-200 bg-purple-900/40 hover:bg-purple-800/60 shadow-sm transition">
-                            + Agregar Producto
-                        </button>
+                        <template x-if="form.orden_compra_id === ''">
+                            <button type="button" @click="agregarLineaVacia()"
+                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                                + Agregar Artículo
+                            </button>
+                        </template>
                     </div>
 
-                    <div class="overflow-x-auto rounded-lg border border-gray-800">
-                        <table class="min-w-full divide-y divide-gray-800 text-sm">
-                            <thead class="bg-gray-800/60 text-gray-300 uppercase tracking-wider text-xs">
-                                <tr>
-                                    <th class="px-4 py-3 text-left font-semibold">Producto</th>
-                                    <th class="px-4 py-3 text-right font-semibold w-36">Cantidad</th>
-                                    <th class="px-4 py-3 text-right font-semibold w-40">Costo Unit. ($)</th>
-                                    <th class="px-4 py-3 text-right font-semibold w-40">Subtotal ($)</th>
-                                    <th class="px-4 py-3 text-center font-semibold w-20">Acción</th>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-800 text-slate-400 uppercase font-semibold text-[10px]">
+                                    <th class="py-2.5 px-3">Artículo / Producto</th>
+                                    <template x-if="form.orden_compra_id !== ''">
+                                        <th class="py-2.5 px-3 text-center">Solicitado</th>
+                                    </template>
+                                    <template x-if="form.orden_compra_id !== ''">
+                                        <th class="py-2.5 px-3 text-center">Pendiente</th>
+                                    </template>
+                                    <th class="py-2.5 px-3 text-center w-32">Cant. Recibida *</th>
+                                    <th class="py-2.5 px-3 text-right w-36">Costo Unitario ($) *</th>
+                                    <th class="py-2.5 px-3 text-right w-36">Importe ($)</th>
+                                    <th class="py-2.5 px-3 text-center w-12"></th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-800 bg-gray-900/50">
-                                <template x-for="(linea, index) in lineas" :key="index">
-                                    <tr class="hover:bg-gray-800/30 transition">
-                                        <!-- Producto -->
-                                        <td class="px-4 py-2.5">
-                                            <select :name="`lineas[${index}][producto_id]`" x-model="linea.producto_id"
-                                                @change="onProductoChange(index)" required
-                                                class="block w-full rounded-lg bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm">
-                                                <option value="" class="bg-gray-800 text-gray-400">-- Seleccionar Producto --</option>
-                                                <template x-for="p in catalogoProductos" :key="p.id">
-                                                    <option :value="p.id" x-text="`${p.sku} - ${p.nombre}`"
-                                                        :disabled="esProductoYaSeleccionado(p.id, index)"
-                                                        class="bg-gray-800 text-gray-100">
-                                                    </option>
-                                                </template>
-                                            </select>
+                            <tbody class="divide-y divide-slate-800/60">
+                                <template x-for="(linea, idx) in lineas" :key="idx">
+                                    <tr class="hover:bg-slate-800/30 transition">
+                                        {{-- Selector de Producto --}}
+                                        <td class="py-2.5 px-3">
+                                            <template x-if="form.orden_compra_id !== ''">
+                                                <div>
+                                                    <span class="font-bold text-white" x-text="linea.nombre"></span>
+                                                    <span class="block text-[10px] font-mono text-indigo-400" x-text="`SKU: ${linea.sku}`"></span>
+                                                    <input type="hidden" :name="`lineas[${idx}][producto_id]`" :value="linea.producto_id">
+                                                </div>
+                                            </template>
+                                            <template x-if="form.orden_compra_id === ''">
+                                                <select :name="`lineas[${idx}][producto_id]`" x-model.number="linea.producto_id" required
+                                                        @change="onProductoSeleccionado(idx)"
+                                                        class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+                                                    <option value="">Seleccione un producto...</option>
+                                                    <template x-for="p in catalogoProductos" :key="p.id">
+                                                        <option :value="p.id" x-text="`${p.nombre} (${p.sku})`"></option>
+                                                    </template>
+                                                </select>
+                                            </template>
                                         </td>
 
-                                        <!-- Cantidad -->
-                                        <td class="px-4 py-2.5 text-right">
-                                            <input type="number" step="0.0001" min="0.0001" :name="`lineas[${index}][cantidad]`"
-                                                x-model="linea.cantidad" required placeholder="0.0000"
-                                                class="block w-full text-right rounded-lg bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm">
+                                        {{-- Cantidad Solicitada (solo OC) --}}
+                                        <template x-if="form.orden_compra_id !== ''">
+                                            <td class="py-2.5 px-3 text-center font-mono text-slate-300" x-text="Number(linea.cantidad_solicitada).toFixed(2)"></td>
+                                        </template>
+
+                                        {{-- Cantidad Pendiente (solo OC) --}}
+                                        <template x-if="form.orden_compra_id !== ''">
+                                            <td class="py-2.5 px-3 text-center font-mono font-semibold text-amber-400" x-text="Number(linea.cantidad_pendiente).toFixed(2)"></td>
+                                        </template>
+
+                                        {{-- Cantidad Recibida --}}
+                                        <td class="py-2.5 px-3">
+                                            <input type="number" step="0.0001" min="0.0001" :max="form.orden_compra_id ? linea.cantidad_pendiente : null"
+                                                   :name="`lineas[${idx}][cantidad]`" x-model.number="linea.cantidad" required
+                                                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-center font-mono text-white focus:outline-none focus:border-indigo-500">
                                         </td>
 
-                                        <!-- Costo Unitario -->
-                                        <td class="px-4 py-2.5 text-right">
-                                            <input type="number" step="0.0001" min="0" :name="`lineas[${index}][costo_unitario]`"
-                                                x-model="linea.costo_unitario" required placeholder="0.0000"
-                                                class="block w-full text-right rounded-lg bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm">
+                                        {{-- Costo Unitario --}}
+                                        <td class="py-2.5 px-3">
+                                            <input type="number" step="0.0001" min="0" :name="`lineas[${idx}][costo_unitario]`"
+                                                   x-model.number="linea.costo_unitario" required
+                                                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-right font-mono text-white focus:outline-none focus:border-indigo-500">
                                         </td>
 
-                                        <!-- Subtotal -->
-                                        <td class="px-4 py-2.5 text-right font-semibold text-gray-200">
-                                            $<span x-text="calcularSubtotal(linea)"></span>
+                                        {{-- Subtotal Calculado --}}
+                                        <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-400"
+                                            x-text="`$${(Number(linea.cantidad || 0) * Number(linea.costo_unitario || 0)).toFixed(2)}`">
                                         </td>
 
-                                        <!-- Eliminar -->
-                                        <td class="px-4 py-2.5 text-center">
-                                            <button type="button" @click="eliminarLinea(index)"
-                                                :disabled="lineas.length === 1"
-                                                :class="lineas.length === 1 ? 'opacity-20 cursor-not-allowed text-gray-600' : 'text-rose-400 hover:text-rose-200'"
-                                                class="font-bold text-lg leading-none transition">
+                                        {{-- Eliminar Fila --}}
+                                        <td class="py-2.5 px-3 text-center">
+                                            <button type="button" @click="eliminarLinea(idx)" class="text-rose-400 hover:text-rose-300 font-bold p-1">
                                                 &times;
                                             </button>
                                         </td>
                                     </tr>
                                 </template>
+
+                                <template x-if="lineas.length === 0">
+                                    <tr>
+                                        <td :colspan="form.orden_compra_id !== '' ? 7 : 5" class="py-8 text-center text-slate-500 text-xs">
+                                            No hay productos agregados para la recepción.
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
-                            <tfoot class="bg-gray-800/80 border-t border-gray-700">
-                                <tr>
-                                    <td colspan="3" class="px-4 py-3.5 text-right font-bold text-gray-300">
-                                        Total General:
-                                    </td>
-                                    <td class="px-4 py-3.5 text-right font-extrabold text-purple-400 text-lg">
-                                        $<span x-text="calcularTotalGeneral()"></span>
-                                    </td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
                         </table>
                     </div>
 
-                    <!-- Botón Enviar -->
-                    <div class="mt-6 flex justify-end">
-                        <button type="submit"
-                            class="inline-flex items-center px-6 py-3 border border-transparent text-base font-semibold rounded-lg shadow-lg text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 focus:ring-offset-gray-900 transition">
-                            Confirmar y Registrar Recepción
-                        </button>
+                    {{-- Resumen de Importe Total --}}
+                    <div class="pt-4 border-t border-slate-800 flex justify-end">
+                        <div class="w-64 space-y-2 text-xs">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Partidas:</span>
+                                <span class="text-white font-mono font-bold" x-text="lineas.length"></span>
+                            </div>
+                            <div class="flex justify-between text-sm font-bold text-white pt-2 border-t border-slate-800">
+                                <span>Total Valuado:</span>
+                                <span class="text-emerald-400 font-mono text-base" x-text="`$${totalImporte.toFixed(2)}`"></span>
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                {{-- Botones de Acción --}}
+                <div class="flex items-center justify-end gap-3">
+                    <a href="{{ route('inventario.recepciones.index', $empresa) }}"
+                       class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition">
+                        Cancelar
+                    </a>
+                    <button type="submit" :disabled="lineas.length === 0"
+                            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/20 transition">
+                        Confirmar y Asentar Recepción en Inventario
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 
+    {{-- Lógica Reactiva Alpine.js --}}
     <script>
-        function recepcionForm() {
+        function recepcionMercancia(params) {
             return {
-                tipo: '{{ old('tipo', 'compra') }}',
-                catalogoProductos: @json($productos),
-                lineas: [
-                    { producto_id: '', cantidad: '1.0000', costo_unitario: '0.0000' }
-                ],
-                agregarLinea() {
-                    this.lineas.push({ producto_id: '', cantidad: '1.0000', costo_unitario: '0.0000' });
+                catalogoProductos: params.catalogoProductos || [],
+                ordenesCompra: params.ordenesCompra || [],
+                urlOrdenData: params.urlOrdenData,
+
+                form: {
+                    orden_compra_id: '',
+                    tipo: 'compra',
+                    almacen_id: '',
+                    proveedor_id: '',
+                    referencia_externa: '',
+                    motivo: 'Recepción de mercancía a almacén'
                 },
-                eliminarLinea(index) {
-                    if (this.lineas.length > 1) {
-                        this.lineas.splice(index, 1);
+
+                lineas: [],
+
+                init() {
+                    // Inicializar con una línea vacía si no hay orden seleccionada
+                    if (this.lineas.length === 0) {
+                        this.agregarLineaVacia();
                     }
                 },
-                onProductoChange(index) {
-                    const prodId = this.lineas[index].producto_id;
-                    const prod = this.catalogoProductos.find(p => p.id == prodId);
-                    if (prod && prod.costo_referencia) {
-                        this.lineas[index].costo_unitario = parseFloat(prod.costo_referencia).toFixed(4);
+
+                agregarLineaVacia() {
+                    this.lineas.push({
+                        producto_id: '',
+                        sku: '',
+                        nombre: '',
+                        cantidad_solicitada: 0,
+                        cantidad_pendiente: 0,
+                        cantidad: 1,
+                        costo_unitario: 0
+                    });
+                },
+
+                eliminarLinea(idx) {
+                    this.lineas.splice(idx, 1);
+                },
+
+                onProductoSeleccionado(idx) {
+                    const prodId = this.lineas[idx].producto_id;
+                    const prod = this.catalogoProductos.find(p => p.id === prodId);
+                    if (prod) {
+                        this.lineas[idx].costo_unitario = Number(prod.costo_referencia) || 0;
+                        this.lineas[idx].sku = prod.sku;
+                        this.lineas[idx].nombre = prod.nombre;
                     }
                 },
-                esProductoYaSeleccionado(prodId, currentIndex) {
-                    return this.lineas.some((linea, idx) => idx !== currentIndex && linea.producto_id == prodId);
+
+                async cargarDatosOrdenCompra() {
+                    const ordenId = this.form.orden_compra_id;
+
+                    if (!ordenId) {
+                        this.lineas = [];
+                        this.agregarLineaVacia();
+                        return;
+                    }
+
+                    try {
+                        const endpoint = this.urlOrdenData.replace(':ORDEN_ID:', ordenId);
+                        const res = await fetch(endpoint, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.form.almacen_id = data.almacen_id;
+                            this.form.proveedor_id = data.proveedor_id;
+                            this.form.motivo = `Recepción de Orden de Compra: ${data.folio}`;
+                            this.lineas = data.lineas;
+                        } else {
+                            alert('No fue posible cargar los datos de la orden de compra seleccionada.');
+                        }
+                    } catch (e) {
+                        console.error('Error al consultar orden de compra:', e);
+                        alert('Error de red al consultar la orden.');
+                    }
                 },
-                calcularSubtotal(linea) {
-                    const cant = parseFloat(linea.cantidad) || 0;
-                    const costo = parseFloat(linea.costo_unitario) || 0;
-                    return (cant * costo).toFixed(4);
-                },
-                calcularTotalGeneral() {
-                    return this.lineas.reduce((acumulado, linea) => {
-                        return acumulado + (parseFloat(this.calcularSubtotal(linea)) || 0);
-                    }, 0).toFixed(4);
+
+                get totalImporte() {
+                    return this.lineas.reduce((acc, linea) => {
+                        return acc + (Number(linea.cantidad || 0) * Number(linea.costo_unitario || 0));
+                    }, 0);
                 }
             };
         }

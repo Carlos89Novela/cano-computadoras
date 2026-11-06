@@ -32,6 +32,10 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property int $id
+ * @property int|null $empresa_id
+ * @property-read Empresa|null $empresa
+ * @property-read Sucursal|null $sucursal
  */
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -45,8 +49,10 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $fillable = [
         'name',
+        'numero_empleado',
         'email',
         'password',
+        'role',
         'es_propietario',
     ];
 

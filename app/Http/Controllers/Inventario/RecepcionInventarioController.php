@@ -7,10 +7,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventario\RecepcionInventarioRequest;
 use App\Models\Almacen;
 use App\Models\Empresa;
+use App\Models\OrdenCompra;
+use App\Models\OrdenCompraDetalle;
+use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\RecepcionInventario;
 use App\Models\RecepcionInventarioDetalle;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -92,6 +96,13 @@ class RecepcionInventarioController extends Controller
             ->orderBy('nombre')
             ->get(['id', 'sku', 'nombre', 'costo_referencia']);
 
+        $ordenesCompra = OrdenCompra::query()
+            ->where('empresa_id', $empresa->id)
+            ->whereIn('estado', ['autorizada', 'recibida_parcial'])
+            ->with(['proveedor', 'almacen:id,nombre'])
+            ->latest('id')
+            ->get();
+
         $tipos = RecepcionInventario::tiposPermitidos();
 
         return view('inventario.recepciones.create', compact(
@@ -99,6 +110,7 @@ class RecepcionInventarioController extends Controller
             'almacenes',
             'proveedores',
             'productos',
+            'ordenesCompra',
             'tipos'
         ));
     }
@@ -135,5 +147,40 @@ class RecepcionInventarioController extends Controller
         return redirect()
             ->route('inventario.recepciones.index', $empresa)
             ->with('success', "Recepción {$recepcion->folio} registrada correctamente.");
+    }
+
+    public function ordenCompraData(Empresa $empresa, OrdenCompra $orden): JsonResponse
+    {
+        abort_unless((int) $orden->empresa_id === (int) $empresa->id, 404);
+
+        $orden->load(['detalles.producto', 'proveedor', 'almacen']);
+
+        /** @var Collection<int, OrdenCompraDetalle> $detallesCollection */
+        $detallesCollection = $orden->detalles;
+
+        $detalles = $detallesCollection->map(function (OrdenCompraDetalle $det) {
+            $cantidad = (float) $det->cantidad;
+            $recibida = (float) $det->cantidad_recibida;
+            $pendiente = max(0.0, $cantidad - $recibida);
+            $producto = $det->producto;
+
+            return [
+                'producto_id' => (int) $det->producto_id,
+                'sku' => $producto instanceof Producto ? $producto->sku : 'N/A',
+                'nombre' => $producto instanceof Producto ? $producto->nombre : 'Producto',
+                'cantidad_solicitada' => $cantidad,
+                'cantidad_pendiente' => $pendiente,
+                'cantidad' => $pendiente,
+                'costo_unitario' => (float) $det->costo_unitario,
+            ];
+        })->filter(fn (array $linea) => $linea['cantidad_pendiente'] > 0)->values();
+
+        return response()->json([
+            'orden_id' => $orden->id,
+            'folio' => $orden->folio,
+            'proveedor_id' => $orden->proveedor_id,
+            'almacen_id' => $orden->almacen_id,
+            'lineas' => $detalles,
+        ]);
     }
 }
