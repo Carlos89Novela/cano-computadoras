@@ -7,6 +7,7 @@ use App\Jobs\Facturacion\TimbrarVentaJob;
 use App\Models\User;
 use App\Models\Venta;
 use App\Services\Facturacion\TimbrarVentaService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -78,5 +79,18 @@ class FacturacionController extends Controller
             'Content-Type' => 'application/xml',
             'Content-Disposition' => "attachment; filename=\"Factura-{$venta->uuid_fiscal}.xml\"",
         ]);
+    }
+
+    public function descargarPdf(Venta $venta): Response
+    {
+        abort_unless($venta->estado_facturacion === 'facturada', 404, 'La venta no se encuentra facturada.');
+
+        $venta->load(['detalles.producto', 'empresa', 'sucursal']);
+
+        /** @var \Barryvdh\DomPDF\PDF $pdf */
+        $pdf = Pdf::loadView('facturacion.cfdi_pdf', compact('venta'))
+            ->setPaper('letter', 'portrait');
+
+        return $pdf->download("Factura-{$venta->serie_folio_factura}.pdf");
     }
 }

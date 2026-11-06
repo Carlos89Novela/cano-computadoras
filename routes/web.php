@@ -636,6 +636,7 @@ Route::middleware(['auth', 'verified'])
         Route::post('/ventas/{venta}/timbrar', [FacturacionController::class, 'timbrar'])->name('ventas.timbrar');
         Route::get('/ventas/{venta}/descargar-xml', [FacturacionController::class, 'descargarXml'])->name('ventas.descargar-xml');
         Route::post('/lote-pendientes', [FacturacionController::class, 'procesarLotePendientes'])->name('lote-pendientes');
+        Route::get('/ventas/{venta}/descargar-pdf', [FacturacionController::class, 'descargarPdf'])->name('ventas.descargar-pdf');
     });
 
 require __DIR__.'/auth.php';
