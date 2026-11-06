@@ -17,6 +17,7 @@ use App\Http\Controllers\Inventario\RecepcionInventarioController;
 use App\Http\Controllers\Inventario\TransferenciaInventarioController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
+use App\Http\Controllers\Pos\CajaAuditoriaController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
 use App\Http\Controllers\Productos\ProductoController;
@@ -604,6 +605,19 @@ Route::middleware([
             ->middleware('permission:compras.autorizar')
             ->name('autorizar');
         Route::patch('/{orden}/cancelar', [OrdenCompraController::class, 'cancelar'])->name('cancelar');
+    });
+
+// =========================================================
+// AUDITORÍA Y CORTES DE CAJA (SUPERVISIÓN)
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('operacion/cajas')
+    ->name('pos.cajas.')
+    ->group(function (): void {
+        Route::get('/', [CajaAuditoriaController::class, 'index'])->name('index');
+        Route::get('/{turno}', [CajaAuditoriaController::class, 'show'])->name('show');
+        Route::post('/{turno}/movimiento', [CajaAuditoriaController::class, 'registrarMovimiento'])->name('movimiento');
+        Route::get('/{turno}/corte-pdf', [CajaAuditoriaController::class, 'cortePdf'])->name('corte-pdf');
     });
 
 require __DIR__.'/auth.php';

@@ -1,70 +1,137 @@
-<nav x-data="{ open: false }" class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+<nav x-data="{ openMobile: false }" class="bg-slate-900 border-b border-slate-800 text-slate-200">
     @php
+        /** @var \App\Models\User $usuario */
         $usuario = auth()->user();
 
-        $cantidadNotificacionesNoLeidas = $usuario
-            ->unreadNotifications()
-            ->count();
+        $cantidadNotificacionesNoLeidas = $usuario->unreadNotifications()->count();
 
         $rutaDashboard = match (true) {
-            $usuario->hasRole('administrador') =>
-                route('admin.dashboard'),
-
-            $usuario->hasRole('supervisor') =>
-                route('supervisor.dashboard'),
-
-            $usuario->hasRole('empleado') =>
-                route('empleado.dashboard'),
-
-            default =>
-                route('dashboard'),
+            $usuario->hasRole('administrador') => route('admin.dashboard'),
+            $usuario->hasRole('supervisor') => route('supervisor.dashboard'),
+            $usuario->hasRole('empleado') => route('empleado.dashboard'),
+            default => route('dashboard'),
         };
 
-        $dashboardActivo = match (true) {
-            $usuario->hasRole('administrador') =>
-                request()->routeIs('admin.dashboard'),
-
-            $usuario->hasRole('supervisor') =>
-                request()->routeIs('supervisor.dashboard'),
-
-            $usuario->hasRole('empleado') =>
-                request()->routeIs('empleado.dashboard'),
-
-            default =>
-                request()->routeIs('dashboard'),
-        };
-
+        /** @var \App\Models\Empresa|null $empresaActual */
         $empresaActual = $usuario->empresa ?? \App\Models\Empresa::query()->where('activo', true)->first();
 
-        $empresasNavegacion = $usuario->hasRole('administrador')
-            && $usuario->esPropietario()
-                ? \App\Models\Empresa::query()
-                    ->where('activo', true)
-                    ->orderBy('nombre')
-                    ->get([
-                        'id',
-                        'nombre',
-                    ])
-                : collect();
+        $esAdminOSupervisor = $usuario->hasRole('administrador') || $usuario->hasRole('supervisor');
     @endphp
 
-    <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
-            <div class="flex">
+            <div class="flex items-center gap-6">
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a href="{{ $rutaDashboard }}">
-                        <x-application-logo class="block h-9 w-auto fill-current text-gray-800 dark:text-gray-200" />
+                        <x-application-logo class="block h-8 w-auto fill-current text-white" />
                     </a>
                 </div>
 
-                <!-- Navigation Links (Barra horizontal superior) -->
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="$rutaDashboard" :active="$dashboardActivo">
+                <!-- Enlaces Principales en Desktop -->
+                <div class="hidden md:flex items-center space-x-2">
+                    <!-- 1. Enlace Directo: Dashboard -->
+                    <x-nav-link :href="$rutaDashboard" :active="request()->routeIs('*dashboard*')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
 
+                    <!-- 2. Enlace Directo: POS Mostrador (Acceso Rápido) -->
+                    @if ($esAdminOSupervisor || $usuario->hasRole('empleado'))
+                        <a href="{{ route('pos.index') }}"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition {{ request()->routeIs('pos.index') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60 border border-indigo-500/30' }}">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            POS Mostrador
+                        </a>
+                    @endif
+
+                    <!-- 3. Desplegable: Operación y Ventas -->
+                    @if ($esAdminOSupervisor || $usuario->hasRole('empleado'))
+                        <div class="relative" x-data="{ open: false }" @click.outside="open = false" @close.stop="open = false">
+                            <button @click="open = !open"
+                                    class="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg transition {{ request()->routeIs('admin.ordenes.*', 'supervisor.*', 'empleado.*', 'compras.ordenes.*', 'pos.cajas.*') ? 'text-white bg-slate-800' : 'text-slate-300 hover:text-white hover:bg-slate-800/60' }}">
+                                <span>Operación y Ventas</span>
+                                <svg class="w-3.5 h-3.5 transition-transform" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            <div x-show="open" style="display: none;"
+                                 x-transition:enter="transition ease-out duration-150"
+                                 x-transition:enter-start="opacity-0 scale-95"
+                                 x-transition:enter-end="opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-100"
+                                 x-transition:leave-start="opacity-100 scale-100"
+                                 x-transition:leave-end="opacity-0 scale-95"
+                                 class="absolute left-0 mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50">
+                                
+                                @if ($usuario->hasRole('administrador'))
+                                    <a href="{{ route('admin.ordenes.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        🛠️ Reparaciones (Taller)
+                                    </a>
+                                @elseif ($usuario->hasRole('supervisor'))
+                                    <a href="{{ route('supervisor.dashboard') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        🛠️ Supervisión de Taller
+                                    </a>
+                                @elseif ($usuario->hasRole('empleado'))
+                                    <a href="{{ route('empleado.dashboard') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        🛠️ Reparaciones Asignadas
+                                    </a>
+                                @endif
+
+                                @if ($esAdminOSupervisor)
+                                    <a href="{{ route('compras.ordenes.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        📄 Órdenes de Compra
+                                    </a>
+                                    <a href="{{ route('pos.cajas.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        💰 Cortes de Caja y Arqueos
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+
+                    <!-- 4. Desplegable: Inventario y Almacén -->
+                    @if ($empresaActual && ($usuario->can('inventario.transferir') || $usuario->can('inventario.registrar_entrada')))
+                        <div class="relative" x-data="{ open: false }" @click.outside="open = false" @close.stop="open = false">
+                            <button @click="open = !open"
+                                    class="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg transition {{ request()->routeIs('inventario.*') ? 'text-white bg-slate-800' : 'text-slate-300 hover:text-white hover:bg-slate-800/60' }}">
+                                <span>Inventario</span>
+                                <svg class="w-3.5 h-3.5 transition-transform" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            <div x-show="open" style="display: none;"
+                                 x-transition:enter="transition ease-out duration-150"
+                                 x-transition:enter-start="opacity-0 scale-95"
+                                 x-transition:enter-end="opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-100"
+                                 x-transition:leave-start="opacity-100 scale-100"
+                                 x-transition:leave-end="opacity-0 scale-95"
+                                 class="absolute left-0 mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50">
+                                
+                                <a href="{{ route('inventario.existencias.index', $empresaActual) }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                    📊 Existencias y Kardex
+                                </a>
+
+                                @can('inventario.registrar_entrada')
+                                    <a href="{{ route('inventario.recepciones.create', $empresaActual) }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        📥 Recepción de Mercancía
+                                    </a>
+                                @endcan
+
+                                @can('inventario.transferir')
+                                    <a href="{{ route('inventario.transferencias.index', $empresaActual) }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        🔄 Transferencias entre Almacenes
+                                    </a>
+                                @endcan
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Enlaces para Clientes --}}
                     @if ($usuario->hasRole('cliente'))
                         <x-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
                             {{ __('Mis equipos') }}
@@ -73,314 +140,123 @@
                             {{ __('Mis reparaciones') }}
                         </x-nav-link>
                     @endif
-
-                    @if ($usuario->hasRole('administrador'))
-                        <x-nav-link :href="route('admin.ordenes.index')" :active="request()->routeIs('admin.ordenes.*')">
-                            {{ __('Administrar reparaciones') }}
-                        </x-nav-link>
-
-                        <x-nav-link
-                            :href="route('admin.servicios.index')"
-                            :active="request()->routeIs('admin.servicios.*')"
-                        >
-                            {{ __('Servicios y precios') }}
-                        </x-nav-link>
-                    @endif
-
-                    @if ($usuario->hasRole('supervisor'))
-                        <x-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
-                            {{ __('Supervisión operativa') }}
-                        </x-nav-link>
-                    @endif
-
-                    {{-- Enlaces de Inventario para Administradores y Supervisores --}}
-                    @can('inventario.registrar_entrada')
-                        @if ($empresaActual)
-                            <x-nav-link
-                                :href="route('inventario.recepciones.create', $empresaActual)"
-                                :active="request()->routeIs('inventario.recepciones.*')"
-                            >
-                                {{ __('Recepción Inventario') }}
-                            </x-nav-link>
-                        @endif
-                    @endcan
-
-                    @canany(['inventario.transferir', 'inventario.registrar_entrada'])
-                        @if ($empresaActual)
-                            <x-nav-link
-                                :href="route('inventario.transferencias.index', $empresaActual)"
-                                :active="request()->routeIs('inventario.transferencias.*')"
-                            >
-                                {{ __('Transferencias') }}
-                            </x-nav-link>
-
-                            <x-nav-link
-                                :href="route('inventario.existencias.index', $empresaActual)"
-                                :active="request()->routeIs('inventario.existencias.*') || request()->routeIs('inventario.kardex.*')"
-                            >
-                                {{ __('Existencias / Kardex') }}
-                            </x-nav-link>
-                        @endif
-                    @endcanany
-
-                    @if ($usuario->hasRole('empleado'))
-                        <x-nav-link :href="route('empleado.dashboard')" :active="request()->routeIs('empleado.*')">
-                            {{ __('Reparaciones asignadas') }}
-                        </x-nav-link>
-                    @endif
-
-                    <x-nav-link
-                        :href="route('notificaciones.index')"
-                        :active="request()->routeIs('notificaciones.*')"
-                    >
-                        Notificaciones
-
-                        @if ($cantidadNotificacionesNoLeidas > 0)
-                            <span
-                                class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white"
-                                aria-label="{{ $cantidadNotificacionesNoLeidas }} notificaciones no leídas"
-                            >
-                                {{ $cantidadNotificacionesNoLeidas }}
-                            </span>
-                        @endif
-                    </x-nav-link>
                 </div>
             </div>
 
-            <!-- Settings Dropdown -->
-            <div class="hidden sm:flex sm:items-center sm:ms-6">
-                <x-dropdown align="right" width="48">
-                    <x-slot name="trigger">
-                        <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition ease-in-out duration-150">
-                            <div>{{ Auth::user()->name }}</div>
+            <!-- Derecha: Notificaciones y Perfil -->
+            <div class="hidden md:flex items-center space-x-3">
+                <!-- Notificaciones -->
+                <a href="{{ route('notificaciones.index') }}"
+                   class="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    @if ($cantidadNotificacionesNoLeidas > 0)
+                        <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-slate-900"></span>
+                    @endif
+                </a>
 
-                            <div class="ms-1">
-                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                        </button>
-                    </x-slot>
+                <!-- Desplegable de Usuario y Administración -->
+                <div class="relative" x-data="{ open: false }" @click.outside="open = false" @close.stop="open = false">
+                    <button @click="open = !open"
+                            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-slate-800 text-xs font-semibold text-slate-300 transition">
+                        <span>{{ Auth::user()->name }}</span>
+                        <svg class="w-3.5 h-3.5 text-slate-400 transition-transform" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
 
-                    <x-slot name="content">
+                    <div x-show="open" style="display: none;"
+                         x-transition:enter="transition ease-out duration-150"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-100"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95"
+                         class="absolute right-0 mt-2 w-64 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-2 z-50">
+                        
                         @if ($usuario->hasRole('administrador'))
-                            <div class="border-b border-gray-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-600 dark:text-gray-400">
-                                Administración
+                            <div class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-800/80">
+                                Configuración Global
                             </div>
-
-                            <x-dropdown-link :href="route('admin.dashboard')">
-                                Panel administrativo
-                            </x-dropdown-link>
-
-                            <x-dropdown-link :href="route('admin.ordenes.index')">
-                                Administrar reparaciones
-                            </x-dropdown-link>
-
-                            <x-dropdown-link :href="route('admin.servicios.index')">
-                                Servicios y precios
-                            </x-dropdown-link>
+                            <a href="{{ route('admin.dashboard') }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                Panel Administrativo
+                            </a>
+                            <a href="{{ route('admin.servicios.index') }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                Catálogo de Servicios
+                            </a>
 
                             @if ($usuario->esPropietario())
-                                <x-dropdown-link :href="route('admin.usuarios.index')">
-                                    Usuarios y permisos
-                                </x-dropdown-link>
-
-                                @foreach ($empresasNavegacion as $empresaNavegacion)
-                                    <div class="border-y border-gray-200 px-4 py-2 text-xs font-semibold text-gray-500 dark:border-gray-600 dark:text-gray-400">
-                                        {{ $empresaNavegacion->nombre }}
-                                    </div>
-
-                                    <x-dropdown-link
-                                        :href="route('admin.empresas.sucursales.index', [
-                                            'empresa' => $empresaNavegacion->id,
-                                        ])"
-                                    >
-                                        Sucursales y almacenes
-                                    </x-dropdown-link>
-
+                                <a href="{{ route('admin.usuarios.index') }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                    Usuarios y Permisos
+                                </a>
+                                @if ($empresaActual)
+                                    <a href="{{ route('admin.empresas.sucursales.index', $empresaActual) }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        Sucursales y Almacenes
+                                    </a>
                                     @can('productos.ver')
-                                        <x-dropdown-link
-                                            :href="route('productos.categorias.index', [
-                                                'empresa' => $empresaNavegacion->id,
-                                            ])"
-                                        >
-                                            Categorías de productos
-                                        </x-dropdown-link>
-
-                                        <x-dropdown-link
-                                            :href="route('proveedores.index', [
-                                                'empresa' => $empresaNavegacion->id,
-                                            ])"
-                                        >
+                                        <a href="{{ route('productos.categorias.index', $empresaActual) }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                            Categorías de Productos
+                                        </a>
+                                        <a href="{{ route('proveedores.index', $empresaActual) }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
                                             Proveedores
-                                        </x-dropdown-link>
+                                        </a>
                                     @endcan
-                                @endforeach
+                                @endif
                             @endif
+                            <div class="my-1 border-t border-slate-800/80"></div>
                         @endif
 
-                        {{-- Acceso a inventario desde el desplegable si cuenta con empresa activa --}}
-                        @if ($empresaActual && ($usuario->can('inventario.transferir') || $usuario->can('inventario.registrar_entrada')))
-                            <div class="border-t border-gray-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-600 dark:text-gray-400">
-                                Inventario
-                            </div>
-
-                            @can('inventario.registrar_entrada')
-                                <x-dropdown-link :href="route('inventario.recepciones.create', $empresaActual)">
-                                    Recepción de inventario
-                                </x-dropdown-link>
-                            @endcan
-
-                            @canany(['inventario.transferir', 'inventario.registrar_entrada'])
-                                <x-dropdown-link :href="route('inventario.transferencias.index', $empresaActual)">
-                                    Transferencias de inventario
-                                </x-dropdown-link>
-
-                                <x-dropdown-link :href="route('inventario.existencias.index', $empresaActual)">
-                                    Existencias y Kardex
-                                </x-dropdown-link>
-                            @endcanany
-                        @endif
-
-                        <div class="border-t border-gray-200 dark:border-gray-600">
-                            <x-dropdown-link :href="route('profile.edit')">
-                                Mi perfil
-                            </x-dropdown-link>
+                        <div class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            Cuenta
                         </div>
+                        <a href="{{ route('profile.edit') }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                            Mi Perfil
+                        </a>
 
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-
-                            <x-dropdown-link
-                                :href="route('logout')"
-                                onclick="event.preventDefault();
-                                            this.closest('form').submit();"
-                            >
-                                Cerrar sesión
-                            </x-dropdown-link>
+                            <button type="submit" class="w-full text-left px-4 py-1.5 text-xs text-rose-400 hover:bg-rose-500/10 transition">
+                                Cerrar Sesión
+                            </button>
                         </form>
-                    </x-slot>
-                </x-dropdown>
+                    </div>
+                </div>
             </div>
 
-            <!-- Hamburger -->
-            <div class="-me-2 flex items-center sm:hidden">
-                <button @click="open = ! open" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900 focus:outline-none focus:bg-gray-100 dark:focus:bg-gray-900 focus:text-gray-500 dark:focus:text-gray-400 transition duration-150 ease-in-out">
+            <!-- Botón Hamburguesa Móvil -->
+            <div class="-me-2 flex items-center md:hidden">
+                <button @click="openMobile = !openMobile" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none">
                     <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                        <path :class="{'hidden': open, 'inline-flex': ! open }" class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                        <path :class="{'hidden': ! open, 'inline-flex': open }" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <path :class="{'hidden': openMobile, 'inline-flex': !openMobile }" class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        <path :class="{'hidden': !openMobile, 'inline-flex': openMobile }" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Responsive Navigation Menu -->
-    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
-        <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="$rutaDashboard" :active="$dashboardActivo">
-                {{ __('Dashboard') }}
-            </x-responsive-nav-link>
+    <!-- Menú Responsive Móvil -->
+    <div :class="{'block': openMobile, 'hidden': !openMobile}" class="hidden md:hidden border-t border-slate-800 bg-slate-950 px-4 py-3 space-y-2 text-xs">
+        <a href="{{ $rutaDashboard }}" class="block py-2 text-slate-300 font-semibold">Dashboard</a>
+        <a href="{{ route('pos.index') }}" class="block py-2 text-indigo-400 font-bold">POS Mostrador</a>
 
-            @if ($usuario->hasRole('cliente'))
-                <x-responsive-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
-                    {{ __('Mis equipos') }}
-                </x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('ordenes.index')" :active="request()->routeIs('ordenes.*')">
-                    {{ __('Mis reparaciones') }}
-                </x-responsive-nav-link>
-            @endif
+        <div class="pt-2 border-t border-slate-900 text-[10px] font-bold uppercase text-slate-500">Operación</div>
+        <a href="{{ route('compras.ordenes.index') }}" class="block py-1.5 text-slate-300">Órdenes de Compra</a>
+        <a href="{{ route('pos.cajas.index') }}" class="block py-1.5 text-slate-300">Cortes de Caja</a>
 
-            @if ($usuario->hasRole('administrador'))
-                <x-responsive-nav-link
-                    :href="route('admin.ordenes.index')"
-                    :active="request()->routeIs('admin.ordenes.*')">
-                    {{ __('Administrar reparaciones') }}
-                </x-responsive-nav-link>
+        @if ($empresaActual)
+            <div class="pt-2 border-t border-slate-900 text-[10px] font-bold uppercase text-slate-500">Inventario</div>
+            <a href="{{ route('inventario.existencias.index', $empresaActual) }}" class="block py-1.5 text-slate-300">Kardex y Stock</a>
+            <a href="{{ route('inventario.recepciones.create', $empresaActual) }}" class="block py-1.5 text-slate-300">Recepción de Mercancía</a>
+            <a href="{{ route('inventario.transferencias.index', $empresaActual) }}" class="block py-1.5 text-slate-300">Transferencias</a>
+        @endif
 
-                <x-responsive-nav-link
-                    :href="route('admin.servicios.index')"
-                    :active="request()->routeIs('admin.servicios.*')">
-                    {{ __('Servicios y precios') }}
-                </x-responsive-nav-link>
-            @endif
-
-            @if ($usuario->hasRole('supervisor'))
-                <x-responsive-nav-link :href="route('supervisor.dashboard')" :active="request()->routeIs('supervisor.*')">
-                    {{ __('Supervisión operativa') }}
-                </x-responsive-nav-link>
-            @endif
-
-            {{-- Enlaces Responsive Móvil --}}
-            @can('inventario.registrar_entrada')
-                @if ($empresaActual)
-                    <x-responsive-nav-link
-                        :href="route('inventario.recepciones.create', $empresaActual)"
-                        :active="request()->routeIs('inventario.recepciones.*')"
-                    >
-                        {{ __('Recepción Inventario') }}
-                    </x-responsive-nav-link>
-                @endif
-            @endcan
-
-            @canany(['inventario.transferir', 'inventario.registrar_entrada'])
-                @if ($empresaActual)
-                    <x-responsive-nav-link
-                        :href="route('inventario.transferencias.index', $empresaActual)"
-                        :active="request()->routeIs('inventario.transferencias.*')"
-                    >
-                        {{ __('Transferencias Inventario') }}
-                    </x-responsive-nav-link>
-
-                    <x-responsive-nav-link
-                        :href="route('inventario.existencias.index', $empresaActual)"
-                        :active="request()->routeIs('inventario.existencias.*') || request()->routeIs('inventario.kardex.*')"
-                    >
-                        {{ __('Existencias / Kardex') }}
-                    </x-responsive-nav-link>
-                @endif
-            @endcanany
-
-            @if ($usuario->hasRole('empleado'))
-                <x-responsive-nav-link :href="route('empleado.dashboard')" :active="request()->routeIs('empleado.*')">
-                    {{ __('Reparaciones asignadas') }}
-                </x-responsive-nav-link>
-            @endif
-
-            <x-responsive-nav-link :href="route('notificaciones.index')" :active="request()->routeIs('notificaciones.*')">
-                {{ __('Notificaciones') }}
-
-                @if ($cantidadNotificacionesNoLeidas > 0)
-                    <span class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs text-white">
-                        {{ $cantidadNotificacionesNoLeidas }}
-                    </span>
-                @endif
-            </x-responsive-nav-link>
-        </div>
-
-        <!-- Responsive Settings Options -->
-        <div class="pt-4 pb-1 border-t border-gray-200 dark:border-gray-600">
-            <div class="px-4">
-                <div class="font-medium text-base text-gray-800 dark:text-gray-200">{{ Auth::user()->name }}</div>
-                <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
-            </div>
-
-            <div class="mt-3 space-y-1">
-                <x-responsive-nav-link :href="route('profile.edit')">
-                    {{ __('Profile') }}
-                </x-responsive-nav-link>
-
-                <!-- Authentication -->
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-
-                    <x-responsive-nav-link :href="route('logout')"
-                            onclick="event.preventDefault();
-                                        this.closest('form').submit();">
-                        {{ __('Log Out') }}
-                    </x-responsive-nav-link>
-                </form>
-            </div>
-        </div>
+        <div class="pt-2 border-t border-slate-900 text-[10px] font-bold uppercase text-slate-500">Usuario</div>
+        <a href="{{ route('profile.edit') }}" class="block py-1.5 text-slate-300">Mi Perfil</a>
+        <form method="POST" action="{{ route('logout') }}">
+            @csrf
+            <button type="submit" class="block w-full text-left py-1.5 text-rose-400 font-semibold">Cerrar Sesión</button>
+        </form>
     </div>
 </nav>
