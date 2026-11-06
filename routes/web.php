@@ -18,6 +18,7 @@ use App\Http\Controllers\Inventario\TransferenciaInventarioController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Pos\CajaAuditoriaController;
+use App\Http\Controllers\Pos\FacturacionController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
 use App\Http\Controllers\Productos\ProductoController;
@@ -623,6 +624,18 @@ Route::middleware(['auth', 'verified'])
         Route::get('/{turno}', [CajaAuditoriaController::class, 'show'])->name('show');
         Route::post('/{turno}/movimiento', [CajaAuditoriaController::class, 'registrarMovimiento'])->name('movimiento');
         Route::get('/{turno}/corte-pdf', [CajaAuditoriaController::class, 'cortePdf'])->name('corte-pdf');
+    });
+
+// =========================================================
+// FACTURACIÓN ELECTRÓNICA SAT (CFDI 4.0)
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('operacion/facturacion')
+    ->name('facturacion.')
+    ->group(function (): void {
+        Route::post('/ventas/{venta}/timbrar', [FacturacionController::class, 'timbrar'])->name('ventas.timbrar');
+        Route::get('/ventas/{venta}/descargar-xml', [FacturacionController::class, 'descargarXml'])->name('ventas.descargar-xml');
+        Route::post('/lote-pendientes', [FacturacionController::class, 'procesarLotePendientes'])->name('lote-pendientes');
     });
 
 require __DIR__.'/auth.php';
