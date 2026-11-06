@@ -9,10 +9,12 @@ use App\Models\ExistenciaAlmacen;
 use App\Models\MovimientoInventario;
 use App\Models\Producto;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class InventarioKardexController extends Controller
 {
@@ -150,5 +152,53 @@ class InventarioKardexController extends Controller
         });
 
         return response()->json(['data' => $data]);
+    }
+
+    public function exportarKardexPdf(Request $request, Empresa $empresa, Producto $producto, ?Almacen $almacen = null): Response
+    {
+        /** @var User $actor */
+        $actor = auth()->user();
+        $sucursalesPermitidas = $actor->sucursalesOperativasIds($empresa->id);
+
+        if ($almacen !== null) {
+            abort_unless($actor->puedeGestionarAlmacen($almacen), 403, 'No tienes acceso al almacén solicitado.');
+        }
+
+        $fechaInicio = $request->string('fecha_inicio')->toString();
+        $fechaFin = $request->string('fecha_fin')->toString();
+
+        $query = MovimientoInventario::query()
+            ->where('empresa_id', $empresa->id)
+            ->where('producto_id', $producto->id)
+            ->with(['almacen.sucursal', 'usuario:id,name'])
+            ->whereHas('almacen', function ($q) use ($sucursalesPermitidas) {
+                $q->whereIn('sucursal_id', $sucursalesPermitidas)->orWhere('es_virtual', true);
+            });
+
+        if ($almacen !== null) {
+            $query->where('almacen_id', $almacen->id);
+        }
+
+        if ($fechaInicio !== '') {
+            $query->whereDate('ocurrido_at', '>=', $fechaInicio);
+        }
+
+        if ($fechaFin !== '') {
+            $query->whereDate('ocurrido_at', '<=', $fechaFin);
+        }
+
+        $movimientos = $query->oldest('ocurrido_at')->oldest('id')->get();
+
+        /** @var \Barryvdh\DomPDF\PDF $pdf */
+        $pdf = Pdf::loadView('inventario.existencias.kardex_pdf', [
+            'empresa' => $empresa,
+            'producto' => $producto,
+            'almacen' => $almacen,
+            'movimientos' => $movimientos,
+            'fechaInicio' => $fechaInicio,
+            'fechaFin' => $fechaFin,
+        ])->setPaper('letter', 'portrait');
+
+        return $pdf->download("Kardex-{$producto->sku}.pdf");
     }
 }

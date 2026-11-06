@@ -399,6 +399,11 @@ Route::middleware([
             '/empresas/{empresa}/inventario/kardex-data/{producto}/{almacen?}',
             [InventarioKardexController::class, 'dataKardex']
         )->name('kardex.data');
+
+        Route::get(
+            '/empresas/{empresa}/inventario/kardex-pdf/{producto}/{almacen?}',
+            [InventarioKardexController::class, 'exportarKardexPdf']
+        )->name('kardex.pdf');
     });
 
 // =========================================================
