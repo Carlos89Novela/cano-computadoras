@@ -10,7 +10,10 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->bind(
+            \App\Services\Facturacion\Contracts\PacConnectorInterface::class,
+            \App\Services\Facturacion\MockPacConnector::class
+        );
     }
 
     public function boot(): void
