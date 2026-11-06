@@ -8,15 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('caja_turnos', function (Blueprint $table) {
-            $table->uuid('uuid')->nullable()->after('id')->unique();
-        });
+        if (Schema::hasTable('caja_turnos') && ! Schema::hasColumn('caja_turnos', 'uuid')) {
+            Schema::table('caja_turnos', function (Blueprint $table) {
+                $table->uuid('uuid')->nullable()->after('id')->unique();
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('caja_turnos', function (Blueprint $table) {
-            $table->dropColumn('uuid');
-        });
+        if (Schema::hasTable('caja_turnos') && Schema::hasColumn('caja_turnos', 'uuid')) {
+            Schema::table('caja_turnos', function (Blueprint $table) {
+                $table->dropColumn('uuid');
+            });
+        }
     }
 };
