@@ -21,7 +21,7 @@ use RuntimeException;
 class RegistrarVentaService
 {
     /**
-     * Procesa una venta de mostrador (POS), descuenta inventario y asienta en Kardex.
+     * Procesa una venta de mostrador (POS), descuenta inventario (directo o por insumos de receta) y asienta en Kardex.
      *
      * @param array{
      *     uuid?: string,
@@ -112,6 +112,7 @@ class RegistrarVentaService
                 /** @var Producto $producto */
                 $producto = Producto::query()
                     ->where('empresa_id', $empresa->id)
+                    ->with(['receta.ingredientes.insumo'])
                     ->findOrFail($linea['producto_id']);
 
                 $cantidad = (float) $linea['cantidad'];
@@ -119,27 +120,63 @@ class RegistrarVentaService
                     throw new InvalidArgumentException("La cantidad para el producto [{$producto->nombre}] debe ser mayor a 0.");
                 }
 
-                // Bloqueo y lectura de existencias
-                /** @var ExistenciaAlmacen|null $existencia */
-                $existencia = ExistenciaAlmacen::query()
-                    ->where('almacen_id', $almacen->id)
-                    ->where('producto_id', $producto->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                $cantidadFisica = $existencia !== null ? (float) $existencia->cantidad : 0.0;
-                $cantidadReservada = $existencia !== null ? (float) $existencia->cantidad_reservada : 0.0;
-                $cantidadDisponible = max(0.0, $cantidadFisica - $cantidadReservada);
-                $costoUnitarioPromedio = $existencia !== null && (float) $existencia->costo_promedio > 0
-                    ? (float) $existencia->costo_promedio
-                    : (float) $producto->costo_referencia;
-
                 $origen = $datos['origen_registro'] ?? 'online';
-                if ($origen === 'online' && $cantidadDisponible < $cantidad) {
-                    throw new RuntimeException("Stock insuficiente para el producto [{$producto->sku} - {$producto->nombre}]. Disponible: {$cantidadDisponible}, Solicitado: {$cantidad}.");
+
+                // Si es un producto con receta, se valida el stock de los insumos
+                if ($producto->es_receta && $producto->receta !== null && $producto->receta->ingredientes->isNotEmpty()) {
+                    $costoUnitarioPromedio = 0.0;
+
+                    foreach ($producto->receta->ingredientes as $ingrediente) {
+                        $factorMerma = bcadd('1', bcdiv((string) $ingrediente->porcentaje_merma, '100', 4), 4);
+                        $consumoPorUnidad = bcmul((string) $ingrediente->cantidad_requerida, $factorMerma, 4);
+                        $consumoTotal = (float) bcmul($consumoPorUnidad, (string) $cantidad, 4);
+
+                        /** @var ExistenciaAlmacen|null $existenciaInsumo */
+                        $existenciaInsumo = ExistenciaAlmacen::query()
+                            ->where('almacen_id', $almacen->id)
+                            ->where('producto_id', $ingrediente->insumo_producto_id)
+                            ->lockForUpdate()
+                            ->first();
+
+                        $cantFisica = $existenciaInsumo !== null ? (float) $existenciaInsumo->cantidad : 0.0;
+                        $cantReservada = $existenciaInsumo !== null ? (float) $existenciaInsumo->cantidad_reservada : 0.0;
+                        $cantDisponible = max(0.0, $cantFisica - $cantReservada);
+
+                        if ($origen === 'online' && $cantDisponible < $consumoTotal) {
+                            $nombreInsumo = $ingrediente->insumo->nombre ?? 'Insumo';
+                            throw new RuntimeException("Stock insuficiente del insumo [{$nombreInsumo}] para preparar [{$producto->nombre}]. Disponible: {$cantDisponible}, Requerido: {$consumoTotal}.");
+                        }
+
+                        $costoInsumo = $existenciaInsumo !== null && (float) $existenciaInsumo->costo_promedio > 0
+                            ? (float) $existenciaInsumo->costo_promedio
+                            : (float) ($ingrediente->insumo->costo_referencia ?? 0.0);
+
+                        $costoUnitarioPromedio += ((float) $consumoPorUnidad) * $costoInsumo;
+                    }
+
+                    $existencia = null;
+                } else {
+                    // Producto terminado estándar
+                    /** @var ExistenciaAlmacen|null $existencia */
+                    $existencia = ExistenciaAlmacen::query()
+                        ->where('almacen_id', $almacen->id)
+                        ->where('producto_id', $producto->id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    $cantidadFisica = $existencia !== null ? (float) $existencia->cantidad : 0.0;
+                    $cantidadReservada = $existencia !== null ? (float) $existencia->cantidad_reservada : 0.0;
+                    $cantidadDisponible = max(0.0, $cantidadFisica - $cantidadReservada);
+                    $costoUnitarioPromedio = $existencia !== null && (float) $existencia->costo_promedio > 0
+                        ? (float) $existencia->costo_promedio
+                        : (float) $producto->costo_referencia;
+
+                    if ($origen === 'online' && $cantidadDisponible < $cantidad) {
+                        throw new RuntimeException("Stock insuficiente para el producto [{$producto->sku} - {$producto->nombre}]. Disponible: {$cantidadDisponible}, Solicitado: {$cantidad}.");
+                    }
                 }
 
-                // El precio de mostrador ya incluye el IVA (ej: $550.00)
+                // El precio de mostrador ya incluye el IVA
                 $precioConIva = (float) $linea['precio_unitario'];
                 $descuentoUnitario = (float) ($linea['descuento_unitario'] ?? 0.0);
                 $tasaIva = isset($linea['tasa_iva']) ? (float) $linea['tasa_iva'] : 0.1600;
@@ -165,6 +202,7 @@ class RegistrarVentaService
                 $detallesParaCrear[] = [
                     'uuid' => $linea['uuid'] ?? (string) Str::uuid(),
                     'producto_id' => $producto->id,
+                    'producto_model' => $producto,
                     'almacen_id' => $almacen->id,
                     'codigo_barras' => $producto->codigo_barras,
                     'sku' => $producto->sku,
@@ -217,6 +255,10 @@ class RegistrarVentaService
             ]);
 
             foreach ($detallesParaCrear as $detalleItem) {
+                /** @var Producto $prodModel */
+                $prodModel = $detalleItem['producto_model'];
+                unset($detalleItem['producto_model']);
+
                 /** @var ExistenciaAlmacen|null $existencia */
                 $existencia = $detalleItem['existencia_model'];
                 unset($detalleItem['existencia_model']);
@@ -226,42 +268,62 @@ class RegistrarVentaService
 
                 $venta->detalles()->create($detalleItem);
 
-                $stockAnterior = $existencia !== null ? (float) $existencia->cantidad : 0.0;
-                $stockNuevo = max(0.0, $stockAnterior - (float) $detalleItem['cantidad']);
+                // Descuento en inventario y registro en Kardex
+                if ($prodModel->es_receta && $prodModel->receta !== null && $prodModel->receta->ingredientes->isNotEmpty()) {
+                    foreach ($prodModel->receta->ingredientes as $ingrediente) {
+                        $factorMerma = bcadd('1', bcdiv((string) $ingrediente->porcentaje_merma, '100', 4), 4);
+                        $consumoPorUnidad = bcmul((string) $ingrediente->cantidad_requerida, $factorMerma, 4);
+                        $consumoTotal = (float) bcmul($consumoPorUnidad, (string) $detalleItem['cantidad'], 4);
 
-                if ($existencia !== null) {
-                    $existencia->cantidad = $stockNuevo;
-                    $existencia->actualizado_por_id = $cajero->id;
-                    $existencia->save();
+                        $this->descontarStockInsumo(
+                            empresaId: $empresa->id,
+                            almacenId: $almacen->id,
+                            insumoId: $ingrediente->insumo_producto_id,
+                            cantidad: $consumoTotal,
+                            motivo: "Consumo por venta de {$detalleItem['cantidad']}x {$prodModel->nombre} (Folio: {$venta->folio})",
+                            userId: $cajero->id,
+                            ventaId: $venta->id
+                        );
+                    }
                 } else {
-                    ExistenciaAlmacen::query()->create([
+                    $stockAnterior = $existencia !== null ? (float) $existencia->cantidad : 0.0;
+                    $stockNuevo = max(0.0, $stockAnterior - (float) $detalleItem['cantidad']);
+
+                    if ($existencia !== null) {
+                        $existencia->cantidad = $stockNuevo;
+                        $existencia->actualizado_por_id = $cajero->id;
+                        $existencia->save();
+                    } else {
+                        ExistenciaAlmacen::query()->create([
+                            'empresa_id' => $empresa->id,
+                            'almacen_id' => $almacen->id,
+                            'producto_id' => $detalleItem['producto_id'],
+                            'cantidad' => 0.0,
+                            'cantidad_reservada' => 0.0,
+                            'costo_promedio' => $costoUnit,
+                            'actualizado_por_id' => $cajero->id,
+                        ]);
+                    }
+
+                    // Bitácora inmutable de Kardex
+                    MovimientoInventario::query()->create([
                         'empresa_id' => $empresa->id,
                         'almacen_id' => $almacen->id,
                         'producto_id' => $detalleItem['producto_id'],
-                        'cantidad' => 0.0,
-                        'cantidad_reservada' => 0.0,
-                        'costo_promedio' => $costoUnit,
-                        'actualizado_por_id' => $cajero->id,
+                        'grupo_id' => (string) Str::uuid(),
+                        'folio' => 'MOV-'.now()->format('YmdHisv').'-'.Str::upper(Str::random(6)),
+                        'tipo' => MovimientoInventario::TIPO_SALIDA,
+                        'motivo' => 'Venta en mostrador POS',
+                        'cantidad' => $detalleItem['cantidad'],
+                        'costo_unitario' => $costoUnit,
+                        'existencia_anterior' => $stockAnterior,
+                        'existencia_nueva' => $stockNuevo,
+                        'referencia_id' => $venta->id,
+                        'referencia_tipo' => Venta::class,
+                        'user_id' => $venta->user_id,
+                        'ocurrido_at' => now(),
                     ]);
                 }
-
-                // Bitácora inmutable de Kardex
-                MovimientoInventario::query()->create([
-                    'empresa_id' => $empresa->id,
-                    'almacen_id' => $almacen->id,
-                    'producto_id' => $detalleItem['producto_id'],
-                    'grupo_id' => (string) Str::uuid(),
-                    'folio' => 'MOV-'.now()->format('YmdHisv').'-'.Str::upper(Str::random(6)),
-                    'tipo' => MovimientoInventario::TIPO_SALIDA,
-                    'motivo' => 'Venta en mostrador POS',
-                    'cantidad' => $detalleItem['cantidad'],
-                    'costo_unitario' => $costoUnit,
-                    'existencia_anterior' => $stockAnterior,
-                    'existencia_nueva' => $stockNuevo,
-                    'referencia_id' => $venta->id,
-                    'referencia_tipo' => Venta::class,
-                    'usuario_id' => $venta->user_id,
-                ]);
             }
 
             foreach ($datos['pagos'] as $pagoItem) {
@@ -300,6 +362,59 @@ class RegistrarVentaService
 
             return $venta->load(['detalles', 'pagos', 'almacen', 'sucursal']);
         });
+    }
+
+    protected function descontarStockInsumo(
+        int $empresaId,
+        int $almacenId,
+        int $insumoId,
+        float $cantidad,
+        string $motivo,
+        int $userId,
+        int $ventaId
+    ): void {
+        /** @var ExistenciaAlmacen $existencia */
+        $existencia = ExistenciaAlmacen::query()
+            ->lockForUpdate()
+            ->firstOrCreate(
+                [
+                    'empresa_id' => $empresaId,
+                    'almacen_id' => $almacenId,
+                    'producto_id' => $insumoId,
+                ],
+                [
+                    'cantidad' => 0.0000,
+                    'cantidad_reservada' => 0.0000,
+                    'costo_promedio' => 0.0000,
+                    'actualizado_por_id' => $userId,
+                ]
+            );
+
+        $anterior = (float) $existencia->cantidad;
+        $nueva = max(0.0, $anterior - $cantidad);
+
+        $existencia->update([
+            'cantidad' => $nueva,
+            'actualizado_por_id' => $userId,
+        ]);
+
+        MovimientoInventario::query()->create([
+            'empresa_id' => $empresaId,
+            'almacen_id' => $almacenId,
+            'producto_id' => $insumoId,
+            'user_id' => $userId,
+            'grupo_id' => (string) Str::uuid(),
+            'folio' => 'MOV-REC-'.now()->format('YmdHisv').'-'.Str::upper(Str::random(4)),
+            'tipo' => MovimientoInventario::TIPO_SALIDA,
+            'cantidad' => $cantidad,
+            'existencia_anterior' => $anterior,
+            'existencia_nueva' => $nueva,
+            'costo_unitario' => (float) $existencia->costo_promedio,
+            'motivo' => $motivo,
+            'referencia_id' => $ventaId,
+            'referencia_tipo' => Venta::class,
+            'ocurrido_at' => now(),
+        ]);
     }
 
     protected function generarFolio(Sucursal $sucursal): string

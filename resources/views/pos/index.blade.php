@@ -1,7 +1,7 @@
 <x-app-layout>
     <div x-data="posTerminal({
-        sucursal: {{ Js::from($sucursal) }},
-        almacen: {{ Js::from($almacen) }},
+        sucursal: {{ Js::from($sucursal ?? ['id' => 1, 'nombre' => 'Sucursal Principal']) }},
+        almacen: {{ Js::from($almacen ?? ['id' => 1, 'nombre' => 'Almacén General']) }},
         turnoInicial: {{ Js::from($turnoActivo) }},
         routes: {
             catalogo: '{{ route('pos.catalogo') }}',
@@ -32,8 +32,8 @@
                         </span>
                     </h1>
                     <p class="text-xs text-slate-400">
-                        Sucursal: <strong class="text-slate-200" x-text="sucursal ? sucursal.nombre : '{{ $sucursal?->nombre ?? 'Sucursal Principal' }}'"></strong> |
-                        Almacén: <strong class="text-slate-200" x-text="almacen ? almacen.nombre : '{{ $almacen?->nombre ?? 'Almacén Principal' }}'"></strong>
+                        Sucursal: <strong class="text-slate-200" x-text="sucursal?.nombre || 'Sucursal Principal'"></strong> |
+                        Almacén: <strong class="text-slate-200" x-text="almacen?.nombre || 'Almacén Principal'"></strong>
                     </p>
                 </div>
             </div>
@@ -68,6 +68,15 @@
                             Reimprimir Ticket
                         </button>
 
+                        <button type="button"
+                                @click="abrirModalFacturacion()"
+                                class="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            Facturación CFDI
+                        </button>
+
                         <button @click="modalCierre = true" class="px-4 py-2 bg-rose-600/20 border border-rose-500/30 hover:bg-rose-600/30 text-rose-300 rounded-lg text-sm font-medium transition">
                             Cerrar Turno #<span x-text="turnoActivo.id"></span>
                         </button>
@@ -79,7 +88,7 @@
                                 <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
                                 </svg>
-                                Devolución / Nota de Crédito
+                                Devolución
                             </button>
                         @endcan
                     </div>
@@ -107,9 +116,8 @@
         <template x-if="turnoActivo">
             <div class="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-                {{-- Sección Izquierda: Catálogo y Búsqueda (7 cols) --}}
+                {{-- Catálogo y Búsqueda --}}
                 <div class="lg:col-span-7 space-y-4">
-                    {{-- Buscador --}}
                     <div class="relative">
                         <input type="text" x-model="searchQuery" @keydown.enter.prevent="buscarYAgregarDirecto()"
                                placeholder="Escanear código de barras o buscar por nombre / SKU..."
@@ -121,7 +129,6 @@
                         </div>
                     </div>
 
-                    {{-- Grid de Productos --}}
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[620px] overflow-y-auto pr-1">
                         <template x-for="prod in productosFiltrados" :key="prod.id">
                             <div @click="agregarAlCarrito(prod)"
@@ -140,14 +147,13 @@
                     </div>
                 </div>
 
-                {{-- Sección Derecha: Carrito y Checkout (5 cols) --}}
+                {{-- Ticket y Carrito --}}
                 <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
                     <div class="flex items-center justify-between pb-3 border-b border-slate-800">
                         <h2 class="text-sm font-bold text-white uppercase tracking-wider">Ticket de Venta</h2>
                         <button @click="vaciarCarrito()" class="text-xs text-rose-400 hover:underline">Vaciar</button>
                     </div>
 
-                    {{-- Datos del Cliente --}}
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <div>
                             <label class="text-slate-400 block mb-1">Cliente</label>
@@ -159,7 +165,6 @@
                         </div>
                     </div>
 
-                    {{-- Lista del Carrito --}}
                     <div class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                         <template x-for="(item, index) in carrito" :key="item.producto_id">
                             <div class="p-2.5 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between gap-2 text-xs">
@@ -175,9 +180,7 @@
                                 <div class="text-right w-16">
                                     <div class="font-bold text-emerald-400" x-text="`$${(item.cantidad * item.precio_unitario).toFixed(2)}`"></div>
                                 </div>
-                                <button @click="removerDelCarrito(index)" class="text-rose-400 hover:text-rose-300 p-1">
-                                    &times;
-                                </button>
+                                <button @click="removerDelCarrito(index)" class="text-rose-400 hover:text-rose-300 p-1">&times;</button>
                             </div>
                         </template>
 
@@ -188,7 +191,6 @@
                         </template>
                     </div>
 
-                    {{-- Resumen de Totales e Impuestos --}}
                     <div class="pt-3 border-t border-slate-800 space-y-1.5 text-xs text-slate-400">
                         <div class="flex justify-between">
                             <span>Subtotal (sin IVA):</span>
@@ -204,27 +206,19 @@
                         </div>
                     </div>
 
-                    {{-- Método de Pago y Cobro --}}
                     <div class="pt-2 space-y-3">
                         <div class="grid grid-cols-3 gap-2">
                             <button type="button" @click="formaPagoSat = '01'"
                                     :class="formaPagoSat === '01' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
-                                    class="py-2 text-xs font-semibold rounded-lg border transition">
-                                Efectivo
-                            </button>
+                                    class="py-2 text-xs font-semibold rounded-lg border transition">Efectivo</button>
                             <button type="button" @click="formaPagoSat = '04'"
                                     :class="formaPagoSat === '04' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
-                                    class="py-2 text-xs font-semibold rounded-lg border transition">
-                                Tarjeta
-                            </button>
+                                    class="py-2 text-xs font-semibold rounded-lg border transition">Tarjeta</button>
                             <button type="button" @click="formaPagoSat = '03'"
                                     :class="formaPagoSat === '03' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
-                                    class="py-2 text-xs font-semibold rounded-lg border transition">
-                                Transferencia
-                            </button>
+                                    class="py-2 text-xs font-semibold rounded-lg border transition">Transferencia</button>
                         </div>
 
-                        {{-- Input Recibido / Cambio (si es efectivo) --}}
                         <template x-if="formaPagoSat === '01'">
                             <div class="grid grid-cols-2 gap-2 text-xs">
                                 <div>
@@ -292,7 +286,6 @@
                         <span class="text-indigo-400 font-mono text-sm" x-text="`$${Number(turnoActivo?.monto_esperado_efectivo || 0).toFixed(2)}`"></span>
                     </div>
                 </div>
-
                 <div>
                     <label class="text-xs text-slate-300 block mb-1 font-medium">Efectivo Real Contado en Caja ($)</label>
                     <input type="number" step="0.50" x-model.number="formCierre.monto_real_efectivo"
@@ -302,7 +295,7 @@
                 <div>
                     <label class="text-xs text-slate-300 block mb-1 font-medium">Notas de Cierre</label>
                     <textarea x-model="formCierre.observaciones" rows="2"
-                              placeholder="Observaciones de arqueo o discrepancias..."
+                              placeholder="Observaciones de arqueo..."
                               style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
                               class="w-full rounded-xl px-3 py-2 text-xs focus:outline-none"></textarea>
                 </div>
@@ -314,9 +307,7 @@
         </div>
 
         {{-- Modal de Reimpresión de Tickets --}}
-        <div x-show="modalReimpresion"
-             x-cloak
-             class="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div x-show="modalReimpresion" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div @click.away="modalReimpresion = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl">
                 <div class="flex justify-between items-center pb-3 border-b border-slate-800">
                     <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -344,10 +335,8 @@
                             </div>
                             <div class="flex items-center gap-3">
                                 <span class="text-xs font-bold text-white font-mono" x-text="'$' + Number(v.total).toFixed(2)"></span>
-                                <button
-                                    type="button"
-                                    @click="lanzarImpresion(v.uuid || v.id)"
-                                    class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow">
+                                <button type="button" @click="lanzarImpresion(v.uuid || v.id)"
+                                        class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow">
                                     Imprimir
                                 </button>
                             </div>
@@ -356,60 +345,105 @@
                 </div>
 
                 <div class="mt-4 pt-3 border-t border-slate-800 flex justify-end">
-                    <button type="button" @click="modalReimpresion = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 rounded-xl">
-                        Cerrar
-                    </button>
+                    <button type="button" @click="modalReimpresion = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 rounded-xl">Cerrar</button>
                 </div>
             </div>
         </div>
 
-        {{-- Modal de Devolución --}}
-        @can('pos.devoluciones')
-            <div x-show="modalDevolucion" x-cloak class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                <div @click.away="modalDevolucion = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
-                    <div class="flex justify-between items-center pb-2 border-b border-slate-800">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                            <h3 class="text-sm font-bold text-white">Autorización de Devolución (Supervisor)</h3>
-                        </div>
-                        <button type="button" @click="modalDevolucion = false" class="text-slate-400 hover:text-white">&times;</button>
+        {{-- Modal de Facturación CFDI 4.0 --}}
+        <div x-show="modalFacturacion" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modalFacturacion = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                        Facturación Electrónica SAT (CFDI 4.0)
+                    </h3>
+                    <button @click="modalFacturacion = false" class="text-slate-400 hover:text-white text-lg font-bold leading-none">&times;</button>
+                </div>
+
+                <template x-if="mensajeFactura">
+                    <div class="p-3 rounded-xl text-xs font-medium"
+                         :class="mensajeErrorFactura ? 'bg-rose-500/10 border border-rose-500/20 text-rose-300' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'"
+                         x-text="mensajeFactura"></div>
+                </template>
+
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-slate-400">Ventas completadas del turno:</span>
+                        <button type="button" @click="cargarVentasParaFacturar()" class="text-[11px] text-indigo-400 hover:underline">
+                            🔄 Actualizar listado
+                        </button>
                     </div>
 
-                    <form @submit.prevent="procesarDevolucionModal()" class="space-y-4">
-                        <div>
-                            <label class="text-xs text-slate-300 block mb-1 font-medium">Folio de Venta *</label>
-                            <input type="text" x-model="formDevolucion.venta_folio" required placeholder="ej. VTA-MATRIZ-20261105-0001"
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white uppercase focus:outline-none focus:border-amber-500">
-                        </div>
+                    <div class="max-h-80 overflow-y-auto space-y-2 pr-1">
+                        <template x-if="cargandoFacturacion">
+                            <p class="text-center text-xs text-slate-500 py-6">Consultando ventas...</p>
+                        </template>
 
-                        <div>
-                            <label class="text-xs text-slate-300 block mb-1 font-medium">Motivo de Devolución *</label>
-                            <textarea x-model="formDevolucion.motivo" rows="2" required placeholder="Producto defectuoso, cambio por garantía, etc."
-                                      class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"></textarea>
-                        </div>
+                        <template x-if="!cargandoFacturacion && ventasFacturables.length === 0">
+                            <p class="text-center text-xs text-slate-500 py-6">No se encontraron ventas para facturar en este turno.</p>
+                        </template>
 
-                        <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                            <button type="button" @click="modalDevolucion = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition">
-                                Cerrar
-                            </button>
-                            <button type="submit" :disabled="devolucionEnProceso" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5">
-                                <span x-show="!devolucionEnProceso">Autorizar y Registrar Devolución</span>
-                                <span x-show="devolucionEnProceso">Procesando...</span>
-                            </button>
-                        </div>
-                    </form>
+                        <template x-for="v in ventasFacturables" :key="v.id">
+                            <div class="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-3 hover:border-slate-700 transition">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-xs text-indigo-400 font-mono" x-text="v.folio"></span>
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border"
+                                              :class="{
+                                                  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': v.estado_facturacion === 'facturada',
+                                                  'bg-amber-500/10 text-amber-400 border-amber-500/20': v.estado_facturacion === 'pendiente',
+                                                  'bg-slate-800 text-slate-400 border-slate-700': v.estado_facturacion === 'no_facturada'
+                                              }"
+                                              x-text="v.estado_facturacion === 'facturada' ? 'Timbrada' : (v.estado_facturacion === 'pendiente' ? 'Pendiente PAC' : 'Sin timbrar')">
+                                        </span>
+                                    </div>
+                                    <div class="text-[11px] text-slate-300 mt-0.5" x-text="v.cliente_nombre"></div>
+                                    <div class="text-[10px] text-slate-500 font-mono" x-text="'RFC: ' + (v.cliente_rfc || 'XAXX010101000')"></div>
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-white font-mono mr-2" x-text="'$' + Number(v.total).toFixed(2)"></span>
+
+                                    <template x-if="v.estado_facturacion === 'no_facturada' || v.estado_facturacion === 'pendiente'">
+                                        <button type="button" @click="timbrarVentaDirecta(v)" :disabled="timbrandoId === v.id"
+                                                class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow">
+                                            <span x-show="timbrandoId !== v.id">⚡ Timbrar CFDI</span>
+                                            <span x-show="timbrandoId === v.id">Timbrando...</span>
+                                        </button>
+                                    </template>
+
+                                    <template x-if="v.estado_facturacion === 'facturada'">
+                                        <div class="flex items-center gap-1">
+                                            <a :href="'/operacion/facturacion/ventas/' + v.id + '/descargar-xml'" target="_blank"
+                                               class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-mono font-semibold transition">XML</a>
+                                            <a :href="'/operacion/facturacion/ventas/' + v.id + '/descargar-pdf'" target="_blank"
+                                               class="px-2 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded text-xs font-semibold transition">PDF</a>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="pt-3 border-t border-slate-800 flex justify-between items-center">
+                    <button type="button" @click="procesarLoteDesdePos()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
+                        ⚡ Forzar procesamiento de pendientes en lote
+                    </button>
+                    <button type="button" @click="modalFacturacion = false" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 rounded-xl transition">Cerrar</button>
                 </div>
             </div>
-        @endcan
+        </div>
     </div>
 
-    {{-- Script Reactivo Alpine.js + Motor Offline IndexedDB --}}
+    {{-- Script Reactivo Alpine.js --}}
     <script>
         function posTerminal(config) {
             return {
                 sucursal: config.sucursal || { id: 1, nombre: 'Sucursal Principal' },
                 almacen: config.almacen || { id: 1, nombre: 'Almacén Principal' },
-                turnoActivo: config.turnoInicial,
+                turnoActivo: config.turnoInicial || null,
                 routes: config.routes,
                 csrf: config.csrfToken,
 
@@ -435,12 +469,15 @@
                 ventasRecientes: [],
 
                 modalDevolucion: false,
-                formDevolucion: {
-                    venta_folio: '',
-                    motivo: '',
-                    detalles: []
-                },
+                formDevolucion: { venta_folio: '', motivo: '', detalles: [] },
                 devolucionEnProceso: false,
+
+                modalFacturacion: false,
+                cargandoFacturacion: false,
+                ventasFacturables: [],
+                timbrandoId: null,
+                mensajeFactura: '',
+                mensajeErrorFactura: false,
 
                 db: null,
 
@@ -456,7 +493,7 @@
                     try {
                         await this.initIndexedDB();
                     } catch (err) {
-                        console.warn('No se pudo inicializar IndexedDB:', err);
+                        console.warn('IndexedDB no inicializado:', err);
                     }
 
                     await this.cargarCatalogo();
@@ -510,7 +547,7 @@
                                 }
                             }
                         } catch (e) {
-                            console.warn('Falla al conectar con el servidor, leyendo almacenamiento local:', e);
+                            console.warn('Falla conexión catálogo online, usando local:', e);
                         }
                     }
 
@@ -679,12 +716,12 @@
                                 return;
                             }
                         } catch (e) {
-                            console.warn('Error en conexión al cobrar online, guardando en offline.');
+                            console.warn('Error en conexión online, pasando a offline.');
                         }
                     }
 
                     await this.guardarVentaOffline(payloadVenta);
-                    alert(`Venta guardada en modo desconectado. UUID: ${uuidVenta}. Se sincronizará al volver la conexión.`);
+                    alert(`Venta guardada en modo desconectado. Folio/UUID: ${uuidVenta}.`);
                     this.vaciarCarrito();
                     this.isProcessing = false;
                 },
@@ -702,6 +739,7 @@
                 },
 
                 async actualizarContadorOffline() {
+                    if (!this.db) return;
                     const tx = this.db.transaction('ventas_pendientes', 'readonly');
                     const store = tx.objectStore('ventas_pendientes');
                     const req = store.count();
@@ -711,7 +749,7 @@
                 },
 
                 async sincronizarLoteOffline() {
-                    if (!this.isOnline || this.isSyncing) return;
+                    if (!this.isOnline || this.isSyncing || !this.db) return;
                     this.isSyncing = true;
 
                     const tx = this.db.transaction('ventas_pendientes', 'readonly');
@@ -747,7 +785,7 @@
                                 };
                             }
                         } catch (e) {
-                            console.error('Error sincronizando lote offline', e);
+                            console.error('Error sincronizando offline:', e);
                             this.isSyncing = false;
                         }
                     };
@@ -802,46 +840,80 @@
                     }
                 },
 
-                async procesarDevolucionModal() {
-                    if (!this.formDevolucion.venta_folio || !this.formDevolucion.motivo) {
-                        alert('Por favor complete todos los campos requeridos.');
-                        return;
-                    }
+                async abrirModalFacturacion() {
+                    this.modalFacturacion = true;
+                    this.mensajeFactura = '';
+                    await this.cargarVentasParaFacturar();
+                },
 
-                    this.devolucionEnProceso = true;
+                async cargarVentasParaFacturar() {
+                    this.cargandoFacturacion = true;
+                    try {
+                        const sucursalId = this.sucursal?.id || 1;
+                        const res = await fetch(`/pos/ultimas-ventas?sucursal_id=${sucursalId}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (res.ok) {
+                            this.ventasFacturables = await res.json();
+                        }
+                    } catch (e) {
+                        console.error('Error al cargar ventas para facturar:', e);
+                    } finally {
+                        this.cargandoFacturacion = false;
+                    }
+                },
+
+                async timbrarVentaDirecta(venta) {
+                    this.timbrandoId = venta.id;
+                    this.mensajeFactura = '';
+                    this.mensajeErrorFactura = false;
 
                     try {
-                        const res = await fetch("{{ route('pos.devoluciones.store') }}", {
+                        const res = await fetch(`/operacion/facturacion/ventas/${venta.id}/timbrar`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': this.csrf,
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                venta_folio: this.formDevolucion.venta_folio,
-                                motivo: this.formDevolucion.motivo,
-                                almacen_id: this.almacen?.id || 1,
-                                caja_turno_id: this.turnoActivo?.id || null,
-                                detalles: [{ detalle_id: 1, cantidad: 1 }]
-                            })
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrf
+                            }
                         });
 
                         const data = await res.json();
 
-                        if (res.ok) {
-                            alert(data.message);
-                            this.modalDevolucion = false;
-                            this.formDevolucion.venta_folio = '';
-                            this.formDevolucion.motivo = '';
-                            await this.cargarCatalogo();
+                        if (res.ok || res.status === 202) {
+                            this.mensajeFactura = data.message || 'Procesado exitosamente.';
+                            this.mensajeErrorFactura = false;
+                            await this.cargarVentasParaFacturar();
                         } else {
-                            alert(data.message || 'Error al procesar la devolución.');
+                            this.mensajeFactura = data.message || 'Error al timbrar el comprobante fiscal.';
+                            this.mensajeErrorFactura = true;
                         }
                     } catch (e) {
-                        alert('Error de conexión al procesar la devolución.');
+                        this.mensajeFactura = 'Error de conexión con el servicio de timbrado.';
+                        this.mensajeErrorFactura = true;
                     } finally {
-                        this.devolucionEnProceso = false;
+                        this.timbrandoId = null;
+                    }
+                },
+
+                async procesarLoteDesdePos() {
+                    this.mensajeFactura = 'Procesando facturas pendientes en lote...';
+                    this.mensajeErrorFactura = false;
+                    try {
+                        const res = await fetch('/operacion/facturacion/lote-pendientes', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrf
+                            }
+                        });
+                        const data = await res.json();
+                        this.mensajeFactura = data.message || 'Lote procesado.';
+                        await this.cargarVentasParaFacturar();
+                    } catch (e) {
+                        this.mensajeFactura = 'Error al procesar el lote de pendientes.';
+                        this.mensajeErrorFactura = true;
                     }
                 }
             };

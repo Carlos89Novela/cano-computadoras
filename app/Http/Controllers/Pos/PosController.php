@@ -26,64 +26,37 @@ class PosController extends Controller
 
     public function index(Request $request): View
     {
-        /** @var User $user */
-        $user = $request->user();
+        /** @var User $user */ $user = $request->user();
         $empresaId = $this->resolveEmpresaId($user);
 
-        // 1. Resolver sucursal asignada o fallback a la primera activa de la empresa
+        // 1. Resolver sucursal: de sus relaciones, o la primera sucursal activa de la empresa
         /** @var Sucursal|null $sucursal */
-        $sucursal = $user->sucursales()->first();
+        $sucursal = $user->sucursales()->where('sucursales.activo', true)->first()
+            ?? Sucursal::query()->where('empresa_id', $empresaId)->where('activo', true)->first()
+            ?? Sucursal::query()->first();
 
-        if (! $sucursal) {
-            /** @var Sucursal|null $sucursal */
-            $sucursal = Sucursal::query()->where('empresa_id', $empresaId)->first();
-        }
+        $sucursalId = $sucursal !== null ? (int) $sucursal->id : 1;
 
-        $sucursalId = $sucursal !== null ? (int) $sucursal->id : null;
+        // 2. Resolver almacén físico de la sucursal o el almacén principal disponible
+        /** @var Almacen|null $almacen */ $almacen = Almacen::query()
+            ->where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->where('activo', true)
+            ->where('permite_existencias', true)
+            ->first()
+                    ?? Almacen::query()->where('activo', true)->where('permite_existencias', true)->first()
+                    ?? Almacen::query()->first();
 
-        // 2. Resolver almacén físico de la sucursal que permita existencias
-        /** @var Almacen|null $almacen */
-        $almacen = null;
+        // 3. Buscar turno abierto para el cajero en esta sucursal
+        /** @var CajaTurno|null $turnoActivo */ $turnoActivo = CajaTurno::query()
+            ->where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->where('user_id', $user->id)
+            ->where('estado', 'abierto')
+            ->latest('id')
+            ->first();
 
-        if ($sucursalId !== null) {
-            $almacen = Almacen::query()
-                ->where('empresa_id', $empresaId)
-                ->where('sucursal_id', $sucursalId)
-                ->where('activo', true)
-                ->where('permite_existencias', true)
-                ->where('tipo', Almacen::TIPO_PRINCIPAL)
-                ->first()
-                ?? Almacen::query()
-                    ->where('empresa_id', $empresaId)
-                    ->where('sucursal_id', $sucursalId)
-                    ->where('activo', true)
-                    ->where('permite_existencias', true)
-                    ->first();
-        }
-
-        if (! $almacen) {
-            $almacen = Almacen::query()
-                ->where('empresa_id', $empresaId)
-                ->where('activo', true)
-                ->where('permite_existencias', true)
-                ->first();
-        }
-
-        // 3. Resolver turno de caja activo para el usuario
-        /** @var CajaTurno|null $turnoActivo */
-        $turnoActivo = null;
-        if ($sucursalId !== null) {
-            $turnoActivo = CajaTurno::query()
-                ->where('empresa_id', $empresaId)
-                ->where('sucursal_id', $sucursalId)
-                ->where('user_id', $user->id)
-                ->where('estado', 'abierto')
-                ->latest('id')
-                ->first();
-        }
-
-        /** @var view-string $viewName */
-        $viewName = 'pos.index';
+        /** @var view-string $viewName */ $viewName = 'pos.index';
 
         return view($viewName, [
             'sucursal' => $sucursal,
@@ -362,10 +335,10 @@ class PosController extends Controller
             return (int) $empresaId;
         }
 
-        // Fallback: Tomar la primera empresa activa de la base de datos
-        $idEmpresa = Empresa::query()->value('id');
+        /** @var Empresa|null $empresa */
+        $empresa = $user->empresa ?? Empresa::query()->where('activo', true)->first() ?? Empresa::query()->first();
 
-        return $idEmpresa !== null ? (int) $idEmpresa : 1;
+        return $empresa !== null ? (int) $empresa->id : 1;
     }
 
     public function ticket(Request $request, Venta $venta): View
@@ -394,25 +367,25 @@ class PosController extends Controller
      */
     public function ultimasVentas(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $sucursalId = $request->input('sucursal_id');
-
-        $turno = CajaTurno::query()
-            ->where('sucursal_id', $sucursalId)
-            ->where('estado', 'abierto')
-            ->latest('id')
-            ->first();
-
-        if (! $turno) {
-            return response()->json([]);
-        }
+        $sucursalId = $request->integer('sucursal_id');
 
         $ventas = Venta::query()
-            ->where('caja_turno_id', $turno->id)
-            ->with(['detalles'])
+            ->when($sucursalId > 0, fn ($q) => $q->where('sucursal_id', $sucursalId))
+            ->where('estado', 'completada')
             ->latest('id')
             ->take(15)
-            ->get(['id', 'uuid', 'folio', 'cliente_nombre', 'total', 'created_at']);
+            ->get([
+                'id',
+                'uuid',
+                'folio',
+                'cliente_nombre',
+                'cliente_rfc',
+                'total',
+                'estado_facturacion',
+                'uuid_fiscal',
+                'serie_folio_factura',
+                'created_at',
+            ]);
 
         return response()->json($ventas);
     }

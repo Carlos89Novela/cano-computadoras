@@ -2,6 +2,12 @@
 
 namespace App\Http\Controllers\Productos;
 
+// ---------------------------------------------------------
+// IMPORTACIONES
+// Clases del framework, acciones de dominio, peticiones
+// form request y modelos de datos necesarios para el catálogo.
+// ---------------------------------------------------------
+
 use App\Actions\Productos\CrearProducto;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Productos\CrearProductoRequest;
@@ -20,19 +26,15 @@ use Illuminate\View\View;
 class ProductoController extends Controller
 {
     // ---------------------------------------------------------
-    // LISTADO DE PRODUCTOS
-    // Muestra el catálogo perteneciente a la empresa indicada.
-    // ---------------------------------------------------------
-
-    // ---------------------------------------------------------
-    // LISTADO DE PRODUCTOS
-    // Muestra la pantalla del catálogo. Los registros serán
-    // cargados posteriormente mediante DataTables y AJAX.
+    // VISTA PRINCIPAL DEL CATÁLOGO
+    // Carga la plantilla inicial con el listado de categorías
+    // activas para alimentar los filtros de búsqueda en la UI.
     // ---------------------------------------------------------
 
     public function index(
         Empresa $empresa
     ): View {
+        // Recupera categorías activas ordenadas alfabéticamente
         $categorias = $empresa
             ->categoriasProducto()
             ->orderByDesc('activo')
@@ -53,9 +55,9 @@ class ProductoController extends Controller
     }
 
     // ---------------------------------------------------------
-    // DATOS PARA DATATABLES
-    // Devuelve los productos de la empresa con búsqueda,
-    // filtros, ordenamiento y paginación del lado del servidor.
+    // SERVICIO AJAX PARA DATATABLES
+    // Procesa búsquedas, ordenamiento dinámico, filtros por
+    // categoría y estado, entregando resultados paginados.
     // ---------------------------------------------------------
 
     public function data(
@@ -63,9 +65,9 @@ class ProductoController extends Controller
         Empresa $empresa
     ): JsonResponse {
         // -----------------------------------------------------
-        // COLUMNAS ORDENABLES
-        // Limita el ordenamiento a columnas conocidas para evitar
-        // valores arbitrarios enviados desde el navegador.
+        // COLUMNAS PERMITIDAS PARA ORDENAMIENTO
+        // Lista blanca de columnas para prevenir inyecciones SQL
+        // o errores por nombres de campos arbitrarios.
         // -----------------------------------------------------
 
         $columnasPermitidas = [
@@ -77,9 +79,9 @@ class ProductoController extends Controller
         ];
 
         // -----------------------------------------------------
-        // CONSULTA BASE
-        // Restringe todos los resultados a la empresa incluida
-        // en la ruta y carga las relaciones necesarias.
+        // CONSTRUCCIÓN DE LA CONSULTA BASE
+        // Delimita los registros exclusivamente a la empresa
+        // inquilina (tenant) con carga ansiosa (eager loading).
         // -----------------------------------------------------
 
         $consulta = Producto::query()
@@ -93,6 +95,7 @@ class ProductoController extends Controller
             ])
             ->select('productos.*');
 
+        // Total absoluto de registros de la empresa antes de filtrar
         $recordsTotal = Producto::query()
             ->where(
                 'empresa_id',
@@ -101,9 +104,9 @@ class ProductoController extends Controller
             ->count();
 
         // -----------------------------------------------------
-        // FILTRO POR CATEGORÍA
-        // Solo aplica categorías pertenecientes a la misma
-        // empresa.
+        // FILTRADO: CATEGORÍA
+        // Aplica el filtro únicamente si la categoría pertenece
+        // legítimamente a la empresa en sesión.
         // -----------------------------------------------------
 
         $categoriaId = $request->integer(
@@ -127,8 +130,8 @@ class ProductoController extends Controller
         }
 
         // -----------------------------------------------------
-        // FILTRO POR ESTADO
-        // Permite mostrar todos, activos o inactivos.
+        // FILTRADO: ESTADO OPERATIVO
+        // Permite conmutar entre registros activos, inactivos o todos.
         // -----------------------------------------------------
 
         $estado = $request
@@ -149,9 +152,9 @@ class ProductoController extends Controller
         }
 
         // -----------------------------------------------------
-        // BÚSQUEDA GENERAL
-        // Busca simultáneamente por SKU, código de barras,
-        // nombre, marca, modelo, categoría o proveedor.
+        // BÚSQUEDA GLOBAL
+        // Localiza coincidencias en SKU, código de barras, nombre,
+        // marca, modelo, o nombres de categoría y proveedor.
         // -----------------------------------------------------
 
         $search = $request->input(
@@ -222,14 +225,15 @@ class ProductoController extends Controller
             );
         }
 
+        // Cantidad de registros encontrados tras aplicar criterios de búsqueda
         $recordsFiltered = (
             clone $consulta
         )->count();
 
         // -----------------------------------------------------
-        // ORDENAMIENTO
-        // Recupera la columna solicitada por DataTables y valida
-        // que la dirección sea ascendente o descendente.
+        // APLICACIÓN DE ORDENAMIENTO
+        // Determina la columna seleccionada en la cabecera de la tabla
+        // y ejecuta subconsultas para relaciones foráneas.
         // -----------------------------------------------------
 
         $orderColumnIndex = $request->integer(
@@ -294,15 +298,16 @@ class ProductoController extends Controller
                 $orderDirection
             );
         } else {
+            // Orden por defecto: productos activos primero, luego alfabético
             $consulta
                 ->orderByDesc('productos.activo')
                 ->orderBy('productos.nombre');
         }
 
         // -----------------------------------------------------
-        // PAGINACIÓN
-        // Limita a cien registros por solicitud para conservar
-        // un consumo predecible de recursos.
+        // CONTROL DE PAGINACIÓN POR LOTES
+        // Restringe el número de filas por petición para mantener
+        // bajo consumo de memoria y respuesta ágil en la red.
         // -----------------------------------------------------
 
         $start = max(
@@ -323,17 +328,16 @@ class ProductoController extends Controller
             100
         );
 
+        /** @var Collection<int, Producto> $rows */
         $rows = $consulta
             ->skip($start)
             ->take($length)
             ->get();
 
-        /** @var Collection<int, Producto> $rows */
-
         // -----------------------------------------------------
-        // TRANSFORMACIÓN DE FILAS
-        // Entrega valores simples para que DataTables represente
-        // cada producto sin exponer campos internos.
+        // TRANSFORMACIÓN Y FORMATEO DE RESPUESTA
+        // Mapea la información técnica del modelo a tipos nativos
+        // compatibles con el renderizado de DataTables en JavaScript.
         // -----------------------------------------------------
 
         $data = $rows
@@ -351,11 +355,8 @@ class ProductoController extends Controller
                         'unidad_medida' => ucfirst(
                             $producto->unidad_medida
                         ),
-                        'precio_base' => $producto
-                            ->precio_base === null
-                                ? null
-                                : (float) $producto
-                                    ->precio_base,
+                        // Conversión numérica segura del precio base
+                        'precio_base' => (float) $producto->precio_base,
                         'estado' => $producto->activo
                             ? 'Activo'
                             : 'Inactivo',
@@ -365,9 +366,8 @@ class ProductoController extends Controller
             ->values();
 
         // -----------------------------------------------------
-        // RESPUESTA DATATABLES
-        // Respeta el protocolo requerido por el procesamiento
-        // del lado del servidor.
+        // RETORNO DEL PROTOCOLO DATATABLES
+        // Estructura JSON requerida por la biblioteca del cliente.
         // -----------------------------------------------------
 
         return response()->json([
@@ -379,9 +379,9 @@ class ProductoController extends Controller
     }
 
     // ---------------------------------------------------------
-    // FORMULARIO DE CREACIÓN
-    // Carga las categorías y proveedores activos que pertenecen
-    // a la empresa seleccionada.
+    // FORMULARIO DE ALTA DE PRODUCTOS
+    // Entrega los catálogos auxiliares (categorías, proveedores
+    // y unidades de medida) autorizados para la empresa.
     // ---------------------------------------------------------
 
     public function create(
@@ -426,9 +426,9 @@ class ProductoController extends Controller
     }
 
     // ---------------------------------------------------------
-    // REGISTRAR PRODUCTO
-    // Ejecuta la acción de dominio con los datos validados por
-    // el Form Request.
+    // PERSISTENCIA Y REGISTRO DE PRODUCTO
+    // Valida la identidad del usuario responsable y delega a la
+    // Action de dominio la inserción y auditoría inmutable.
     // ---------------------------------------------------------
 
     public function store(
@@ -456,9 +456,8 @@ class ProductoController extends Controller
         );
 
         // -----------------------------------------------------
-        // CATEGORÍA
-        // Recupera únicamente una categoría perteneciente a la
-        // empresa indicada en la ruta.
+        // VALIDACIÓN DE PERTENENCIA: CATEGORÍA
+        // Comprueba que la categoría pertenezca a la empresa actual.
         // -----------------------------------------------------
 
         $categoria = CategoriaProducto::query()
@@ -471,9 +470,8 @@ class ProductoController extends Controller
             );
 
         // -----------------------------------------------------
-        // PROVEEDOR PRINCIPAL
-        // El proveedor es opcional. Si se selecciona, debe
-        // pertenecer a la misma empresa.
+        // VALIDACIÓN DE PERTENENCIA: PROVEEDOR
+        // Si se especificó un proveedor opcional, valida su vínculo.
         // -----------------------------------------------------
 
         $proveedorId = $datos[
@@ -499,9 +497,8 @@ class ProductoController extends Controller
                 );
 
         // -----------------------------------------------------
-        // CREACIÓN DEL PRODUCTO
-        // La acción aplica las reglas de negocio, normaliza los
-        // datos y registra la auditoría correspondiente.
+        // EJECUCIÓN DE LA ACCIÓN DE DOMINIO
+        // Invoca CrearProducto para aplicar reglas y auditoría.
         // -----------------------------------------------------
 
         $crearProducto->ejecutar(
@@ -514,9 +511,8 @@ class ProductoController extends Controller
         );
 
         // -----------------------------------------------------
-        // REDIRECCIÓN
-        // Regresa al catálogo de productos de la empresa con
-        // un mensaje de confirmación.
+        // REDIRECCIÓN FINAL
+        // Regresa al listado con notificación de éxito.
         // -----------------------------------------------------
 
         return redirect()

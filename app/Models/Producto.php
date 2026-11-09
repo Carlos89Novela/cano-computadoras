@@ -4,19 +4,59 @@ namespace App\Models;
 
 // ---------------------------------------------------------
 // IMPORTACIONES
-// Relaciones utilizadas para empresa, categoría, proveedor
-// y usuarios responsables de los cambios.
+// Modelos y tipos de relaciones de Eloquent utilizados por Producto.
 // ---------------------------------------------------------
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
+/**
+ * Modelo representativo de un artículo en el catálogo maestro.
+ *
+ * @property int $id
+ * @property int $empresa_id
+ * @property int $categoria_producto_id
+ * @property int|null $proveedor_principal_id
+ * @property string $sku
+ * @property string|null $codigo_barras
+ * @property string $nombre
+ * @property string|null $descripcion
+ * @property string|null $marca
+ * @property string|null $modelo
+ * @property string $unidad_medida
+ * @property string $costo_referencia
+ * @property string $precio_base
+ * @property bool $es_receta
+ * @property string|null $clave_sat
+ * @property string|null $clave_unidad_sat
+ * @property bool $activo
+ * @property int|null $creado_por_id
+ * @property int|null $actualizado_por_id
+ * @property int|null $desactivado_por_id
+ * @property Carbon|null $desactivado_at
+ * @property string|null $motivo_desactivacion
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property-read Empresa $empresa
+ * @property-read CategoriaProducto $categoria
+ * @property-read Proveedor|null $proveedorPrincipal
+ * @property-read User|null $creadoPor
+ * @property-read User|null $actualizadoPor
+ * @property-read User|null $desactivadoPor
+ * @property-read ProductoReceta|null $receta
+ * @property-read Collection<int, ExistenciaAlmacen> $existenciasAlmacen
+ * @property-read Collection<int, MovimientoInventario> $movimientosInventario
+ * @property-read Collection<int, ReservaInventario> $reservasInventario
+ */
 class Producto extends Model
 {
     // ---------------------------------------------------------
-    // CONFIGURACIÓN DEL MODELO
-    // Define la tabla y los campos que pueden asignarse.
+    // CONFIGURACIÓN DE TABLA Y ASIGNACIÓN MASIVA
+    // Define el nombre de la tabla y los atributos permitidos.
     // ---------------------------------------------------------
 
     protected $table = 'productos';
@@ -34,6 +74,9 @@ class Producto extends Model
         'unidad_medida',
         'costo_referencia',
         'precio_base',
+        'es_receta',
+        'clave_sat',
+        'clave_unidad_sat',
         'activo',
         'creado_por_id',
         'actualizado_por_id',
@@ -43,23 +86,27 @@ class Producto extends Model
     ];
 
     // ---------------------------------------------------------
-    // CONVERSIONES DE TIPO
-    // Conserva precios con dos decimales y fechas como objetos.
+    // CONVERSIONES DE TIPO (CASTS)
+    // Asegura el casteo numérico, booleano y de fechas.
     // ---------------------------------------------------------
 
+    /**
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
             'costo_referencia' => 'decimal:2',
             'precio_base' => 'decimal:2',
+            'es_receta' => 'boolean',
             'activo' => 'boolean',
             'desactivado_at' => 'datetime',
         ];
     }
 
     // ---------------------------------------------------------
-    // EMPRESA
-    // Organización propietaria del producto.
+    // RELACIÓN: EMPRESA
+    // Inquilino (Tenant) al que pertenece este producto.
     // ---------------------------------------------------------
 
     /**
@@ -67,15 +114,12 @@ class Producto extends Model
      */
     public function empresa(): BelongsTo
     {
-        return $this->belongsTo(
-            Empresa::class,
-            'empresa_id'
-        );
+        return $this->belongsTo(Empresa::class, 'empresa_id');
     }
 
     // ---------------------------------------------------------
-    // CATEGORÍA
-    // Clasificación principal del producto.
+    // RELACIÓN: CATEGORÍA
+    // Clasificación y agrupación funcional del catálogo.
     // ---------------------------------------------------------
 
     /**
@@ -83,16 +127,12 @@ class Producto extends Model
      */
     public function categoria(): BelongsTo
     {
-        return $this->belongsTo(
-            CategoriaProducto::class,
-            'categoria_producto_id'
-        );
+        return $this->belongsTo(CategoriaProducto::class, 'categoria_producto_id');
     }
 
     // ---------------------------------------------------------
-    // PROVEEDOR PRINCIPAL
-    // Proveedor sugerido para compras y reabastecimiento.
-    // Puede ser nulo.
+    // RELACIÓN: PROVEEDOR PRINCIPAL
+    // Proveedor predeterminado para órdenes de compra y cotizaciones.
     // ---------------------------------------------------------
 
     /**
@@ -100,15 +140,12 @@ class Producto extends Model
      */
     public function proveedorPrincipal(): BelongsTo
     {
-        return $this->belongsTo(
-            Proveedor::class,
-            'proveedor_principal_id'
-        );
+        return $this->belongsTo(Proveedor::class, 'proveedor_principal_id');
     }
 
     // ---------------------------------------------------------
-    // USUARIO CREADOR
-    // Cuenta que registró originalmente el producto.
+    // RELACIONES: AUDITORÍA DE USUARIOS
+    // Rastreabilidad de creación, edición y baja del producto.
     // ---------------------------------------------------------
 
     /**
@@ -116,47 +153,41 @@ class Producto extends Model
      */
     public function creadoPor(): BelongsTo
     {
-        return $this->belongsTo(
-            User::class,
-            'creado_por_id'
-        );
+        return $this->belongsTo(User::class, 'creado_por_id');
     }
-
-    // ---------------------------------------------------------
-    // ÚLTIMO USUARIO ACTUALIZADOR
-    // Cuenta responsable de la última modificación.
-    // ---------------------------------------------------------
 
     /**
      * @return BelongsTo<User, $this>
      */
     public function actualizadoPor(): BelongsTo
     {
-        return $this->belongsTo(
-            User::class,
-            'actualizado_por_id'
-        );
+        return $this->belongsTo(User::class, 'actualizado_por_id');
     }
-
-    // ---------------------------------------------------------
-    // USUARIO QUE DESACTIVÓ
-    // Cuenta responsable de retirar el producto del catálogo.
-    // ---------------------------------------------------------
 
     /**
      * @return BelongsTo<User, $this>
      */
     public function desactivadoPor(): BelongsTo
     {
-        return $this->belongsTo(
-            User::class,
-            'desactivado_por_id'
-        );
+        return $this->belongsTo(User::class, 'desactivado_por_id');
     }
 
     // ---------------------------------------------------------
-    // EXISTENCIAS EN ALMACENES
-    // Saldos consolidados del producto en cada almacén.
+    // RELACIÓN: RECETA / ESCANDALLO (BOM)
+    // Ficha técnica con la lista de insumos requeridos si es_receta = true.
+    // ---------------------------------------------------------
+
+    /**
+     * @return HasOne<ProductoReceta, $this>
+     */
+    public function receta(): HasOne
+    {
+        return $this->hasOne(ProductoReceta::class, 'producto_id');
+    }
+
+    // ---------------------------------------------------------
+    // RELACIÓN: EXISTENCIAS POR ALMACÉN
+    // Balances consolidados de inventario en cada almacén de la empresa.
     // ---------------------------------------------------------
 
     /**
@@ -164,15 +195,12 @@ class Producto extends Model
      */
     public function existenciasAlmacen(): HasMany
     {
-        return $this->hasMany(
-            ExistenciaAlmacen::class,
-            'producto_id'
-        );
+        return $this->hasMany(ExistenciaAlmacen::class, 'producto_id');
     }
 
     // ---------------------------------------------------------
-    // MOVIMIENTOS DE INVENTARIO
-    // Bitácora inmutable de movimientos del producto.
+    // RELACIÓN: MOVIMIENTOS DE INVENTARIO (KARDEX)
+    // Bitácora histórica inmutable de entradas, salidas y traspasos.
     // ---------------------------------------------------------
 
     /**
@@ -180,16 +208,12 @@ class Producto extends Model
      */
     public function movimientosInventario(): HasMany
     {
-        return $this->hasMany(
-            MovimientoInventario::class,
-            'producto_id'
-        );
+        return $this->hasMany(MovimientoInventario::class, 'producto_id');
     }
 
     // ---------------------------------------------------------
-    // RESERVAS DE INVENTARIO
-    // Recupera las reservas asociadas con este producto en
-    // órdenes y almacenes diferentes.
+    // RELACIÓN: RESERVAS DE INVENTARIO
+    // Existencias comprometidas para órdenes de servicio o pedidos pendientes.
     // ---------------------------------------------------------
 
     /**
@@ -197,9 +221,6 @@ class Producto extends Model
      */
     public function reservasInventario(): HasMany
     {
-        return $this->hasMany(
-            ReservaInventario::class,
-            'producto_id'
-        );
+        return $this->hasMany(ReservaInventario::class, 'producto_id');
     }
 }

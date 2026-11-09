@@ -65,19 +65,22 @@
                                  x-transition:leave-start="opacity-100 scale-100"
                                  x-transition:leave-end="opacity-0 scale-95"
                                  class="absolute left-0 mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50">
-                                
-                                @if ($usuario->hasRole('administrador'))
-                                    <a href="{{ route('admin.ordenes.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
-                                        🛠️ Reparaciones (Taller)
-                                    </a>
-                                @elseif ($usuario->hasRole('supervisor'))
-                                    <a href="{{ route('supervisor.dashboard') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
-                                        🛠️ Supervisión de Taller
-                                    </a>
-                                @elseif ($usuario->hasRole('empleado'))
-                                    <a href="{{ route('empleado.dashboard') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
-                                        🛠️ Reparaciones Asignadas
-                                    </a>
+
+                                {{-- Envolver el bloque de taller en la condición del giro comercial --}}
+                                @if ($empresaActual?->esTallerComputo())
+                                    @if ($usuario->hasRole('administrador'))
+                                        <a href="{{ route('admin.ordenes.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                            🛠️ Reparaciones (Taller)
+                                        </a>
+                                    @elseif ($usuario->hasRole('supervisor'))
+                                        <a href="{{ route('supervisor.dashboard') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                            🛠️ Supervisión de Taller
+                                        </a>
+                                    @elseif ($usuario->hasRole('empleado'))
+                                        <a href="{{ route('empleado.dashboard') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                            🛠️ Reparaciones Asignadas
+                                        </a>
+                                    @endif
                                 @endif
 
                                 @if ($esAdminOSupervisor)
@@ -111,7 +114,7 @@
                                  x-transition:leave-start="opacity-100 scale-100"
                                  x-transition:leave-end="opacity-0 scale-95"
                                  class="absolute left-0 mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50">
-                                
+
                                 <a href="{{ route('inventario.existencias.index', $empresaActual) }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
                                     📊 Existencias y Kardex
                                 </a>
@@ -174,7 +177,7 @@
                          x-transition:leave-start="opacity-100 scale-100"
                          x-transition:leave-end="opacity-0 scale-95"
                          class="absolute right-0 mt-2 w-64 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-2 z-50">
-                        
+
                         @if ($usuario->hasRole('administrador'))
                             <div class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-800/80">
                                 Configuración Global
