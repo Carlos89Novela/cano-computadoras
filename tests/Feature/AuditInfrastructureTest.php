@@ -5,7 +5,6 @@ use App\Models\User;
 use App\Services\Auditoria\RegistrarAuditoria;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
-use LogicException;
 
 uses(RefreshDatabase::class);
 

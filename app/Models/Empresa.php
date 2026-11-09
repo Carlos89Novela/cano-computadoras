@@ -60,6 +60,8 @@ class Empresa extends Model
         'activo',
         'creado_por_id',
         'actualizado_por_id',
+        'giro_comercial',
+        'plan_suscripcion',
     ];
 
     // ---------------------------------------------------------
@@ -229,5 +231,34 @@ class Empresa extends Model
         return $this->hasMany(
             ReservaInventario::class
         );
+    }
+
+    public function esTallerComputo(): bool
+    {
+        return $this->giro_comercial === 'computo_taller';
+    }
+
+    public function esRestaurante(): bool
+    {
+        return $this->giro_comercial === 'restaurante_cafeteria';
+    }
+
+    public function esRetail(): bool
+    {
+        return $this->giro_comercial === 'retail_abarrotes';
+    }
+
+    public function tienePlan(string $planMinimo): bool
+    {
+        $niveles = [
+            'basico' => 1,
+            'medio' => 2,
+            'avanzado' => 3,
+        ];
+
+        $nivelActual = $niveles[$this->plan_suscripcion] ?? 1;
+        $nivelRequerido = $niveles[$planMinimo] ?? 1;
+
+        return $nivelActual >= $nivelRequerido;
     }
 }
