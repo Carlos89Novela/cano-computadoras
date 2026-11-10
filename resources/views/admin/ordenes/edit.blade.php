@@ -1,15 +1,99 @@
 <x-app-layout>
+    {{-- =========================================================================
+         SLOT: HEADER (Barra de título superior y botones de acción global)
+         Contiene el folio de la reparación, enlaces de cotización pública (enlace/QR),
+         descarga de reporte en PDF y retorno al listado administrativo.
+    ========================================================================= --}}
     <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                Reparación {{ $orden->folio }}
-            </h2>
-            <div class="flex gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                    Reparación {{ $orden->folio }}
+                </h2>
+                <span class="text-xs text-zinc-400 font-mono">Panel de Control Técnico y Administrativo</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                {{-- COMPONENTE ALPINE.JS: COTIZACIÓN PÚBLICA CON FIRMA DIGITAL
+                     Permite copiar el enlace con token seguro al portapapeles o desplegar
+                     un modal interactivo con el código QR para que el cliente lo escanee en mostrador. --}}
+                <div x-data="{
+                        modalQrCotizacion: false,
+                        urlCotizacion: '{{ route('public.cotizacion.show', $orden->asegurarTokenPublico()) }}',
+                        copiado: false,
+                        copiarEnlace() {
+                            navigator.clipboard.writeText(this.urlCotizacion).then(() => {
+                                this.copiado = true;
+                                setTimeout(() => this.copiado = false, 2500);
+                            });
+                        }
+                     }" class="inline-flex items-center gap-2">
+
+                    {{-- Botón 1: Copiar Enlace Directo --}}
+                    <button type="button" 
+                            @click="copiarEnlace()"
+                            title="Copiar URL con token único para enviar al cliente por WhatsApp o mensajería"
+                            class="rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 transition flex items-center gap-1.5 shadow-sm">
+                        <span x-show="!copiado">📋 Copiar Enlace Cotización</span>
+                        <span x-show="copiado" class="text-emerald-400 font-bold">✓ ¡Enlace Copiado!</span>
+                    </button>
+
+                    {{-- Botón 2: Mostrar Código QR en Pantalla --}}
+                    <button type="button" 
+                            @click="modalQrCotizacion = true"
+                            title="Mostrar QR interactivo para escanear en recepción con smartphone"
+                            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 transition flex items-center gap-1.5 shadow-sm">
+                        <span>📱</span> Ver QR Mostrador
+                    </button>
+
+                    {{-- MODAL: Código QR de Autorización
+                         Carga la imagen dinámicamente y se cierra con tecla Escape o clic fuera. --}}
+                    <div x-show="modalQrCotizacion" 
+                         x-cloak 
+                         class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div @click.away="modalQrCotizacion = false" 
+                             class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
+                            
+                            <div class="flex items-center justify-between border-b border-zinc-800 pb-2">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-400 font-mono">
+                                    Firma de Cotización
+                                </h4>
+                                <button type="button" @click="modalQrCotizacion = false" class="text-zinc-400 hover:text-white text-lg">&times;</button>
+                            </div>
+
+                            <div>
+                                <p class="text-xs text-zinc-300">
+                                    Escanee este código con la cámara del dispositivo para revisar diagnóstico, costos y autorizar con firma digital:
+                                </p>
+                                <div class="p-3 bg-white rounded-2xl inline-block mt-3 shadow-inner">
+                                    <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=${encodeURIComponent(urlCotizacion)}`"
+                                         alt="Código QR de Cotización" 
+                                         class="w-44 h-44 block">
+                                </div>
+                            </div>
+
+                            <div class="text-[10px] text-zinc-400 font-mono truncate px-2.5 bg-zinc-950 py-2 rounded-xl border border-zinc-800 text-left"
+                                 x-text="urlCotizacion"></div>
+
+                            <div class="pt-1">
+                                <button type="button" 
+                                        @click="modalQrCotizacion = false" 
+                                        class="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-xl transition">
+                                    Cerrar Ventana
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Botón 3: Generación de PDF Interno de la Orden --}}
                 <a href="{{ route('admin.ordenes.pdf', ['orden' => $orden->id]) }}"
                     target="_blank" rel="noopener noreferrer"
                     class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 transition">
                     📄 Descargar PDF
                 </a>
+
+                {{-- Botón 4: Retorno al Listado General --}}
                 <a href="{{ route('admin.ordenes.index') }}"
                     class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 transition">
                     ← Volver a órdenes
@@ -18,7 +102,12 @@
         </div>
     </x-slot>
 
+    {{-- =========================================================================
+         CONTENEDOR PRINCIPAL: GESTIÓN POR PESTAÑAS (TABS)
+         Organiza el ciclo técnico en 4 secciones para evitar scroll vertical excesivo.
+    ========================================================================= --}}
     <div class="py-8" x-data="{ tab: 'general' }">
+        {{-- Script de autoimpresión al registrar una entrega con comprobante físico --}}
         @if (session('imprimir_comprobante_url'))
             <script>
                 document.addEventListener('DOMContentLoaded', function () {
@@ -26,9 +115,14 @@
                 });
             </script>
         @endif
+
         <div class="mx-auto max-w-6xl px-4 sm:px-6">
 
-            <!-- 1. Encabezado Resumen Fijo -->
+            {{-- -----------------------------------------------------------------
+                 SECCIÓN 1: ENCABEZADO RESUMEN FIJO
+                 Muestra de forma inmediata: Cliente, Equipo, Costo Estimado,
+                 Costo Final y el Estado del equipo con su respectivo badge.
+            ----------------------------------------------------------------- --}}
             <div class="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -45,6 +139,7 @@
                     ])
                 </div>
 
+                {{-- Métricas Clave de la Reparación --}}
                 <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
                     <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Cliente</p>
@@ -62,22 +157,26 @@
 
                     <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Costo estimado</p>
-                        <p class="mt-1 text-sm font-semibold text-white">
+                        <p class="mt-1 text-sm font-semibold text-white font-mono">
                             {{ $orden->costo_estimado !== null ? '$'.number_format((float) $orden->costo_estimado, 2) : 'Pendiente' }}
                         </p>
                     </div>
 
                     <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4">
                         <p class="text-xs uppercase tracking-wide text-zinc-400">Costo final</p>
-                        <p class="mt-1 text-sm font-semibold text-emerald-400">
+                        <p class="mt-1 text-sm font-semibold text-emerald-400 font-mono">
                             {{ $orden->costo_final !== null ? '$'.number_format((float) $orden->costo_final, 2) : 'Pendiente' }}
                         </p>
                     </div>
                 </div>
             </div>
 
-            <!-- 2. Barra de Navegación por Pestañas (Tabs) -->
+            {{-- -----------------------------------------------------------------
+                 SECCIÓN 2: BARRA DE NAVEGACIÓN ENTRE PESTAÑAS (TABS)
+                 Cambia reactivamente el estado de la variable Alpine `tab`.
+            ----------------------------------------------------------------- --}}
             <div class="mb-6 flex space-x-2 border-b border-zinc-800 pb-2">
+                {{-- Tab A: Diagnóstico --}}
                 <button type="button"
                     @click="tab = 'general'"
                     :class="tab === 'general' ? 'bg-purple-600 text-white font-semibold shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'"
@@ -85,6 +184,7 @@
                     🛠️ Diagnóstico y Estado
                 </button>
 
+                {{-- Tab B: Refacciones comprometidas (protegido por permisos) --}}
                 @can('inventario.ver')
                     <button type="button"
                         @click="tab = 'inventario'"
@@ -99,6 +199,7 @@
                     </button>
                 @endcan
 
+                {{-- Tab C: Bitácora de cambios cronológicos --}}
                 <button type="button"
                     @click="tab = 'historial'"
                     :class="tab === 'historial' ? 'bg-purple-600 text-white font-semibold shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'"
@@ -111,6 +212,7 @@
                     @endif
                 </button>
 
+                {{-- Tab D: Panel de Entrega Física (visible solo si la orden permite entrega) --}}
                 @can('deliver', $orden)
                     <button type="button"
                         @click="tab = 'entrega'"
@@ -121,9 +223,11 @@
                 @endcan
             </div>
 
-            <!-- 3. Contenido de las Pestañas -->
+            {{-- -----------------------------------------------------------------
+                 SECCIÓN 3: CONTENIDO DE LAS PESTAÑAS
+            ----------------------------------------------------------------- --}}
 
-            <!-- Pestaña A: Diagnóstico y Estado General -->
+            {{-- PESTAÑA A: DIAGNÓSTICO, RESOLUCIÓN TÉCNICA Y COSTOS --}}
             <div x-show="tab === 'general'" x-cloak>
                 <form action="{{ route('admin.ordenes.update', ['orden' => $orden->id]) }}"
                     method="POST"
@@ -131,6 +235,7 @@
                     @csrf
                     @method('PUT')
 
+                    {{-- Ficha informativa del cliente y equipo --}}
                     <div class="grid gap-6 md:grid-cols-2">
                         <div class="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
                             <p class="text-xs uppercase tracking-wide text-zinc-400">Cliente titular</p>
@@ -147,6 +252,7 @@
                         </div>
                     </div>
 
+                    {{-- Problema manifestado en recepción --}}
                     <div>
                         <p class="mb-1 text-xs uppercase tracking-wide text-zinc-400">Falla reportada por el cliente</p>
                         <div class="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
@@ -154,6 +260,7 @@
                         </div>
                     </div>
 
+                    {{-- Selector de Estado Operativo --}}
                     <div>
                         <label for="estado" class="mb-2 block text-sm font-medium text-zinc-200">
                             Estado operativo de la reparación
@@ -170,6 +277,7 @@
                         @enderror
                     </div>
 
+                    {{-- Diagnóstico Técnico --}}
                     <div>
                         <label for="diagnostico" class="mb-2 block text-sm font-medium text-zinc-200">
                             Diagnóstico técnico y resolución
@@ -182,6 +290,7 @@
                         @enderror
                     </div>
 
+                    {{-- Captura de Presupuestos --}}
                     <div class="grid gap-6 md:grid-cols-2">
                         <div>
                             <label for="costo_estimado" class="mb-2 block text-sm font-medium text-zinc-200">
@@ -189,7 +298,7 @@
                             </label>
                             <input id="costo_estimado" name="costo_estimado" type="number" step="0.01" min="0" max="999999.99"
                                 value="{{ old('costo_estimado', $orden->costo_estimado) }}"
-                                class="admin-form-control text-sm" placeholder="0.00">
+                                class="admin-form-control text-sm font-mono" placeholder="0.00">
                             @error('costo_estimado')
                                 <p class="mt-2 text-xs text-red-400">{{ $message }}</p>
                             @enderror
@@ -201,13 +310,14 @@
                             </label>
                             <input id="costo_final" name="costo_final" type="number" step="0.01" min="0" max="999999.99"
                                 value="{{ old('costo_final', $orden->costo_final) }}"
-                                class="admin-form-control text-sm" placeholder="0.00">
+                                class="admin-form-control text-sm font-mono" placeholder="0.00">
                             @error('costo_final')
                                 <p class="mt-2 text-xs text-red-400">{{ $message }}</p>
                             @enderror
                         </div>
                     </div>
 
+                    {{-- Notas internas y comunicación al cliente --}}
                     <div>
                         <label for="comentario" class="mb-2 block text-sm font-medium text-zinc-200">
                             Comentario interno (historial de taller)
@@ -234,9 +344,10 @@
                 </form>
             </div>
 
-            <!-- Pestaña B: Refacciones e Inventario -->
+            {{-- PESTAÑA B: CONTROL DE REFACCIONES E INVENTARIO COMPROMETIDO --}}
             @can('inventario.ver')
                 <div x-show="tab === 'inventario'" x-cloak class="space-y-6">
+                    {{-- Formulario para reservar una nueva pieza de un almacén registrado --}}
                     @can('inventario.consumir')
                         <section class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
                             <div class="mb-4">
@@ -277,7 +388,7 @@
                                         <div>
                                             <label class="mb-1 block text-xs font-medium text-zinc-300">Cantidad</label>
                                             <input type="number" name="cantidad" step="0.0001" min="0.0001" placeholder="1.0000" required
-                                                class="admin-form-control text-sm">
+                                                class="admin-form-control text-sm font-mono">
                                         </div>
 
                                         <div>
@@ -301,7 +412,7 @@
                         </section>
                     @endcan
 
-                    <!-- Listado de Refacciones Comprometidas -->
+                    {{-- Listado de Refacciones Comprometidas con acciones de Consumir / Liberar --}}
                     <section class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
                         <h3 class="mb-4 text-lg font-bold text-white">
                             Refacciones comprometidas en esta orden
@@ -334,27 +445,28 @@
                                             </span>
                                         </div>
 
-                                        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                        {{-- Desglose numérico del stock reservado --}}
+                                        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 font-mono">
                                             <div class="rounded-lg bg-zinc-950 p-2.5 text-center">
-                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500">Reservado</p>
+                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500 font-sans">Reservado</p>
                                                 <p class="mt-0.5 font-semibold text-white text-sm">
                                                     {{ number_format((float) $reserva->cantidad_reservada, 4) }}
                                                 </p>
                                             </div>
                                             <div class="rounded-lg bg-zinc-950 p-2.5 text-center">
-                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500">Consumido</p>
+                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500 font-sans">Consumido</p>
                                                 <p class="mt-0.5 font-semibold text-emerald-400 text-sm">
                                                     {{ number_format((float) $reserva->cantidad_consumida, 4) }}
                                                 </p>
                                             </div>
                                             <div class="rounded-lg bg-zinc-950 p-2.5 text-center">
-                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500">Liberado</p>
+                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500 font-sans">Liberado</p>
                                                 <p class="mt-0.5 font-semibold text-zinc-300 text-sm">
                                                     {{ number_format((float) $reserva->cantidad_liberada, 4) }}
                                                 </p>
                                             </div>
                                             <div class="rounded-lg bg-zinc-950 p-2.5 text-center">
-                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500">Pendiente</p>
+                                                <p class="text-[10px] uppercase tracking-wide text-zinc-500 font-sans">Pendiente</p>
                                                 <p class="mt-0.5 font-semibold text-purple-300 text-sm">
                                                     {{ number_format((float) $reserva->cantidadPendiente(), 4) }}
                                                 </p>
@@ -367,6 +479,7 @@
                                             <span>Por: <strong class="text-zinc-200">{{ $reserva->reservadoPor?->name ?? 'N/D' }}</strong></span>
                                         </div>
 
+                                        {{-- Formularios Contextuales: Consumo o Liberación al Almacén --}}
                                         @if ($reserva->estaActiva() && (float) $reserva->cantidadPendiente() > 0)
                                             <div class="mt-4 border-t border-zinc-800/80 pt-3" x-data="{ accion: null }">
                                                 <div class="flex flex-wrap gap-2">
@@ -382,7 +495,7 @@
                                                     </button>
                                                 </div>
 
-                                                <!-- Formulario para Consumir -->
+                                                {{-- Formulario para Consumir Físicamente --}}
                                                 <div x-show="accion === 'consumir'" x-cloak class="mt-3 rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4">
                                                     <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">Confirmar consumo físico</p>
                                                     <form action="{{ route('admin.ordenes.inventario.consumir', ['empresa' => $reserva->empresa_id, 'orden' => $orden->id]) }}" method="POST" class="mt-3 space-y-3">
@@ -395,7 +508,7 @@
                                                                 <label class="block text-xs text-zinc-400">Cantidad (Máx: {{ $reserva->cantidadPendiente() }})</label>
                                                                 <input type="number" step="0.0001" min="0.0001" max="{{ $reserva->cantidadPendiente() }}"
                                                                     name="cantidad" value="{{ $reserva->cantidadPendiente() }}" required
-                                                                    class="admin-form-control mt-1 text-sm">
+                                                                    class="admin-form-control mt-1 text-sm font-mono">
                                                             </div>
                                                             <div>
                                                                 <label class="block text-xs text-zinc-400">Motivo de consumo</label>
@@ -410,7 +523,7 @@
                                                     </form>
                                                 </div>
 
-                                                <!-- Formulario para Liberar -->
+                                                {{-- Formulario para Reintegrar Stock al Almacén --}}
                                                 <div x-show="accion === 'liberar'" x-cloak class="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
                                                     <p class="text-xs font-semibold uppercase tracking-wide text-zinc-300">Devolver refacción al stock</p>
                                                     <form action="{{ route('admin.ordenes.inventario.liberar', ['empresa' => $reserva->empresa_id, 'orden' => $orden->id]) }}" method="POST" class="mt-3 space-y-3">
@@ -423,7 +536,7 @@
                                                                 <label class="block text-xs text-zinc-400">Cantidad (Máx: {{ $reserva->cantidadPendiente() }})</label>
                                                                 <input type="number" step="0.0001" min="0.0001" max="{{ $reserva->cantidadPendiente() }}"
                                                                     name="cantidad" value="{{ $reserva->cantidadPendiente() }}" required
-                                                                    class="admin-form-control mt-1 text-sm">
+                                                                    class="admin-form-control mt-1 text-sm font-mono">
                                                             </div>
                                                             <div>
                                                                 <label class="block text-xs text-zinc-400">Motivo de liberación</label>
@@ -447,7 +560,7 @@
                 </div>
             @endcan
 
-            <!-- Pestaña C: Historial de Trabajo -->
+            {{-- PESTAÑA C: HISTORIAL DE TRABAJO Y BITÁCORA --}}
             <div x-show="tab === 'historial'" x-cloak class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 shadow-sm">
                 <h3 class="mb-5 text-lg font-bold text-white">
                     Historial de cambios y seguimiento técnico
@@ -474,7 +587,7 @@
                                         @else
                                             <span class="text-sm font-semibold text-zinc-200">Actualización técnica</span>
                                         @endif
-                                        <span class="text-xs text-zinc-400">
+                                        <span class="text-xs text-zinc-400 font-mono">
                                             {{ $registro->created_at?->format('d/m/Y H:i') ?? 'Sin fecha' }}
                                         </span>
                                     </div>
@@ -503,7 +616,7 @@
                 @endif
             </div>
 
-            <!-- Pestaña D: Entrega del Equipo -->
+            {{-- PESTAÑA D: ENTREGA FÍSICA Y EXPEDICIÓN DE COMPROBANTES --}}
             @can('deliver', $orden)
                 <div x-show="tab === 'entrega'" x-cloak class="rounded-2xl border border-emerald-800 bg-emerald-950/40 p-6 shadow-sm">
                     <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">
@@ -530,7 +643,7 @@
                             @enderror
                         </div>
 
-                        <!-- Selector de Comprobante -->
+                        {{-- Selector de Comprobante: Imprimir PDF, Correo o Ambas --}}
                         <div>
                             <label class="block text-sm font-medium text-emerald-100 mb-2">
                                 ¿Cómo deseas expedir el comprobante de entrega?
