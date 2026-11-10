@@ -3,7 +3,7 @@
 // ---------------------------------------------------------
 // IMPORTACIONES DE CONTROLADORES
 // Se agrupan los controladores de administración, compras,
-// inventarios, pos, facturación, productos y recetas.
+// inventarios, pos, facturación, productos y restaurante.
 // ---------------------------------------------------------
 
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -36,6 +36,7 @@ use App\Http\Controllers\Restaurante\ComanderoController;
 use App\Http\Controllers\Restaurante\CuentaMesaController;
 use App\Http\Controllers\Restaurante\KdsController;
 use App\Http\Controllers\Restaurante\PlanoMesasController;
+use App\Http\Controllers\Restaurante\ReporteRestauranteController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
@@ -59,10 +60,7 @@ Route::get('/', function () {
 });
 
 Route::get('/seguimiento/{token}', [SeguimientoController::class, 'show'])
-    ->where(
-        'token',
-        '[0-9A-HJKMNP-TV-Z]{26}'
-    )
+    ->where('token', '[0-9A-HJKMNP-TV-Z]{26}')
     ->middleware('throttle:30,1')
     ->name('seguimiento.show');
 
@@ -393,12 +391,10 @@ Route::middleware([
         Route::get(
             '/empresas/{empresa}/inventario/ordenes-compra/{orden}/detalles',
             [RecepcionInventarioController::class, 'ordenCompraData']
-        )
-            ->name('recepciones.orden-data');
+        )->name('recepciones.orden-data');
 
         // -------------------------------------------------
         // TRANSFERENCIAS DE INVENTARIO (3 FASES)
-        // Solicitud -> Despacho a Tránsito -> Recepción Destino
         // -------------------------------------------------
         Route::prefix('empresas/{empresa}/inventario/transferencias')
             ->name('transferencias.')
@@ -748,5 +744,15 @@ Route::prefix('autofactura')->name('autofactura.')->group(function (): void {
     Route::get('/{token}', [AutofacturaController::class, 'show'])->name('show');
     Route::post('/{token}/timbrar', [AutofacturaController::class, 'procesar'])->name('procesar');
 });
+
+// =========================================================
+// REPORTES Y ANALÍTICA DE RESTAURANTE
+// =========================================================
+Route::middleware(['auth', 'verified', 'role:administrador|supervisor'])
+    ->prefix('restaurante/reportes')
+    ->name('restaurante.reportes.')
+    ->group(function (): void {
+        Route::get('/', [ReporteRestauranteController::class, 'index'])->name('index');
+    });
 
 require __DIR__.'/auth.php';
