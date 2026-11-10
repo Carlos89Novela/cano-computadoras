@@ -337,13 +337,15 @@ class ProductoController extends Controller
         // -----------------------------------------------------
         // TRANSFORMACIÓN Y FORMATEO DE RESPUESTA
         // Mapea la información técnica del modelo a tipos nativos
-        // compatibles con el renderizado de DataTables en JavaScript.
+        // compatibles con el renderizado de DataTables en JavaScript,
+        // incluyendo el identificador de fila y la bandera es_receta.
         // -----------------------------------------------------
 
         $data = $rows
             ->map(
                 function (Producto $producto): array {
                     return [
+                        'id' => $producto->id,
                         'sku' => $producto->sku,
                         'nombre' => $producto->nombre,
                         'categoria' => $producto->categoria->nombre
@@ -357,6 +359,7 @@ class ProductoController extends Controller
                         ),
                         // Conversión numérica segura del precio base
                         'precio_base' => (float) $producto->precio_base,
+                        'es_receta' => (bool) $producto->es_receta,
                         'estado' => $producto->activo
                             ? 'Activo'
                             : 'Inactivo',

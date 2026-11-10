@@ -48,6 +48,8 @@ class Venta extends Model
         'pdf_factura_path',
         'facturado_at',
         'notas',
+        'token_autofactura',
+        'autofactura_limite_at',
     ];
 
     protected $casts = [
@@ -59,6 +61,7 @@ class Venta extends Model
         'iva_total' => 'decimal:4',
         'total' => 'decimal:2',
         'costo_total_inventario' => 'decimal:4',
+        'autofactura_limite_at' => 'datetime',
     ];
 
     protected static function booted(): void

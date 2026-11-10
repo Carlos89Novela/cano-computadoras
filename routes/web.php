@@ -31,8 +31,11 @@ use App\Http\Controllers\Productos\ProductoController;
 use App\Http\Controllers\Productos\RecetaController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Proveedores\ProveedorController;
+use App\Http\Controllers\Public\AutofacturaController;
 use App\Http\Controllers\Restaurante\ComanderoController;
+use App\Http\Controllers\Restaurante\CuentaMesaController;
 use App\Http\Controllers\Restaurante\KdsController;
+use App\Http\Controllers\Restaurante\PlanoMesasController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
@@ -708,5 +711,41 @@ Route::middleware(['auth', 'verified'])
         Route::get('/catalogo', [ComanderoController::class, 'catalogo'])->name('catalogo');
         Route::post('/enviar', [ComanderoController::class, 'enviarComanda'])->name('enviar');
     });
+
+// =========================================================
+// PLANO GRÁFICO DE MESAS (FLOOR PLAN / DRAG & DROP)
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('restaurante/mesas')
+    ->name('restaurante.mesas.')
+    ->group(function (): void {
+        Route::get('/plano', [PlanoMesasController::class, 'index'])->name('plano');
+        Route::post('/guardar-posiciones', [PlanoMesasController::class, 'guardarPosiciones'])
+            ->middleware('role:administrador|supervisor')
+            ->name('guardar-posiciones');
+        Route::post('/crear', [PlanoMesasController::class, 'storeMesa'])
+            ->middleware('role:administrador|supervisor')
+            ->name('store');
+    });
+
+// =========================================================
+// PRECUENTA, COBRO Y LIBERACIÓN DE MESAS
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('restaurante/mesas/{mesa}')
+    ->name('restaurante.mesas.')
+    ->group(function (): void {
+        Route::get('/precuenta', [CuentaMesaController::class, 'precuenta'])->name('precuenta');
+        Route::patch('/pedir-cuenta', [CuentaMesaController::class, 'pedirCuenta'])->name('pedir-cuenta');
+        Route::post('/liquidar', [CuentaMesaController::class, 'liquidarMesa'])->name('liquidar');
+    });
+
+// =========================================================
+// PORTAL PÚBLICO DE AUTOFACTURACIÓN (ESCÁNER QR EN TICKET)
+// =========================================================
+Route::prefix('autofactura')->name('autofactura.')->group(function (): void {
+    Route::get('/{token}', [AutofacturaController::class, 'show'])->name('show');
+    Route::post('/{token}/timbrar', [AutofacturaController::class, 'procesar'])->name('procesar');
+});
 
 require __DIR__.'/auth.php';
