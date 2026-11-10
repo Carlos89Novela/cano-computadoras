@@ -33,12 +33,26 @@ class PlanoMesasController extends Controller
 
         $sucursalId = $sucursal !== null ? (int) $sucursal->id : 1;
 
-        // Recupera las áreas activas con sus mesas asociadas y comanda activa
+        $hoy = now()->toDateString();
+
+        // Recupera las áreas activas con sus mesas, comanda activa y reservaciones confirmadas del día
         $areas = RestauranteArea::query()
             ->where('empresa_id', $empresa->id)
             ->where('sucursal_id', $sucursalId)
             ->where('activo', true)
-            ->with(['mesas' => fn ($q) => $q->where('activo', true)->with('comandaActual.mesero')])
+            ->with([
+                'mesas' => function ($q) use ($hoy) {
+                    $q->where('activo', true)
+                        ->with([
+                            'comandaActual.mesero',
+                            'reservaciones' => function ($rq) use ($hoy) {
+                                $rq->whereDate('fecha_hora_reservacion', $hoy)
+                                    ->where('estado', 'confirmada')
+                                    ->orderBy('fecha_hora_reservacion');
+                            },
+                        ]);
+                },
+            ])
             ->orderBy('orden')
             ->get();
 
@@ -67,11 +81,10 @@ class PlanoMesasController extends Controller
 
             $areas = RestauranteArea::query()
                 ->where('id', $areaPrincipal->id)
-                ->with(['mesas'])
+                ->with(['mesas.reservaciones'])
                 ->get();
         }
 
-        // Permisos para habilitar el modo edición y arrastre
         $puedeEditarPlano = $user->hasRole(['administrador', 'supervisor']);
 
         return ViewFacade::make('restaurante.mesas.plano', [
