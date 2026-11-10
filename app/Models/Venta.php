@@ -50,6 +50,11 @@ class Venta extends Model
         'notas',
         'token_autofactura',
         'autofactura_limite_at',
+        'facturacion_cfdi_id',
+        'factura_global_id',
+        'uuid_factura_global',
+        'es_factura_global',
+        'periodicidad_global',
     ];
 
     protected $casts = [
@@ -62,6 +67,7 @@ class Venta extends Model
         'total' => 'decimal:2',
         'costo_total_inventario' => 'decimal:4',
         'autofactura_limite_at' => 'datetime',
+        'es_factura_global' => 'boolean',
     ];
 
     protected static function booted(): void
