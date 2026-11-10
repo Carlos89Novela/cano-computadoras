@@ -738,6 +738,7 @@ Route::middleware(['auth', 'verified'])
         Route::get('/precuenta', [CuentaMesaController::class, 'precuenta'])->name('precuenta');
         Route::patch('/pedir-cuenta', [CuentaMesaController::class, 'pedirCuenta'])->name('pedir-cuenta');
         Route::post('/liquidar', [CuentaMesaController::class, 'liquidarMesa'])->name('liquidar');
+        Route::post('/dividir-cuenta', [CuentaMesaController::class, 'dividirCuenta'])->name('dividir-cuenta');
     });
 
 // =========================================================

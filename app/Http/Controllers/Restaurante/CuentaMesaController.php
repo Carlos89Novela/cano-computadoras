@@ -10,6 +10,7 @@ use App\Models\RestauranteMesa;
 use App\Models\User;
 use App\Models\Venta;
 use App\Services\Pos\RegistrarVentaService;
+use App\Services\Restaurante\DividirCuentaService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,8 @@ use Illuminate\Support\Str;
 class CuentaMesaController extends Controller
 {
     public function __construct(
-        protected RegistrarVentaService $ventaService
+        protected RegistrarVentaService $ventaService,
+        protected DividirCuentaService $dividirCuentaService
     ) {}
 
     /**
@@ -158,6 +160,46 @@ class CuentaMesaController extends Controller
             'venta_folio' => $venta->folio,
             'venta_uuid' => $venta->uuid,
             'token_autofactura' => $tokenAutofactura,
+        ]);
+    }
+
+    /**
+     * Cobra una fracción de la cuenta (por platillos específicos o por monto).
+     */
+    public function dividirCuenta(Request $request, RestauranteMesa $mesa): JsonResponse
+    {
+        /** @var User $cajero */
+        $cajero = $request->user();
+
+        /** @var array{
+         *     forma_pago_sat: string,
+         *     monto_recibido?: numeric|null,
+         *     propina?: numeric|null,
+         *     modo: 'items'|'monto',
+         *     monto_fraccion?: numeric|null,
+         *     items?: array<int, array{
+         *         comanda_item_id: int,
+         *         cantidad: numeric
+         *     }>
+         * } $validated */
+        $validated = $request->validate([
+            'forma_pago_sat' => ['required', 'string', 'max:5'],
+            'monto_recibido' => ['nullable', 'numeric', 'min:0'],
+            'propina' => ['nullable', 'numeric', 'min:0'],
+            'modo' => ['required', 'string', 'in:items,monto'],
+            'monto_fraccion' => ['nullable', 'numeric', 'gt:0'],
+            'items' => ['nullable', 'array'],
+            'items.*.comanda_item_id' => ['required_with:items', 'integer'],
+            'items.*.cantidad' => ['required_with:items', 'numeric', 'gt:0'],
+        ]);
+
+        $resultado = $this->dividirCuentaService->procesarPagoFraccion($mesa, $validated, $cajero);
+
+        return response()->json([
+            'message' => 'Fracción de cuenta cobrada con éxito.',
+            'venta_folio' => $resultado['venta']->folio,
+            'comanda_cerrada' => $resultado['comanda_cerrada'],
+            'token_autofactura' => $resultado['token_autofactura'],
         ]);
     }
 }
