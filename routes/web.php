@@ -34,6 +34,7 @@ use App\Http\Controllers\Productos\RecetaController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Proveedores\ProveedorController;
 use App\Http\Controllers\Public\AutofacturaController;
+use App\Http\Controllers\Public\PublicCotizacionController;
 use App\Http\Controllers\Restaurante\ComanderoController;
 use App\Http\Controllers\Restaurante\CuentaMesaController;
 use App\Http\Controllers\Restaurante\KdsController;
@@ -785,5 +786,14 @@ Route::middleware(['auth', 'verified'])
         Route::post('/subir-xml', [CuentaPorPagarController::class, 'subirXml'])->name('subir-xml');
         Route::post('/{cuenta}/pagar', [CuentaPorPagarController::class, 'registrarPago'])->name('pagar');
     });
+
+// =========================================================
+// PORTAL PÚBLICO DE COTIZACIONES CON FIRMA DIGITAL
+// =========================================================
+Route::prefix('cotizacion')->name('public.cotizacion.')->group(function (): void {
+    Route::get('/{token}', [PublicCotizacionController::class, 'show'])->name('show');
+    Route::post('/{token}/autorizar', [PublicCotizacionController::class, 'autorizar'])->name('autorizar');
+    Route::post('/{token}/rechazar', [PublicCotizacionController::class, 'rechazar'])->name('rechazar');
+});
 
 require __DIR__.'/auth.php';
