@@ -78,6 +78,11 @@ class OrdenServicio extends Model
         'fecha_autorizacion',
         'fecha_ingreso',
         'fecha_entrega',
+        'token_publico',
+        'cotizacion_expira_at',
+        'firma_digital_path',
+        'firmado_at',
+        'motivo_rechazo',
     ];
 
     /**
@@ -87,10 +92,23 @@ class OrdenServicio extends Model
     protected static function booted(): void
     {
         static::creating(function (OrdenServicio $orden): void {
-            if (blank($orden->token_seguimiento)) {
-                $orden->token_seguimiento = (string) Str::ulid();
+            if (empty($orden->token_publico)) {
+                $orden->token_publico = (string) Str::uuid();
+            }
+
+            if (empty($orden->token_seguimiento)) {
+                $orden->token_seguimiento = Str::random(32);
             }
         });
+    }
+
+    public function asegurarTokenPublico(): string
+    {
+        if (empty($this->token_publico)) {
+            $this->update(['token_publico' => (string) Str::uuid()]);
+        }
+
+        return (string) $this->token_publico;
     }
 
     /**
@@ -108,6 +126,8 @@ class OrdenServicio extends Model
             'estado_revision_cotizacion' => EstadoRevisionCotizacion::class,
             'cotizacion_revisada_at' => 'datetime',
             'costo_final' => 'decimal:2',
+            'cotizacion_expira_at' => 'datetime',
+            'firmado_at' => 'datetime',
         ];
     }
 
