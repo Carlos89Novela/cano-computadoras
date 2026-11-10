@@ -1,5 +1,11 @@
 <?php
 
+// ---------------------------------------------------------
+// IMPORTACIONES DE CONTROLADORES
+// Se agrupan los controladores de administración, compras,
+// inventarios, pos, facturación, productos y recetas.
+// ---------------------------------------------------------
+
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\Inventario\InventarioOrdenController;
 use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioController;
@@ -22,8 +28,11 @@ use App\Http\Controllers\Pos\FacturacionController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
 use App\Http\Controllers\Productos\ProductoController;
+use App\Http\Controllers\Productos\RecetaController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Proveedores\ProveedorController;
+use App\Http\Controllers\Restaurante\ComanderoController;
+use App\Http\Controllers\Restaurante\KdsController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
@@ -32,6 +41,10 @@ use App\Http\Controllers\Supervisor\RevisionCotizacionController;
 use App\Http\Middleware\PropietarioMiddleware;
 use App\Models\Servicio;
 use Illuminate\Support\Facades\Route;
+
+// =========================================================
+// RUTAS PÚBLICAS Y DE SEGUIMIENTO EXTERNO
+// =========================================================
 
 Route::get('/', function () {
     $servicios = Servicio::query()
@@ -53,6 +66,10 @@ Route::get('/seguimiento/{token}', [SeguimientoController::class, 'show'])
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
+
+// =========================================================
+// PERFIL DE USUARIO Y NOTIFICACIONES
+// =========================================================
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])
@@ -96,6 +113,10 @@ Route::middleware('auth')->group(function () {
         [NotificacionController::class, 'leerTodas']
     )->name('notificaciones.leer-todas');
 });
+
+// =========================================================
+// PANEL DE ADMINISTRACIÓN GLOBAL
+// =========================================================
 
 Route::middleware(['auth', 'administrador'])
     ->prefix('admin')
@@ -211,6 +232,10 @@ Route::middleware(['auth', 'administrador'])
         });
     });
 
+// =========================================================
+// CATÁLOGO DE PRODUCTOS Y CATEGORÍAS
+// =========================================================
+
 Route::middleware([
     'auth',
     'verified',
@@ -290,6 +315,18 @@ Route::middleware([
     });
 
 // =========================================================
+// GESTIÓN DE RECETAS E INSUMOS (BOM / RESTAURANTES)
+// =========================================================
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('operacion/empresas/{empresa}/productos/{producto}/receta')
+    ->name('productos.recetas.')
+    ->group(function (): void {
+        Route::get('/', [RecetaController::class, 'edit'])->name('edit');
+        Route::put('/', [RecetaController::class, 'update'])->name('update');
+    });
+
+// =========================================================
 // INVENTARIO
 // Operaciones para registrar entradas, recepciones y
 // transferencias de productos en los almacenes (3 fases).
@@ -353,7 +390,8 @@ Route::middleware([
         Route::get(
             '/empresas/{empresa}/inventario/ordenes-compra/{orden}/detalles',
             [RecepcionInventarioController::class, 'ordenCompraData']
-        )->name('recepciones.orden-data');
+        )
+            ->name('recepciones.orden-data');
 
         // -------------------------------------------------
         // TRANSFERENCIAS DE INVENTARIO (3 FASES)
@@ -489,6 +527,10 @@ Route::middleware([
             ->name('devoluciones.store');
     });
 
+// =========================================================
+// ROLES ESPECÍFICOS: SUPERVISOR Y TÉCNICO EMPLEADO
+// =========================================================
+
 Route::middleware([
     'auth',
     'verified',
@@ -594,6 +636,7 @@ Route::middleware([
 // =========================================================
 // ÓRDENES DE COMPRA A PROVEEDORES
 // =========================================================
+
 Route::middleware([
     'auth',
     'verified',
@@ -616,6 +659,7 @@ Route::middleware([
 // =========================================================
 // AUDITORÍA Y CORTES DE CAJA (SUPERVISIÓN)
 // =========================================================
+
 Route::middleware(['auth', 'verified'])
     ->prefix('operacion/cajas')
     ->name('pos.cajas.')
@@ -629,6 +673,7 @@ Route::middleware(['auth', 'verified'])
 // =========================================================
 // FACTURACIÓN ELECTRÓNICA SAT (CFDI 4.0)
 // =========================================================
+
 Route::middleware(['auth', 'verified'])
     ->prefix('operacion/facturacion')
     ->name('facturacion.')
@@ -637,6 +682,31 @@ Route::middleware(['auth', 'verified'])
         Route::get('/ventas/{venta}/descargar-xml', [FacturacionController::class, 'descargarXml'])->name('ventas.descargar-xml');
         Route::post('/lote-pendientes', [FacturacionController::class, 'procesarLotePendientes'])->name('lote-pendientes');
         Route::get('/ventas/{venta}/descargar-pdf', [FacturacionController::class, 'descargarPdf'])->name('ventas.descargar-pdf');
+    });
+
+// =========================================================
+// PANTALLAS DE COCINA Y BARRA (KDS - KITCHEN DISPLAY SYSTEM)
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('restaurante/kds')
+    ->name('restaurante.kds.')
+    ->group(function (): void {
+        Route::get('/', [KdsController::class, 'index'])->name('index');
+        Route::get('/comandas-activas', [KdsController::class, 'comandasActivas'])->name('comandas-activas');
+        Route::patch('/items/{item}/estado', [KdsController::class, 'cambiarEstadoItem'])->name('items.estado');
+        Route::post('/comandas/{comanda}/completar', [KdsController::class, 'completarComanda'])->name('completar');
+    });
+
+// =========================================================
+// COMANDERO MÓVIL EN TABLETS PARA MESEROS
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('restaurante/comandero')
+    ->name('restaurante.comandero.')
+    ->group(function (): void {
+        Route::get('/', [ComanderoController::class, 'index'])->name('index');
+        Route::get('/catalogo', [ComanderoController::class, 'catalogo'])->name('catalogo');
+        Route::post('/enviar', [ComanderoController::class, 'enviarComanda'])->name('enviar');
     });
 
 require __DIR__.'/auth.php';
