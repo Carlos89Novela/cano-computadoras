@@ -25,6 +25,7 @@ use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Pos\CajaAuditoriaController;
 use App\Http\Controllers\Pos\FacturacionController;
+use App\Http\Controllers\Pos\FacturacionGlobalController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Productos\CategoriaProductoController;
 use App\Http\Controllers\Productos\ProductoController;
@@ -682,6 +683,9 @@ Route::middleware(['auth', 'verified'])
         Route::get('/ventas/{venta}/descargar-xml', [FacturacionController::class, 'descargarXml'])->name('ventas.descargar-xml');
         Route::post('/lote-pendientes', [FacturacionController::class, 'procesarLotePendientes'])->name('lote-pendientes');
         Route::get('/ventas/{venta}/descargar-pdf', [FacturacionController::class, 'descargarPdf'])->name('ventas.descargar-pdf');
+        // Facturación Global CFDI 4.0 (Público en General)
+        Route::get('/global', [FacturacionGlobalController::class, 'index'])->name('global.index');
+        Route::post('/global/procesar', [FacturacionGlobalController::class, 'procesar'])->name('global.procesar');
     });
 
 // =========================================================
