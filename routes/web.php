@@ -18,6 +18,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
 use App\Http\Controllers\Empleado\OrdenAsignadaController;
 use App\Http\Controllers\EquipoController;
+use App\Http\Controllers\Finanzas\BancoController;
 use App\Http\Controllers\Inventario\EntradaInventarioController;
 use App\Http\Controllers\Inventario\InventarioKardexController;
 use App\Http\Controllers\Inventario\RecepcionInventarioController;
@@ -796,4 +797,16 @@ Route::prefix('cotizacion')->name('public.cotizacion.')->group(function (): void
     Route::post('/{token}/rechazar', [PublicCotizacionController::class, 'rechazar'])->name('rechazar');
 });
 
+// =========================================================
+// BANCOS Y TESORERÍA EMPRESARIAL
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('operacion/empresas/{empresa}/bancos')
+    ->name('operacion.bancos.')
+    ->group(function (): void {
+        Route::get('/', [BancoController::class, 'index'])->name('index');
+        Route::post('/movimientos', [BancoController::class, 'storeMovimiento'])->name('movimientos.store');
+        Route::post('/movimientos/{movimiento}/conciliar', [BancoController::class, 'conciliar'])->name('movimientos.conciliar');
+    });
+    
 require __DIR__.'/auth.php';
