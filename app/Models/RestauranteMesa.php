@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -21,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $updated_at
  * @property-read RestauranteArea $area
  * @property-read Comanda|null $comandaActual
+ * @property-read Collection<int, RestauranteReservacion> $reservaciones
  */
 class RestauranteMesa extends Model
 {
@@ -65,5 +68,13 @@ class RestauranteMesa extends Model
     public function comandaActual(): BelongsTo
     {
         return $this->belongsTo(Comanda::class, 'comanda_actual_id');
+    }
+
+    /**
+     * @return HasMany<RestauranteReservacion, $this>
+     */
+    public function reservaciones(): HasMany
+    {
+        return $this->hasMany(RestauranteReservacion::class, 'restaurante_mesa_id');
     }
 }

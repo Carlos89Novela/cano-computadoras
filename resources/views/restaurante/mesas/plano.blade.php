@@ -11,6 +11,10 @@
             </div>
 
             <div class="flex items-center gap-3">
+                <a href="{{ route('restaurante.reservaciones.index') }}" 
+                   class="px-3 py-1.5 bg-purple-950/60 hover:bg-purple-900 text-purple-300 text-xs font-bold rounded-xl border border-purple-500/40 transition">
+                    📅 Agenda de Reservaciones
+                </a>
                 <a href="{{ route('restaurante.kds.index') }}" 
                    class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition">
                     👨‍🍳 Pantalla KDS
@@ -77,8 +81,9 @@
         </div>
 
         {{-- Semáforo de Referencia --}}
-        <div class="flex items-center gap-4 mb-3 px-2 text-[11px] text-slate-400">
+        <div class="flex flex-wrap items-center gap-4 mb-3 px-2 text-[11px] text-slate-400">
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Disponible</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-purple-500"></span> Reservada Hoy</span>
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> Ocupada (Comiendo)</span>
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-indigo-500"></span> Cuenta Pedida</span>
             <template x-if="modoEdicion">
@@ -98,7 +103,7 @@
             <template x-for="mesa in mesasAreaActiva" :key="mesa.id">
                 <div :draggable="modoEdicion"
                      @dragstart="onDragStart($event, mesa)"
-                     @click="seleccionarMesa(mesa)"
+                     @click="gestionarClickMesa(mesa)"
                      :style="`left: ${mesa.posicion_x}%; top: ${mesa.posicion_y}%;`"
                      class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center p-2.5 transition select-none shadow-xl border cursor-pointer group"
                      :class="{
@@ -106,7 +111,8 @@
                          'rounded-full w-24 h-24': mesa.forma === 'redonda',
                          'rounded-2xl w-24 h-24': mesa.forma === 'cuadrada',
                          'rounded-2xl w-36 h-24': mesa.forma === 'rectangular',
-                         'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 hover:border-emerald-400': mesa.estado === 'disponible',
+                         'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 hover:border-emerald-400': mesa.estado === 'disponible' && (!mesa.reservaciones || mesa.reservaciones.length === 0),
+                         'bg-purple-950/40 border-purple-500/70 text-purple-300 hover:border-purple-400 ring-1 ring-purple-500/40': mesa.estado === 'disponible' && mesa.reservaciones && mesa.reservaciones.length > 0,
                          'bg-amber-950/40 border-amber-500/50 text-amber-300 hover:border-amber-400': mesa.estado === 'ocupada',
                          'bg-indigo-950/40 border-indigo-500/50 text-indigo-300 hover:border-indigo-400 animate-pulse': mesa.estado === 'cuenta_pedida'
                      }">
@@ -114,6 +120,13 @@
                     <span class="text-xs font-black font-mono tracking-tight" x-text="mesa.numero_o_nombre"></span>
                     <span class="text-[10px] text-slate-400 font-mono" x-text="`${mesa.capacidad} pers`"></span>
                     
+                    {{-- Distintivo de Reservación Activa Hoy --}}
+                    <template x-if="mesa.estado === 'disponible' && mesa.reservaciones && mesa.reservaciones.length > 0">
+                        <span class="text-[8px] font-bold px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 mt-0.5 truncate max-w-[85px]"
+                              x-text="`📅 ${formatearHora(mesa.reservaciones[0].fecha_hora_reservacion)}`">
+                        </span>
+                    </template>
+
                     <template x-if="mesa.estado === 'ocupada'">
                         <span class="text-[9px] font-bold text-amber-400 mt-0.5">Ocupada</span>
                     </template>
@@ -122,6 +135,57 @@
                     </template>
                 </div>
             </template>
+        </div>
+
+        {{-- Modal Detalle de Reservación para Hostess --}}
+        <div x-show="modalInfoReservacion" x-cloak class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="modalInfoReservacion = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+                        <span>📅 Reservación en</span> <span class="text-purple-400 font-mono" x-text="mesaSeleccionada?.numero_o_nombre"></span>
+                    </h3>
+                    <button type="button" @click="modalInfoReservacion = false" class="text-slate-400 hover:text-white text-base">&times;</button>
+                </div>
+
+                <template x-if="mesaSeleccionada?.reservaciones && mesaSeleccionada.reservaciones.length > 0">
+                    <div class="space-y-3 text-xs">
+                        <div class="p-3 bg-purple-950/30 border border-purple-500/30 rounded-xl space-y-1.5 font-mono">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Cliente:</span>
+                                <strong class="text-white" x-text="mesaSeleccionada.reservaciones[0].cliente_nombre"></strong>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Hora:</span>
+                                <span class="text-purple-300 font-bold" x-text="formatearHora(mesaSeleccionada.reservaciones[0].fecha_hora_reservacion)"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Comensales:</span>
+                                <span class="text-white" x-text="`👥 ${mesaSeleccionada.reservaciones[0].numero_personas}`"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Teléfono:</span>
+                                <span class="text-slate-300" x-text="mesaSeleccionada.reservaciones[0].cliente_telefono || 'Sin teléfono'"></span>
+                            </div>
+                            <template x-if="mesaSeleccionada.reservaciones[0].notas_especiales">
+                                <div class="text-[10px] text-amber-300 pt-1 border-t border-purple-500/20 italic" x-text="`⚠️ ${mesaSeleccionada.reservaciones[0].notas_especiales}`"></div>
+                            </template>
+                        </div>
+
+                        <div class="space-y-2 pt-2">
+                            <button type="button" 
+                                    @click="sentarComensalesReservacion(mesaSeleccionada.reservaciones[0].id, mesaSeleccionada.id)"
+                                    class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg transition flex items-center justify-center gap-1.5">
+                                <span>🪑 Sentar Comensales Ahora</span>
+                            </button>
+                            <button type="button" 
+                                    @click="abrirComanderoDirecto(mesaSeleccionada.numero_o_nombre)"
+                                    class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition">
+                                Ir al Comandero sin Check-in
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
         </div>
 
         {{-- Modal Agregar Nueva Mesa --}}
@@ -170,6 +234,8 @@
                 modoEdicion: false,
                 guardando: false,
                 modalNuevaMesa: false,
+                modalInfoReservacion: false,
+                mesaSeleccionada: null,
                 arrastrandoMesaId: null,
                 posicionesOriginales: [],
 
@@ -179,18 +245,21 @@
                     forma: 'cuadrada'
                 },
 
-                initPlano() {
-                    // Inicializado
-                },
+                initPlano() {},
 
                 get mesasAreaActiva() {
                     const area = this.areas.find(a => a.id === this.areaActivaId);
                     return area ? area.mesas : [];
                 },
 
+                formatearHora(fechaIso) {
+                    if (!fechaIso) return '';
+                    const d = new Date(fechaIso);
+                    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                },
+
                 activarEdicion() {
                     this.modoEdicion = true;
-                    // Respaldar posiciones
                     this.posicionesOriginales = JSON.parse(JSON.stringify(this.mesasAreaActiva));
                 },
 
@@ -219,7 +288,6 @@
                     const clickX = event.clientX - rect.left;
                     const clickY = event.clientY - rect.top;
 
-                    // Calcular porcentaje relativo al lienzo (con margen de 5 a 95% para no desbordar)
                     const porcX = Math.min(95, Math.max(5, (clickX / rect.width) * 100));
                     const porcY = Math.min(95, Math.max(5, (clickY / rect.height) * 100));
 
@@ -232,10 +300,45 @@
                     this.arrastrandoMesaId = null;
                 },
 
-                seleccionarMesa(mesa) {
+                gestionarClickMesa(mesa) {
                     if (this.modoEdicion) return;
-                    // Redirigir al comandero móvil con la mesa seleccionada
-                    window.location.href = `{{ route('restaurante.comandero.index') }}?mesa=${encodeURIComponent(mesa.numero_o_nombre)}`;
+
+                    // Si tiene reservación activa confirmada, abre el modal para hostess
+                    if (mesa.estado === 'disponible' && mesa.reservaciones && mesa.reservaciones.length > 0) {
+                        this.mesaSeleccionada = mesa;
+                        this.modalInfoReservacion = true;
+                        return;
+                    }
+
+                    this.abrirComanderoDirecto(mesa.numero_o_nombre);
+                },
+
+                abrirComanderoDirecto(nombreMesa) {
+                    window.location.href = `{{ route('restaurante.comandero.index') }}?mesa=${encodeURIComponent(nombreMesa)}`;
+                },
+
+                async sentarComensalesReservacion(reservacionId, mesaId) {
+                    try {
+                        const res = await fetch(`/restaurante/reservaciones/${reservacionId}/sentar`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': this.csrf,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({ restaurante_mesa_id: mesaId })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert(data.message);
+                            this.modalInfoReservacion = false;
+                            this.abrirComanderoDirecto(this.mesaSeleccionada.numero_o_nombre);
+                        } else {
+                            alert(data.message || 'Error al sentar comensales.');
+                        }
+                    } catch (e) {
+                        alert('Error de conexión.');
+                    }
                 },
 
                 async guardarDistribucion() {
@@ -294,6 +397,7 @@
                         if (res.ok) {
                             const area = this.areas.find(a => a.id === this.areaActivaId);
                             if (area) {
+                                data.mesa.reservaciones = [];
                                 area.mesas.push(data.mesa);
                             }
                             this.modalNuevaMesa = false;
