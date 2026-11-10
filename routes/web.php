@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioCont
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
 use App\Http\Controllers\Admin\SucursalController;
 use App\Http\Controllers\Admin\UsuarioController;
+use App\Http\Controllers\Compras\CuentaPorPagarController;
 use App\Http\Controllers\Compras\OrdenCompraController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
@@ -771,6 +772,18 @@ Route::middleware(['auth', 'verified'])
         Route::post('/', [ReservacionController::class, 'store'])->name('store');
         Route::patch('/{reservacion}/sentar', [ReservacionController::class, 'sentar'])->name('sentar');
         Route::patch('/{reservacion}/estado', [ReservacionController::class, 'updateEstado'])->name('estado.update');
+    });
+
+// =========================================================
+// CUENTAS POR PAGAR (CXP) Y CONCILIACIÓN XML
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('operacion/compras/cuentas-por-pagar')
+    ->name('compras.cxp.')
+    ->group(function (): void {
+        Route::get('/', [CuentaPorPagarController::class, 'index'])->name('index');
+        Route::post('/subir-xml', [CuentaPorPagarController::class, 'subirXml'])->name('subir-xml');
+        Route::post('/{cuenta}/pagar', [CuentaPorPagarController::class, 'registrarPago'])->name('pagar');
     });
 
 require __DIR__.'/auth.php';
