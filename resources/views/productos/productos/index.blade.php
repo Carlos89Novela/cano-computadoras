@@ -1,4 +1,8 @@
 <x-app-layout>
+    {{-- -------------------------------------------------
+        ENCABEZADO DE PÁGINA
+        Título principal y contexto de la empresa inquilina.
+    -------------------------------------------------- --}}
     <x-slot name="header">
         <div>
             <p class="text-sm font-semibold uppercase tracking-wide text-purple-500">
@@ -14,10 +18,9 @@
     <div class="py-12">
         <div class="mx-auto max-w-7xl space-y-6 px-6">
             {{-- -------------------------------------------------
-                ENCABEZADO
-                Presenta el catálogo y permite registrar productos.
+                PANEL SUPERIOR: INFORMACIÓN Y ACCIONES
+                Presenta el catálogo y botón para nuevo producto.
             -------------------------------------------------- --}}
-
             <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
@@ -48,10 +51,9 @@
             </section>
 
             {{-- -------------------------------------------------
-                FILTROS
-                Permite buscar por texto, categoría y estado.
+                FILTROS DE BÚSQUEDA
+                Permite filtrar por término general, categoría y estado.
             -------------------------------------------------- --}}
-
             <section class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                 <div class="grid gap-4 md:grid-cols-3">
                     <div>
@@ -127,10 +129,9 @@
             </section>
 
             {{-- -------------------------------------------------
-                DATATABLE
-                Los productos serán cargados mediante AJAX.
+                TABLA DE DATOS (DATATABLES CON AJAX)
+                Los registros se recuperan de forma reactiva y paginada.
             -------------------------------------------------- --}}
-
             <section class="admin-table-panel overflow-hidden rounded-2xl bg-white shadow dark:bg-zinc-900">
                 <div class="overflow-x-auto">
                     <table
@@ -139,51 +140,32 @@
                     >
                         <thead class="bg-zinc-800 text-white">
                             <tr>
-                                <th class="p-4">
-                                    SKU
-                                </th>
-
-                                <th class="p-4">
-                                    Producto
-                                </th>
-
-                                <th class="p-4">
-                                    Categoría
-                                </th>
-
-                                <th class="p-4">
-                                    Proveedor
-                                </th>
-
-                                <th class="p-4">
-                                    Unidad
-                                </th>
-
-                                <th class="p-4">
-                                    Precio base
-                                </th>
-
-                                <th class="p-4">
-                                    Estado
-                                </th>
+                                <th class="p-4">SKU</th>
+                                <th class="p-4">Producto</th>
+                                <th class="p-4">Categoría</th>
+                                <th class="p-4">Proveedor</th>
+                                <th class="p-4">Unidad</th>
+                                <th class="p-4">Precio base</th>
+                                <th class="p-4">Estado</th>
+                                <th class="p-4 text-center">Acciones</th>
                             </tr>
                         </thead>
 
                         <tbody>
-                            {{-- Los registros se cargarán mediante DataTables. --}}
+                            {{-- Contenido inyectado por DataTables --}}
                         </tbody>
                     </table>
                 </div>
             </section>
         </div>
     </div>
+
+    {{-- -------------------------------------------------
+        SCRIPT DE CONFIGURACIÓN Y CONTROL DE DATATABLES
+    -------------------------------------------------- --}}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            // -------------------------------------------------
-            // ESPERAR DATATABLES
-            // La biblioteca se carga globalmente desde el layout.
-            // -------------------------------------------------
-
+            // Espera a que jQuery y el plugin DataTable estén disponibles en la ventana
             function iniciarCuandoDisponible(callback) {
                 if (
                     window.jQuery
@@ -191,7 +173,6 @@
                     && window.jQuery.fn.DataTable
                 ) {
                     callback();
-
                     return;
                 }
 
@@ -204,102 +185,57 @@
                 const selectorTabla = '#productos-table';
                 const tablaElemento = window.jQuery(selectorTabla);
 
-                // Evita inicializar dos veces el mismo DataTable.
-                if (
-                    window.jQuery.fn.DataTable.isDataTable(
-                        selectorTabla
-                    )
-                ) {
+                if (window.jQuery.fn.DataTable.isDataTable(selectorTabla)) {
                     return;
                 }
 
-                // -------------------------------------------------
-                // DATATABLE DE PRODUCTOS
-                // Carga los productos mediante el endpoint JSON.
-                // -------------------------------------------------
+                const empresaId = {{ $empresa->id }};
+                const esGiroRestaurante = {{ $empresa->esRestaurante() ? 'true' : 'false' }};
 
+                // Inicialización de DataTables
                 const tabla = tablaElemento.DataTable({
                     serverSide: true,
                     processing: true,
                     responsive: true,
                     pageLength: 10,
-
-                    order: [
-                        [1, 'asc']
-                    ],
+                    order: [[1, 'asc']],
 
                     ajax: {
-                        url: @json(route('productos.productos.data', [
-                            'empresa' => $empresa->id,
-                        ])),
-
+                        url: @json(route('productos.productos.data', ['empresa' => $empresa->id])),
                         type: 'GET',
-
                         data: function (datos) {
-                            datos.categoria_id = window.jQuery(
-                                '#categoria-filtro'
-                            ).val();
-
-                            datos.estado = window.jQuery(
-                                '#estado-filtro'
-                            ).val();
-
+                            datos.categoria_id = window.jQuery('#categoria-filtro').val();
+                            datos.estado = window.jQuery('#estado-filtro').val();
                             datos.search = {
-                                value: window.jQuery(
-                                    '#productos-search'
-                                ).val() || ''
+                                value: window.jQuery('#productos-search').val() || ''
                             };
-
                             return datos;
                         }
                     },
 
                     columns: [
-                        {
-                            data: 'sku',
-                            name: 'sku'
-                        },
-                        {
-                            data: 'nombre',
-                            name: 'nombre'
-                        },
-                        {
-                            data: 'categoria',
-                            name: 'categoria'
-                        },
-                        {
-                            data: 'proveedor',
-                            name: 'proveedor'
-                        },
-                        {
-                            data: 'unidad_medida',
-                            name: 'unidad_medida'
-                        },
+                        { data: 'sku', name: 'sku' },
+                        { data: 'nombre', name: 'nombre' },
+                        { data: 'categoria', name: 'categoria' },
+                        { data: 'proveedor', name: 'proveedor' },
+                        { data: 'unidad_medida', name: 'unidad_medida' },
                         {
                             data: 'precio_base',
                             name: 'precio_base',
                             render: function (valor, tipo) {
-                                if (
-                                    valor === null
-                                    || valor === ''
-                                ) {
-                                    return tipo === 'display'
-                                        ? 'Sin precio'
-                                        : 0;
+                                if (valor === null || valor === '') {
+                                    return tipo === 'display' ? 'Sin precio' : 0;
                                 }
 
                                 const precio = Number(valor);
 
                                 if (tipo === 'display') {
-                                    return precio.toLocaleString(
-                                        'es-MX',
-                                        {
-                                            style: 'currency',
-                                            currency: 'MXN',
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 2
-                                        }
-                                    );
+                                    return precio.toLocaleString('es-MX', {
+                                        style: 'currency',
+                                        currency: 'MXN',
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    });
                                 }
 
                                 return precio;
@@ -314,26 +250,46 @@
                                 }
 
                                 if (valor === 'Activo') {
-                                    return [
-                                        '<span class="inline-flex rounded-full',
-                                        ' bg-emerald-100 px-3 py-1 text-xs',
-                                        ' font-semibold text-emerald-700',
-                                        ' dark:bg-emerald-950',
-                                        ' dark:text-emerald-300">',
-                                        'Activo',
-                                        '</span>'
-                                    ].join('');
+                                    return '<span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Activo</span>';
                                 }
 
-                                return [
-                                    '<span class="inline-flex rounded-full',
-                                    ' bg-red-100 px-3 py-1 text-xs',
-                                    ' font-semibold text-red-700',
-                                    ' dark:bg-red-950',
-                                    ' dark:text-red-300">',
-                                    'Inactivo',
-                                    '</span>'
-                                ].join('');
+                                return '<span class="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">Inactivo</span>';
+                            }
+                        },
+                        {
+                            data: null,
+                            orderable: false,
+                            searchable: false,
+                            className: 'text-center p-2',
+                            render: function (data, tipo, row) {
+                                if (tipo !== 'display') {
+                                    return '';
+                                }
+
+                                const urlReceta = `/operacion/empresas/${empresaId}/productos/${row.id}/receta`;
+
+                                let botones = '';
+
+                                // Mostrar acceso a Receta / Escandallo si la empresa es restaurante o si el platillo ya está marcado como receta
+                                if (esGiroRestaurante || row.es_receta) {
+                                    botones += `
+                                        <a href="${urlReceta}"
+                                           title="Configurar Receta / Insumos"
+                                           class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20 transition">
+                                            🍳 Receta
+                                        </a>
+                                    `;
+                                } else {
+                                    botones += `
+                                        <a href="${urlReceta}"
+                                           title="Crear Receta Técnica"
+                                           class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-white transition">
+                                            + Ficha BOM
+                                        </a>
+                                    `;
+                                }
+
+                                return botones;
                             }
                         }
                     ],
@@ -345,50 +301,26 @@
                         zeroRecords: 'No se encontraron productos con esos criterios.'
                     },
 
-                    dom:
-                        "<'flex items-center justify-between mb-3'"
-                        + "<'flex items-center'l>>"
+                    dom: "<'flex items-center justify-between mb-3'<'flex items-center'l>>"
                         + "<'table-wrap't>"
-                        + "<'flex items-center justify-between mt-3'"
-                        + "<'text-sm'i><'pagination'p>>"
+                        + "<'flex items-center justify-between mt-3'<'text-sm'i><'pagination'p>>"
                 });
 
-                            // -------------------------------------------------
-                // FILTROS
-                // Redibuja la tabla al cambiar la categoría o el
-                // estado seleccionado.
-                // -------------------------------------------------
-
-                window.jQuery(
-                    '#categoria-filtro, #estado-filtro'
-                ).on('change', function () {
+                // Redibujar al cambiar filtros de selección
+                window.jQuery('#categoria-filtro, #estado-filtro').on('change', function () {
                     tabla.draw();
                 });
 
-                // -------------------------------------------------
-                // BÚSQUEDA CON RETARDO
-                // Espera 300 milisegundos antes de consultar para
-                // evitar una solicitud por cada pulsación rápida.
-                // -------------------------------------------------
-
+                // Búsqueda con retardo (debounce) de 300 ms
                 let temporizadorBusqueda = null;
 
-                window.jQuery(
-                    '#productos-search'
-                ).on('input', function () {
-                    window.clearTimeout(
-                        temporizadorBusqueda
-                    );
-
-                    temporizadorBusqueda = window.setTimeout(
-                        function () {
-                            tabla.draw();
-                        },
-                        300
-                    );
+                window.jQuery('#productos-search').on('input', function () {
+                    window.clearTimeout(temporizadorBusqueda);
+                    temporizadorBusqueda = window.setTimeout(function () {
+                        tabla.draw();
+                    }, 300);
                 });
             });
         });
     </script>
-
 </x-app-layout>

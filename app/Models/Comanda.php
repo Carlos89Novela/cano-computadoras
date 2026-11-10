@@ -43,6 +43,7 @@ class Comanda extends Model
         'notas_generales',
         'enviada_a_cocina_at',
         'finalizada_at',
+        'total_acumulado',
     ];
 
     /**
@@ -53,6 +54,7 @@ class Comanda extends Model
         return [
             'enviada_a_cocina_at' => 'datetime',
             'finalizada_at' => 'datetime',
+            'total_acumulado' => 'decimal:2',
         ];
     }
 
