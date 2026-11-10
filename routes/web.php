@@ -37,6 +37,7 @@ use App\Http\Controllers\Restaurante\CuentaMesaController;
 use App\Http\Controllers\Restaurante\KdsController;
 use App\Http\Controllers\Restaurante\PlanoMesasController;
 use App\Http\Controllers\Restaurante\ReporteRestauranteController;
+use App\Http\Controllers\Restaurante\ReservacionController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
@@ -753,6 +754,19 @@ Route::middleware(['auth', 'verified', 'role:administrador|supervisor'])
     ->name('restaurante.reportes.')
     ->group(function (): void {
         Route::get('/', [ReporteRestauranteController::class, 'index'])->name('index');
+    });
+
+// =========================================================
+// AGENDA Y RECEPCIÓN DE RESERVACIONES DE MESAS
+// =========================================================
+Route::middleware(['auth', 'verified'])
+    ->prefix('restaurante/reservaciones')
+    ->name('restaurante.reservaciones.')
+    ->group(function (): void {
+        Route::get('/', [ReservacionController::class, 'index'])->name('index');
+        Route::post('/', [ReservacionController::class, 'store'])->name('store');
+        Route::patch('/{reservacion}/sentar', [ReservacionController::class, 'sentar'])->name('sentar');
+        Route::patch('/{reservacion}/estado', [ReservacionController::class, 'updateEstado'])->name('estado.update');
     });
 
 require __DIR__.'/auth.php';
