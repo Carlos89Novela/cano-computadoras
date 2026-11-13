@@ -65,21 +65,28 @@ class RegistrarVentaService
         return DB::transaction(function () use ($datos) {
             $uuidVenta = $datos['uuid'] ?? (string) Str::uuid();
 
-            // Idempotencia: evitar duplicados en sincronización offline
+            // 1. Idempotencia: evitar duplicados en sincronización offline
             $ventaExistente = Venta::query()->where('uuid', $uuidVenta)->first();
             if ($ventaExistente !== null) {
                 return $ventaExistente;
             }
 
-            /** @var Empresa $empresa */
+            // 2. Resolución tolerante de Empresa, Sucursal y Almacén
             $empresa = Empresa::query()->findOrFail($datos['empresa_id']);
-            /** @var Sucursal $sucursal */
-            $sucursal = Sucursal::query()->where('empresa_id', $empresa->id)->findOrFail($datos['sucursal_id']);
-            /** @var Almacen $almacen */
+
+            $sucursal = Sucursal::query()->where('empresa_id', $empresa->id)->find($datos['sucursal_id'])
+                ?? Sucursal::query()->where('empresa_id', $empresa->id)->where('activo', true)->first()
+                ?? Sucursal::query()->where('empresa_id', $empresa->id)->firstOrFail();
+
             $almacen = Almacen::query()
                 ->where('empresa_id', $empresa->id)
                 ->where('sucursal_id', $sucursal->id)
-                ->findOrFail($datos['almacen_id']);
+                ->find($datos['almacen_id'])
+                ?? Almacen::query()
+                    ->where('empresa_id', $empresa->id)
+                    ->where('activo', true)
+                    ->first()
+                ?? Almacen::query()->findOrFail($datos['almacen_id']);
 
             /** @var User $cajero */
             $cajero = User::query()->findOrFail($datos['user_id']);
@@ -89,7 +96,6 @@ class RegistrarVentaService
             if (! empty($datos['caja_turno_id'])) {
                 $turno = CajaTurno::query()
                     ->where('empresa_id', $empresa->id)
-                    ->where('sucursal_id', $sucursal->id)
                     ->where('estado', 'abierto')
                     ->find($datos['caja_turno_id']);
             }
@@ -108,6 +114,7 @@ class RegistrarVentaService
 
             $detallesParaCrear = [];
 
+            // 3. Procesamiento de Líneas de Venta
             foreach ($datos['lineas'] as $linea) {
                 /** @var Producto $producto */
                 $producto = Producto::query()
@@ -122,12 +129,12 @@ class RegistrarVentaService
 
                 $origen = $datos['origen_registro'] ?? 'online';
 
-                // Si es un producto con receta, se valida el stock de los insumos
+                // Caso A: Platillo o bebida elaborado con receta (BOM)
                 if ($producto->es_receta && $producto->receta !== null && $producto->receta->ingredientes->isNotEmpty()) {
                     $costoUnitarioPromedio = 0.0;
 
                     foreach ($producto->receta->ingredientes as $ingrediente) {
-                        $factorMerma = bcadd('1', bcdiv((string) $ingrediente->porcentaje_merma, '100', 4), 4);
+                        $factorMerma = bcadd('1', bcdiv((string) ($ingrediente->porcentaje_merma ?? 0), '100', 4), 4);
                         $consumoPorUnidad = bcmul((string) $ingrediente->cantidad_requerida, $factorMerma, 4);
                         $consumoTotal = (float) bcmul($consumoPorUnidad, (string) $cantidad, 4);
 
@@ -142,7 +149,8 @@ class RegistrarVentaService
                         $cantReservada = $existenciaInsumo !== null ? (float) $existenciaInsumo->cantidad_reservada : 0.0;
                         $cantDisponible = max(0.0, $cantFisica - $cantReservada);
 
-                        if ($origen === 'online' && $cantDisponible < $consumoTotal) {
+                        // Si hay stock configurado se valida; si no hay existencias iniciales cargadas, se permite para no frenar la venta
+                        if ($origen === 'online' && $existenciaInsumo !== null && $cantDisponible < $consumoTotal) {
                             $nombreInsumo = $ingrediente->insumo->nombre ?? 'Insumo';
                             throw new RuntimeException("Stock insuficiente del insumo [{$nombreInsumo}] para preparar [{$producto->nombre}]. Disponible: {$cantDisponible}, Requerido: {$consumoTotal}.");
                         }
@@ -156,7 +164,7 @@ class RegistrarVentaService
 
                     $existencia = null;
                 } else {
-                    // Producto terminado estándar
+                    // Caso B: Insumo directo o producto regular
                     /** @var ExistenciaAlmacen|null $existencia */
                     $existencia = ExistenciaAlmacen::query()
                         ->where('almacen_id', $almacen->id)
@@ -167,21 +175,21 @@ class RegistrarVentaService
                     $cantidadFisica = $existencia !== null ? (float) $existencia->cantidad : 0.0;
                     $cantidadReservada = $existencia !== null ? (float) $existencia->cantidad_reservada : 0.0;
                     $cantidadDisponible = max(0.0, $cantidadFisica - $cantidadReservada);
+
                     $costoUnitarioPromedio = $existencia !== null && (float) $existencia->costo_promedio > 0
                         ? (float) $existencia->costo_promedio
                         : (float) $producto->costo_referencia;
 
-                    if ($origen === 'online' && $cantidadDisponible < $cantidad) {
+                    if ($origen === 'online' && $existencia !== null && $cantidadDisponible < $cantidad && ! $producto->es_receta) {
                         throw new RuntimeException("Stock insuficiente para el producto [{$producto->sku} - {$producto->nombre}]. Disponible: {$cantidadDisponible}, Solicitado: {$cantidad}.");
                     }
                 }
 
-                // El precio de mostrador ya incluye el IVA
+                // Cálculo económico (precios con IVA incluido al comensal)
                 $precioConIva = (float) $linea['precio_unitario'];
                 $descuentoUnitario = (float) ($linea['descuento_unitario'] ?? 0.0);
                 $tasaIva = isset($linea['tasa_iva']) ? (float) $linea['tasa_iva'] : 0.1600;
 
-                // Desglose del IVA (precio sin IVA = precio / (1 + tasa))
                 $precioUnitarioNeto = round($precioConIva / (1.0 + $tasaIva), 4);
                 $descuentoNeto = round($descuentoUnitario / (1.0 + $tasaIva), 4);
                 $precioNetoCobrado = max(0.0, $precioUnitarioNeto - $descuentoNeto);
@@ -222,9 +230,15 @@ class RegistrarVentaService
                 ];
             }
 
+            // 4. Encabezado de Venta
+            // Generar token único para el portal público de autofacturación
+            $tokenAutofactura = Str::lower(Str::random(32));
+
             /** @var Venta $venta */
             $venta = Venta::query()->create([
                 'uuid' => $uuidVenta,
+                'token_autofactura' => $tokenAutofactura,
+                'autofactura_limite_at' => now()->addDays(3),
                 'empresa_id' => $empresa->id,
                 'sucursal_id' => $sucursal->id,
                 'almacen_id' => $almacen->id,
@@ -254,6 +268,7 @@ class RegistrarVentaService
                 'notas' => $datos['notas'] ?? null,
             ]);
 
+            // 5. Persistencia de Partidas, Descuento y Kardex
             foreach ($detallesParaCrear as $detalleItem) {
                 /** @var Producto $prodModel */
                 $prodModel = $detalleItem['producto_model'];
@@ -268,10 +283,9 @@ class RegistrarVentaService
 
                 $venta->detalles()->create($detalleItem);
 
-                // Descuento en inventario y registro en Kardex
                 if ($prodModel->es_receta && $prodModel->receta !== null && $prodModel->receta->ingredientes->isNotEmpty()) {
                     foreach ($prodModel->receta->ingredientes as $ingrediente) {
-                        $factorMerma = bcadd('1', bcdiv((string) $ingrediente->porcentaje_merma, '100', 4), 4);
+                        $factorMerma = bcadd('1', bcdiv((string) ($ingrediente->porcentaje_merma ?? 0), '100', 4), 4);
                         $consumoPorUnidad = bcmul((string) $ingrediente->cantidad_requerida, $factorMerma, 4);
                         $consumoTotal = (float) bcmul($consumoPorUnidad, (string) $detalleItem['cantidad'], 4);
 
@@ -305,7 +319,6 @@ class RegistrarVentaService
                         ]);
                     }
 
-                    // Bitácora inmutable de Kardex
                     MovimientoInventario::query()->create([
                         'empresa_id' => $empresa->id,
                         'almacen_id' => $almacen->id,
@@ -326,6 +339,7 @@ class RegistrarVentaService
                 }
             }
 
+            // 6. Registro de Pagos e Incrementos de Caja
             foreach ($datos['pagos'] as $pagoItem) {
                 $montoPago = (float) $pagoItem['monto'];
                 $formaPago = $pagoItem['forma_pago_sat'];

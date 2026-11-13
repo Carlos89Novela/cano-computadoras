@@ -1,240 +1,324 @@
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es" class="h-full bg-slate-950">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>KDS - Monitor de Cocina | {{ $empresa->nombre }}</title>
+    <title>KDS Cocina | {{ $empresa->nombre }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
-        [x-cloak] { display: none !important; }
+        .grid-kds {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+            50% { border-color: #7f1d1d; box-shadow: none; }
+        }
+        .alerta-demora { animation: pulse-border 1.5s infinite; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen overflow-x-hidden font-sans">
+<body class="h-full bg-slate-950 text-slate-100 font-sans antialiased overflow-hidden m-0 p-0 flex flex-col">
 
-    <div x-data="kdsMonitor({
-             sucursalId: {{ $sucursal?->id ?? 1 }},
-             routes: {
-                 activas: '{{ route('restaurante.kds.comandas-activas') }}',
-                 csrf: '{{ csrf_token() }}'
-             }
-         })"
-         x-init="iniciarMonitor()"
-         class="p-4 flex flex-col h-screen">
+    <div class="h-full flex flex-col p-4 box-border">
 
-        {{-- Barra superior de la Pantalla de Cocina --}}
-        <header class="flex flex-wrap items-center justify-between pb-3 mb-4 border-b border-slate-800 gap-3">
+        {{-- Encabezado KDS --}}
+        <header class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 shrink-0">
             <div class="flex items-center gap-3">
-                <div class="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20 font-bold text-lg">
-                    👨‍🍳 KDS
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg">
+                    👨‍🍳
                 </div>
                 <div>
-                    <h1 class="text-lg font-bold text-white flex items-center gap-2">
-                        Cocina & Preparación
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono"
-                              x-text="`${comandas.length} activas`"></span>
+                    <h1 class="text-base font-bold flex items-center gap-2">
+                        <span>Monitor KDS</span>
+                        <span id="reloj-kds" class="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">00:00:00</span>
                     </h1>
-                    <p class="text-xs text-slate-400">
-                        {{ $sucursal?->nombre ?? 'Sucursal Matriz' }} | Hora: <strong class="text-white font-mono" x-text="horaActual"></strong>
-                    </p>
+                    <p class="text-xs text-slate-400">{{ $empresa->nombre }} | {{ $sucursal?->nombre ?? 'Cocina Principal' }}</p>
                 </div>
             </div>
 
-            {{-- Filtro por Estación de Trabajo --}}
+            {{-- Filtros de Estación --}}
             <div class="flex items-center gap-2">
-                <template x-for="est in ['todas', 'cocina', 'parrilla', 'barra', 'postres']" :key="est">
-                    <button type="button"
-                            @click="cambiarEstacion(est)"
-                            :class="estacionSeleccionada === est ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'"
-                            class="px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider transition capitalize"
-                            x-text="est === 'todas' ? 'Todas las estaciones' : est">
+                <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+                    <button onclick="cambiarEstacion('todas', this)" class="btn-filtro px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white cursor-pointer">
+                        Todas
                     </button>
-                </template>
+                    <button onclick="cambiarEstacion('cocina', this)" class="btn-filtro px-3 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white cursor-pointer">
+                        🍳 Cocina
+                    </button>
+                    <button onclick="cambiarEstacion('parrilla', this)" class="btn-filtro px-3 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white cursor-pointer">
+                        🔥 Parrilla
+                    </button>
+                    <button onclick="cambiarEstacion('barra', this)" class="btn-filtro px-3 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white cursor-pointer">
+                        🍹 Barra
+                    </button>
+                    <button onclick="cambiarEstacion('postres', this)" class="btn-filtro px-3 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white cursor-pointer">
+                        🍰 Postres
+                    </button>
+                </div>
 
-                <a href="{{ route('dashboard') }}" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs border border-slate-800 transition">
+                <a href="{{ route('admin.dashboard') }}" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs rounded-xl transition border border-slate-800">
                     Salir
                 </a>
             </div>
         </header>
 
-        {{-- Grid Dinámico de Comandas --}}
-        <main class="flex-1 overflow-x-auto overflow-y-hidden pb-2">
-            <div class="flex gap-4 h-full items-start">
-
-                <template x-if="comandas.length === 0">
-                    <div class="w-full flex flex-col items-center justify-center h-96 text-slate-500">
-                        <div class="text-4xl mb-2">🍽️</div>
-                        <p class="text-sm">No hay pedidos pendientes en esta estación.</p>
-                        <span class="text-xs text-slate-600">Los nuevos pedidos aparecerán aquí al instante.</span>
-                    </div>
-                </template>
-
-                <template x-for="c in comandas" :key="c.id">
-                    <div class="w-80 shrink-0 bg-slate-900 border rounded-2xl flex flex-col max-h-full shadow-2xl transition"
-                         :class="{
-                             'border-emerald-500/40': minutosTranscurridos(c.enviada_a_cocina_at) < 10,
-                             'border-amber-500/50 shadow-amber-500/5': minutosTranscurridos(c.enviada_a_cocina_at) >= 10 && minutosTranscurridos(c.enviada_a_cocina_at) < 20,
-                             'border-rose-500/70 shadow-rose-500/10 animate-pulse': minutosTranscurridos(c.enviada_a_cocina_at) >= 20
-                         }">
-
-                        {{-- Encabezado de la Tarjeta de Pedido --}}
-                        <div class="p-3.5 border-b border-slate-800 flex items-center justify-between rounded-t-2xl"
-                             :class="{
-                                 'bg-emerald-950/30': minutosTranscurridos(c.enviada_a_cocina_at) < 10,
-                                 'bg-amber-950/30': minutosTranscurridos(c.enviada_a_cocina_at) >= 10 && minutosTranscurridos(c.enviada_a_cocina_at) < 20,
-                                 'bg-rose-950/40': minutosTranscurridos(c.enviada_a_cocina_at) >= 20
-                             }">
-                            <div>
-                                <div class="text-sm font-black text-white font-mono" x-text="c.mesa_o_referencia"></div>
-                                <div class="text-[11px] text-slate-400 font-mono" x-text="`${c.folio} • Mesero: ${c.mesero?.name || 'Caja'}`"></div>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-xs font-mono font-bold px-2 py-0.5 rounded-full"
-                                      :class="{
-                                          'bg-emerald-500/20 text-emerald-300': minutosTranscurridos(c.enviada_a_cocina_at) < 10,
-                                          'bg-amber-500/20 text-amber-300': minutosTranscurridos(c.enviada_a_cocina_at) >= 10 && minutosTranscurridos(c.enviada_a_cocina_at) < 20,
-                                          'bg-rose-500/20 text-rose-300': minutosTranscurridos(c.enviada_a_cocina_at) >= 20
-                                      }"
-                                      x-text="`${minutosTranscurridos(c.enviada_a_cocina_at)} min`">
-                                </span>
-                            </div>
-                        </div>
-
-                        {{-- Lista de Platillos / Bebidas --}}
-                        <div class="p-3 overflow-y-auto flex-1 space-y-2">
-                            <template x-for="item in c.items" :key="item.id">
-                                <div @click="toggleItemEstado(item)"
-                                     class="p-2.5 rounded-xl border cursor-pointer select-none transition flex items-start justify-between gap-2"
-                                     :class="{
-                                         'bg-slate-950/80 border-slate-800 text-slate-200 hover:border-slate-700': item.estado === 'pendiente',
-                                         'bg-amber-500/10 border-amber-500/30 text-amber-200': item.estado === 'en_preparacion',
-                                         'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 line-through opacity-60': item.estado === 'listo'
-                                     }">
-                                    <div>
-                                        <div class="font-bold text-xs flex items-center gap-1.5">
-                                            <span class="w-5 h-5 rounded bg-slate-800 text-white flex items-center justify-center font-mono text-[11px]"
-                                                  x-text="Number(item.cantidad).toFixed(0)"></span>
-                                            <span x-text="item.producto?.nombre"></span>
-                                        </div>
-                                        <template x-if="item.notas_especiales">
-                                            <p class="text-[11px] text-amber-400 mt-1 pl-6 italic" x-text="`⚠️ ${item.notas_especiales}`"></p>
-                                        </template>
-                                    </div>
-                                    <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border"
-                                          :class="{
-                                              'border-slate-700 text-slate-400': item.estado === 'pendiente',
-                                              'border-amber-500/40 text-amber-300': item.estado === 'en_preparacion',
-                                              'border-emerald-500/40 text-emerald-300': item.estado === 'listo'
-                                          }"
-                                          x-text="item.estado === 'listo' ? '✓ Listo' : (item.estado === 'en_preparacion' ? 'Fuego' : 'Espera')">
-                                    </span>
-                                </div>
-                            </template>
-                        </div>
-
-                        {{-- Botón para Despachar / Completar toda la comanda --}}
-                        <div class="p-3 border-t border-slate-800 bg-slate-950/50 rounded-b-2xl">
-                            <button type="button"
-                                    @click="despacharComandaCompleta(c.id)"
-                                    class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg transition flex items-center justify-center gap-1.5">
-                                <span>✓ Marcar Orden Completa</span>
-                            </button>
-                        </div>
-                    </div>
-                </template>
+        {{-- Toast Banner de Nueva Comanda Entrante en Cocina --}}
+        <div id="toast-nueva-comanda" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-indigo-600 text-white border-2 border-indigo-300 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce">
+            <span class="text-2xl">🔔</span>
+            <div>
+                <h4 class="text-xs font-black uppercase tracking-wider">¡Nueva Comanda Entrante!</h4>
+                <p class="text-xs font-bold" id="toast-comanda-desc">Mesa X - 3 Platillos</p>
             </div>
-        </main>
+        </div>
+
+        {{-- Tablero de Comandas Activas --}}
+        <div class="flex-1 overflow-y-auto pr-1">
+            <div id="grid-comandas" class="grid-kds">
+                <div class="col-span-full py-20 text-center text-slate-500 text-xs">
+                    Cargando comandas activas...
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        function kdsMonitor(config) {
-            return {
-                sucursalId: config.sucursalId,
-                routes: config.routes,
-                comandas: [],
-                estacionSeleccionada: 'todas',
-                horaActual: '',
-                timerActualizacion: null,
+        const config = {
+            csrf: document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            urlActivas: "{{ route('restaurante.kds.comandas-activas') }}",
+            urlItemEstado: "{{ url('/restaurante/kds/items') }}",
+            urlCompletar: "{{ url('/restaurante/kds/comandas') }}",
+            sucursalId: {{ $sucursal?->id ?? 1 }}
+        };
 
-                async iniciarMonitor() {
-                    this.actualizarHora();
-                    setInterval(() => this.actualizarHora(), 1000);
+        let estacionActual = 'todas';
+        let idsComandasConocidas = new Set();
+        let primeraCarga = true;
 
-                    await this.cargarComandas();
-                    // Polling reactivo cada 5 segundos
-                    this.timerActualizacion = setInterval(() => {
-                        this.cargarComandas();
-                    }, 5000);
-                },
+        // Reloj en vivo
+        setInterval(() => {
+            const ahora = new Date();
+            document.getElementById('reloj-kds').innerText = ahora.toLocaleTimeString();
+        }, 1000);
 
-                actualizarHora() {
-                    const ahora = new Date();
-                    this.horaActual = ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                },
+        // Timbre de pase para cocina (Doble tono de alerta de comanda entrante)
+        function sonarTimbreCocina() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
 
-                cambiarEstacion(estacion) {
-                    this.estacionSeleccionada = estacion;
-                    this.cargarComandas();
-                },
+                const sonarTono = (frec, inicio, dur) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(frec, inicio);
+                    gain.gain.setValueAtTime(0.4, inicio);
+                    gain.gain.exponentialRampToValueAtTime(0.001, inicio + dur);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(inicio);
+                    osc.stop(inicio + dur);
+                };
 
-                async cargarComandas() {
-                    try {
-                        const url = `${this.routes.activas}?sucursal_id=${this.sucursalId}&estacion=${this.estacionSeleccionada}`;
-                        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-                        if (res.ok) {
-                            this.comandas = await res.json();
-                        }
-                    } catch (e) {
-                        console.error('Error al actualizar pantalla KDS:', e);
-                    }
-                },
-
-                minutosTranscurridos(fechaStr) {
-                    if (!fechaStr) return 0;
-                    const diffMs = new Date() - new Date(fechaStr);
-                    return Math.max(0, Math.floor(diffMs / 60000));
-                },
-
-                async toggleItemEstado(item) {
-                    const siguienteEstado = item.estado === 'pendiente'
-                        ? 'en_preparacion'
-                        : (item.estado === 'en_preparacion' ? 'listo' : 'pendiente');
-
-                    item.estado = siguienteEstado;
-
-                    try {
-                        await fetch(`/restaurante/kds/items/${item.id}/estado`, {
-                            method: 'PATCH',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': this.routes.csrf,
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({ estado: siguienteEstado })
-                        });
-                        await this.cargarComandas();
-                    } catch (e) {
-                        console.error('Error al actualizar item:', e);
-                    }
-                },
-
-                async despacharComandaCompleta(comandaId) {
-                    try {
-                        await fetch(`/restaurante/kds/comandas/${comandaId}/completar`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': this.routes.csrf,
-                                'Accept': 'application/json'
-                            }
-                        });
-                        await this.cargarComandas();
-                    } catch (e) {
-                        console.error('Error al completar comanda:', e);
-                    }
-                }
-            };
+                const t = ctx.currentTime;
+                sonarTono(880, t, 0.25);
+                sonarTono(1174.66, t + 0.15, 0.35);
+                sonarTono(1760, t + 0.35, 0.6);
+            } catch (e) {
+                console.log('Audio no interactuado aún');
+            }
         }
+
+        function cambiarEstacion(estacion, btn) {
+            estacionActual = estacion;
+            document.querySelectorAll('.btn-filtro').forEach(b => {
+                b.className = 'btn-filtro px-3 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white cursor-pointer';
+            });
+            btn.className = 'btn-filtro px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white cursor-pointer';
+            cargarComandas();
+        }
+
+        async function cargarComandas() {
+            try {
+                const res = await fetch(`${config.urlActivas}?sucursal_id=${config.sucursalId}&estacion=${estacionActual}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (!res.ok) return;
+
+                const comandas = await res.json();
+                const grid = document.getElementById('grid-comandas');
+
+                // Detección de comandas nuevas para timbrar
+                let hayNueva = false;
+                let ultimaComandaNueva = null;
+
+                comandas.forEach(c => {
+                    if (!idsComandasConocidas.has(c.id)) {
+                        idsComandasConocidas.add(c.id);
+                        if (!primeraCarga) {
+                            hayNueva = true;
+                            ultimaComandaNueva = c;
+                        }
+                    }
+                });
+
+                if (hayNueva && ultimaComandaNueva) {
+                    sonarTimbreCocina();
+                    mostrarToastNuevaComanda(ultimaComandaNueva);
+                }
+
+                primeraCarga = false;
+
+                if (comandas.length === 0) {
+                    grid.innerHTML = `
+                        <div class="col-span-full py-24 text-center text-slate-500 text-xs">
+                            <span class="text-3xl block mb-2">🍽️</span>
+                            <span>No hay órdenes pendientes en esta estación.</span>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                const ahora = Math.floor(Date.now() / 1000);
+
+                comandas.forEach(c => {
+                    const tiempoEnviado = Math.floor(new Date(c.enviada_a_cocina_at).getTime() / 1000);
+                    const minutosTranscurridos = Math.floor((ahora - tiempoEnviado) / 60);
+
+                    // Semáforo de demoras
+                    let semaforoClase = 'border-slate-800';
+                    let badgeMinutos = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+
+                    if (minutosTranscurridos >= 20) {
+                        semaforoClase = 'alerta-demora border-rose-500';
+                        badgeMinutos = 'bg-rose-500 text-white font-black';
+                    } else if (minutosTranscurridos >= 10) {
+                        semaforoClase = 'border-amber-500/80';
+                        badgeMinutos = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+                    }
+
+                    html += `
+                        <div class="bg-slate-900 border-2 ${semaforoClase} rounded-2xl flex flex-col justify-between shadow-xl overflow-hidden">
+                            {{-- Cabecera Tarjeta --}}
+                            <div class="p-3 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-sm font-black text-white flex items-center gap-1.5">
+                                        <span>🪑 ${c.mesa_o_referencia}</span>
+                                    </h3>
+                                    <span class="text-[10px] text-slate-400 font-mono">${c.folio}</span>
+                                </div>
+                                <span class="text-xs px-2 py-0.5 rounded-full border ${badgeMinutos}">
+                                    ⏱️ ${minutosTranscurridos} min
+                                </span>
+                            </div>
+
+                            {{-- Lista de Platillos --}}
+                            <div class="p-3 space-y-2 flex-1 overflow-y-auto">
+                    `;
+
+                    c.items.forEach(item => {
+                        const esListo = (item.estado === 'listo');
+                        const textoTachado = esListo ? 'line-through text-slate-500' : 'text-slate-100 font-bold';
+                        const badgeItem = esListo
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-slate-800 text-slate-300 border-slate-700';
+
+                        html += `
+                            <div onclick="toggleItemListo(${item.id}, '${item.estado}')"
+                                 class="p-2 bg-slate-950/60 border border-slate-800/80 rounded-xl cursor-pointer hover:border-slate-600 transition flex items-start justify-between gap-2">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs font-black text-amber-400">${parseFloat(item.cantidad)}x</span>
+                                        <h4 class="text-xs ${textoTachado}">${item.producto ? item.producto.nombre : 'Platillo'}</h4>
+                                    </div>
+                                    ${item.notas_especiales ? `
+                                        <p class="text-[10px] text-amber-300 mt-0.5 font-medium">👉 ${item.notas_especiales}</p>
+                                    ` : ''}
+                                </div>
+                                <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${badgeItem}">
+                                    ${esListo ? '✓ Listo' : 'Pendiente'}
+                                </span>
+                            </div>
+                        `;
+                    });
+
+                    html += `
+                            </div>
+
+                            {{-- Botón Despachar Comanda --}}
+                            <div class="p-3 bg-slate-950/80 border-t border-slate-800/80">
+                                <button onclick="despacharComandaCompleta(${c.id})"
+                                        class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950/40 cursor-pointer">
+                                    <span>✓</span> Despachar Comanda
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                grid.innerHTML = html;
+            } catch (e) {
+                console.error('Error al actualizar KDS:', e);
+            }
+        }
+
+        async function toggleItemListo(itemId, estadoActual) {
+            const nuevoEstado = (estadoActual === 'listo') ? 'pendiente' : 'listo';
+            try {
+                const res = await fetch(`${config.urlItemEstado}/${itemId}/estado`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': config.csrf,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ estado: nuevoEstado })
+                });
+                if (res.ok) cargarComandas();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function despacharComandaCompleta(comandaId) {
+            try {
+                const res = await fetch(`${config.urlCompletar}/${comandaId}/completar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': config.csrf,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        estacion: estacionActual
+                    })
+                });
+                if (res.ok) cargarComandas();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function mostrarToastNuevaComanda(comanda) {
+            const toast = document.getElementById('toast-nueva-comanda');
+            const desc = document.getElementById('toast-comanda-desc');
+            const totalItems = comanda.items ? comanda.items.length : 1;
+            desc.innerText = `${comanda.mesa_o_referencia} • ${totalItems} platillo(s)`;
+            toast.classList.remove('hidden');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 6000);
+        }
+
+        // Carga inicial y refresco cada 4 segundos
+        cargarComandas();
+        setInterval(cargarComandas, 4000);
     </script>
 </body>
 </html>

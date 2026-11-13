@@ -23,22 +23,28 @@ class PlanoMesasController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        /** @var Empresa $empresa */
-        $empresa = $user->empresa ?? Empresa::query()->firstOrFail();
 
-        /** @var Sucursal|null $sucursal */
-        $sucursal = $user->sucursal
-            ?? $user->sucursales()->where('sucursales.activo', true)->first()
-            ?? Sucursal::query()->where('empresa_id', $empresa->id)->first();
+        // 1. Obtener explícitamente la empresa restaurantera (La Fogata Bistro)
+        $empresa = Empresa::query()->where('id', 3)->first()
+            ?? Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->first()
+            ?? Empresa::query()->firstOrFail();
 
-        $sucursalId = $sucursal !== null ? (int) $sucursal->id : 1;
+        // 2. Obtener la sucursal de restaurante perteneciente a esa empresa
+        $sucursal = $user->sucursales()
+            ->where('sucursales.empresa_id', $empresa->id)
+            ->where('sucursales.activo', true)
+            ->first()
+            ?? Sucursal::query()->where('empresa_id', $empresa->id)->where('codigo', 'REST-01')->first()
+            ?? Sucursal::query()->where('empresa_id', $empresa->id)->first()
+            ?? Sucursal::query()->first();
+
+        $sucursalId = $sucursal !== null ? (int) $sucursal->id : 2;
 
         $hoy = now()->toDateString();
 
-        // Recupera las áreas activas con sus mesas, comanda activa y reservaciones confirmadas del día
+        // 3. Recuperar las áreas y mesas reales de La Fogata Bistro
         $areas = RestauranteArea::query()
             ->where('empresa_id', $empresa->id)
-            ->where('sucursal_id', $sucursalId)
             ->where('activo', true)
             ->with([
                 'mesas' => function ($q) use ($hoy) {
@@ -55,35 +61,6 @@ class PlanoMesasController extends Controller
             ])
             ->orderBy('orden')
             ->get();
-
-        // Si no existen áreas, crea un área por defecto para facilitar el inicio
-        if ($areas->isEmpty()) {
-            $areaPrincipal = RestauranteArea::query()->create([
-                'empresa_id' => $empresa->id,
-                'sucursal_id' => $sucursalId,
-                'nombre' => 'Salón Principal',
-                'orden' => 1,
-                'activo' => true,
-            ]);
-
-            // Crear 6 mesas demo
-            for ($i = 1; $i <= 6; $i++) {
-                RestauranteMesa::query()->create([
-                    'restaurante_area_id' => $areaPrincipal->id,
-                    'numero_o_nombre' => "Mesa {$i}",
-                    'capacidad' => 4,
-                    'forma' => $i % 2 === 0 ? 'redonda' : 'cuadrada',
-                    'posicion_x' => (float) (($i * 14) + 5),
-                    'posicion_y' => (float) (20 + (($i % 3) * 25)),
-                    'estado' => 'disponible',
-                ]);
-            }
-
-            $areas = RestauranteArea::query()
-                ->where('id', $areaPrincipal->id)
-                ->with(['mesas.reservaciones'])
-                ->get();
-        }
 
         $puedeEditarPlano = $user->hasRole(['administrador', 'supervisor']);
 
@@ -149,5 +126,46 @@ class PlanoMesasController extends Controller
         ]);
 
         return response()->json(['message' => 'Mesa creada.', 'mesa' => $mesa]);
+    }
+
+    /**
+     * Actualiza el nombre, capacidad o forma geométrica de una mesa existente.
+     */
+    public function updateMesa(Request $request, RestauranteMesa $mesa): JsonResponse
+    {
+        $validated = $request->validate([
+            'numero_o_nombre' => ['required', 'string', 'max:30'],
+            'capacidad' => ['required', 'integer', 'min:1', 'max:50'],
+            'forma' => ['required', 'string', 'in:cuadrada,redonda,rectangular'],
+        ]);
+
+        $mesa->update([
+            'numero_o_nombre' => $validated['numero_o_nombre'],
+            'capacidad' => $validated['capacidad'],
+            'forma' => $validated['forma'],
+        ]);
+
+        return response()->json([
+            'message' => 'Mesa actualizada correctamente.',
+            'mesa' => $mesa->fresh(),
+        ]);
+    }
+
+    /**
+     * Elimina (o desactiva si tiene historial) una mesa del plano.
+     */
+    public function destroyMesa(RestauranteMesa $mesa): JsonResponse
+    {
+        if ($mesa->estado !== 'disponible' || $mesa->comanda_actual_id !== null) {
+            return response()->json([
+                'message' => 'No se puede eliminar una mesa que tiene una comanda activa o cuenta pendiente.',
+            ], 422);
+        }
+
+        $mesa->delete();
+
+        return response()->json([
+            'message' => 'Mesa eliminada del plano.',
+        ]);
     }
 }

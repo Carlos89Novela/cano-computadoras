@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    {{-- ========================================================================= --}}
+    {{-- SECCIÓN 1: METADATOS Y ESTILOS TÉRMICOS DE 80MM                           --}}
+    {{-- ========================================================================= --}}
     <meta charset="UTF-8">
     <title>Precuenta {{ $mesa->numero_o_nombre }}</title>
     <style>
@@ -25,11 +28,17 @@
 </head>
 <body onload="window.print()">
 
+    {{-- ========================================================================= --}}
+    {{-- SECCIÓN 2: CONTROLES DE IMPRESIÓN (OCULTOS EN PAPEL)                      --}}
+    {{-- ========================================================================= --}}
     <div class="no-print">
         <button onclick="window.print()">Imprimir Precuenta</button>
         <button onclick="window.close()">Cerrar</button>
     </div>
 
+    {{-- ========================================================================= --}}
+    {{-- SECCIÓN 3: ENCABEZADO DEL ESTABLECIMIENTO Y DATOS DE LA COMANDA           --}}
+    {{-- ========================================================================= --}}
     <div class="text-center">
         <div class="bold" style="font-size: 14px;">{{ $comanda->empresa->nombre }}</div>
         <div>Sucursal: {{ $comanda->sucursal->nombre }}</div>
@@ -42,6 +51,9 @@
         <div class="divider"></div>
     </div>
 
+    {{-- ========================================================================= --}}
+    {{-- SECCIÓN 4: DETALLE CONSOLIDADO DE PLATILLOS Y BEBIDAS CONSUMIDOS          --}}
+    {{-- ========================================================================= --}}
     <table>
         <thead>
             <tr>
@@ -51,11 +63,20 @@
             </tr>
         </thead>
         <tbody>
-            @foreach ($comanda->items as $item)
-                @php $subItem = ((float)$item->cantidad) * ((float)$item->producto->precio_base); @endphp
+            @php $listaPartidas = $itemsConsolidados ?? $comanda->items; @endphp
+            @foreach ($listaPartidas as $item)
+                @php
+                    $precioUnit = (float) ($item->producto?->precio_base ?? 0);
+                    $subItem = ((float) $item->cantidad) * $precioUnit;
+                @endphp
                 <tr>
                     <td valign="top">{{ number_format((float) $item->cantidad, 0) }}</td>
-                    <td valign="top">{{ Str::limit($item->producto->nombre, 18) }}</td>
+                    <td valign="top">
+                        {{ \Illuminate\Support\Str::limit($item->producto?->nombre ?? 'Platillo', 18) }}
+                        @if($item->notas_especiales)
+                            <br><span style="font-size: 9px; color: #555;">{{ $item->notas_especiales }}</span>
+                        @endif
+                    </td>
                     <td align="right" valign="top">${{ number_format($subItem, 2) }}</td>
                 </tr>
             @endforeach
@@ -64,7 +85,23 @@
 
     <div class="divider"></div>
 
+    {{-- ========================================================================= --}}
+    {{-- SECCIÓN 5: SUBTOTAL, PROMOCIONES / COMBOS APLICADOS Y TOTAL NETO          --}}
+    {{-- ========================================================================= --}}
     <table>
+        @if (! empty($promocionesAplicadas))
+            <tr>
+                <td>Subtotal Consumo:</td>
+                <td align="right">${{ number_format($totalBruto ?? $totalConsumo, 2) }}</td>
+            </tr>
+            @foreach ($promocionesAplicadas as $promo)
+                <tr class="bold">
+                    <td>🎁 {{ \Illuminate\Support\Str::limit($promo['nombre'], 22) }}:</td>
+                    <td align="right">-${{ number_format((float) $promo['ahorro'], 2) }}</td>
+                </tr>
+            @endforeach
+        @endif
+
         <tr class="bold" style="font-size: 13px;">
             <td>TOTAL CONSUMO:</td>
             <td align="right">${{ number_format($totalConsumo, 2) }}</td>
@@ -73,6 +110,9 @@
 
     <div class="divider"></div>
 
+    {{-- ========================================================================= --}}
+    {{-- SECCIÓN 6: PROPINAS SUGERIDAS (CALCULADAS SOBRE EL TOTAL NETO)            --}}
+    {{-- ========================================================================= --}}
     <div style="font-size: 10px;">
         <div class="bold text-center mb-1">PROPINAS SUGERIDAS (VOLUNTARIAS):</div>
         <div style="display: flex; justify-content: space-between;">
@@ -84,11 +124,13 @@
 
     <div class="divider"></div>
 
-    {{-- Código QR de Autofacturación para el Comensal --}}
+    {{-- ========================================================================= --}}
+    {{-- SECCIÓN 7: CÓDIGO QR DE AUTOFACTURACIÓN PARA EL COMENSAL                  --}}
+    {{-- ========================================================================= --}}
     <div class="text-center" style="margin-top: 8px;">
         <div class="bold" style="font-size: 10px;">¿REQUIERE FACTURA FISCAL?</div>
         <div style="font-size: 9px; margin-bottom: 5px;">Escanee el código QR desde su celular:</div>
-        
+
         <div style="display: flex; justify-content: center; margin: 4px 0;">
             {!! QrCode::size(110)->generate(route('autofactura.show', $tokenFactura)) !!}
         </div>

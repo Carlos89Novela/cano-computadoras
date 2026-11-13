@@ -1,19 +1,28 @@
 <nav x-data="{ openMobile: false }" class="bg-slate-900 border-b border-slate-800 text-slate-200">
     @php
-        /** @var \App\Models\User $usuario */
-        $usuario = auth()->user();
+        /** @var \App\Models\User $usuario */$usuario = auth()->user();
 
-        $cantidadNotificacionesNoLeidas = $usuario->unreadNotifications()->count();
+        $cantidadNotificacionesNoLeidas =$usuario->unreadNotifications()->count();
 
-        $rutaDashboard = match (true) {
-            $usuario->hasRole('administrador') => route('admin.dashboard'),
-            $usuario->hasRole('supervisor') => route('supervisor.dashboard'),
-            $usuario->hasRole('empleado') => route('empleado.dashboard'),
+        $rutaDashboard = match (true) {$usuario->hasRole('administrador') => route('admin.dashboard'),
+            $usuario->hasRole('supervisor') => route('supervisor.dashboard'),$usuario->hasRole('empleado') => route('empleado.dashboard'),
             default => route('dashboard'),
         };
 
-        /** @var \App\Models\Empresa|null $empresaActual */
-        $empresaActual = $usuario->empresa ?? \App\Models\Empresa::query()->where('activo', true)->first();
+       // Identificar la empresa activa a través de la sucursal o directamente
+        $sucursalActiva = $usuario->sucursales()->with('empresa')->where('sucursales.activo', true)->first();
+        $empresaActual = $sucursalActiva?->empresa ?? $usuario->empresa ?? \App\Models\Empresa::query()->where('activo', true)->first();
+
+        $esRestaurante =$empresaActual && (
+            (method_exists($empresaActual, 'esRestaurante') &&$empresaActual->esRestaurante())
+            || in_array($empresaActual->giro_comercial, ['restaurantes_alimentos', 'restaurante_cafeteria'], true)
+        );
+
+        $esTaller =$empresaActual && (
+            (method_exists($empresaActual, 'esTallerComputo') &&$empresaActual->esTallerComputo())
+            || $empresaActual->giro_comercial === 'taller_computadoras'
+            || ! $esRestaurante
+        );
 
         $esAdminOSupervisor = $usuario->hasRole('administrador') || $usuario->hasRole('supervisor');
     @endphp
@@ -35,39 +44,75 @@
                         {{ __('Dashboard') }}
                     </x-nav-link>
 
-                    <!-- 2. Enlace Directo: POS Mostrador (Acceso Rápido) -->
-                    @if ($esAdminOSupervisor || $usuario->hasRole('empleado'))
-                        <a href="{{ route('pos.index') }}"
-                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition {{ request()->routeIs('pos.index') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60 border border-indigo-500/30' }}">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            POS Mostrador
+                    {{-- ========================================================= --}}
+                    {{-- ACCESOS PARA RESTAURANTES / ALIMENTOS                    --}}
+                    {{-- ========================================================= --}}
+                    @if ($esRestaurante)
+                        <!-- Comandero Digital -->
+                        <a href="{{ route('restaurante.comandero.index') }}"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition {{ request()->routeIs('restaurante.comandero.*') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60 border border-indigo-500/30' }}">
+                            📱 Comandero
                         </a>
-                    @endif
 
-                    <!-- 3. Desplegable: Operación y Ventas -->
-                    @if ($esAdminOSupervisor || $usuario->hasRole('empleado'))
-                        <div class="relative" x-data="{ open: false }" @click.outside="open = false" @close.stop="open = false">
-                            <button @click="open = !open"
-                                    class="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg transition {{ request()->routeIs('admin.ordenes.*', 'supervisor.*', 'empleado.*', 'compras.ordenes.*', 'pos.cajas.*') ? 'text-white bg-slate-800' : 'text-slate-300 hover:text-white hover:bg-slate-800/60' }}">
-                                <span>Operación y Ventas</span>
-                                <svg class="w-3.5 h-3.5 transition-transform" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        <!-- Pantalla KDS Cocina -->
+                        <a href="{{ route('restaurante.kds.index') }}"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition {{ request()->routeIs('restaurante.kds.*') ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30' : 'bg-amber-950/60 text-amber-300 hover:bg-amber-900/60 border border-amber-500/30' }}">
+                            👨‍🍳 Cocina (KDS)
+                        </a>
+
+                        <!-- Plano de Mesas -->
+                        <a href="{{ url('/restaurante/mesas/plano') }}"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition {{ request()->is('restaurante/mesas*') ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30' : 'bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/60 border border-cyan-500/30' }}">
+                            🪑 Mesas
+                        </a>
+
+                        <!-- POS Caja / Cobro -->
+                        <a href="{{ route('pos.index') }}"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition {{ request()->routeIs('pos.*') ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900/60 border border-emerald-500/30' }}">
+                            💳 Caja
+                        </a>
+
+                        <!-- Menú y Recetas (Admin y Supervisor) -->
+                        @if ($esAdminOSupervisor &&$empresaActual)
+                            <x-nav-link :href="route('restaurante.recetas.index')" :active="request()->routeIs('restaurante.recetas.*')">
+                                🍳 {{ __('Recetario & Fichas') }}
+                            </x-nav-link>
+                        @endif
+
+                    {{-- ========================================================= --}}
+                    {{-- ACCESOS PARA TALLER / REPARACIONES                       --}}
+                    {{-- ========================================================= --}}
+                    @else
+                        @if ($esAdminOSupervisor ||$usuario->hasRole('empleado'))
+                            <a href="{{ route('pos.index') }}"
+                               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition {{ request()->routeIs('pos.index') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60 border border-indigo-500/30' }}">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
-                            </button>
+                                POS Mostrador
+                            </a>
+                        @endif
 
-                            <div x-show="open" style="display: none;"
-                                 x-transition:enter="transition ease-out duration-150"
-                                 x-transition:enter-start="opacity-0 scale-95"
-                                 x-transition:enter-end="opacity-100 scale-100"
-                                 x-transition:leave="transition ease-in duration-100"
-                                 x-transition:leave-start="opacity-100 scale-100"
-                                 x-transition:leave-end="opacity-0 scale-95"
-                                 class="absolute left-0 mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50">
+                        <!-- Desplegable: Operación y Ventas (Taller) -->
+                        @if ($esAdminOSupervisor ||$usuario->hasRole('empleado'))
+                            <div class="relative" x-data="{ open: false }" @click.outside="open = false" @close.stop="open = false">
+                                <button @click="open = !open"
+                                        class="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg transition {{ request()->routeIs('admin.ordenes.*', 'supervisor.*', 'empleado.*', 'compras.ordenes.*', 'pos.cajas.*') ? 'text-white bg-slate-800' : 'text-slate-300 hover:text-white hover:bg-slate-800/60' }}">
+                                    <span>Operación y Ventas</span>
+                                    <svg class="w-3.5 h-3.5 transition-transform" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
 
-                                {{-- Envolver el bloque de taller en la condición del giro comercial --}}
-                                @if ($empresaActual?->esTallerComputo())
+                                <div x-show="open" style="display: none;"
+                                     x-transition:enter="transition ease-out duration-150"
+                                     x-transition:enter-start="opacity-0 scale-95"
+                                     x-transition:enter-end="opacity-100 scale-100"
+                                     x-transition:leave="transition ease-in duration-100"
+                                     x-transition:leave-start="opacity-100 scale-100"
+                                     x-transition:leave-end="opacity-0 scale-95"
+                                     class="absolute left-0 mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50">
+
                                     @if ($usuario->hasRole('administrador'))
                                         <a href="{{ route('admin.ordenes.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
                                             🛠️ Reparaciones (Taller)
@@ -81,22 +126,32 @@
                                             🛠️ Reparaciones Asignadas
                                         </a>
                                     @endif
-                                @endif
 
-                                @if ($esAdminOSupervisor)
-                                    <a href="{{ route('compras.ordenes.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
-                                        📄 Órdenes de Compra
-                                    </a>
-                                    <a href="{{ route('pos.cajas.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
-                                        💰 Cortes de Caja y Arqueos
-                                    </a>
-                                @endif
+                                    @if ($esAdminOSupervisor)
+                                        <a href="{{ route('compras.ordenes.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                            📄 Órdenes de Compra
+                                        </a>
+                                        <a href="{{ route('pos.cajas.index') }}" class="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                            💰 Cortes de Caja y Arqueos
+                                        </a>
+                                    @endif
+                                </div>
                             </div>
-                        </div>
+                        @endif
+
+                        {{-- Enlaces para Clientes --}}
+                        @if ($usuario->hasRole('cliente'))
+                            <x-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
+                                {{ __('Mis equipos') }}
+                            </x-nav-link>
+                            <x-nav-link :href="route('ordenes.index')" :active="request()->routeIs('ordenes.*')">
+                                {{ __('Mis reparaciones') }}
+                            </x-nav-link>
+                        @endif
                     @endif
 
-                    <!-- 4. Desplegable: Inventario y Almacén -->
-                    @if ($empresaActual && ($usuario->can('inventario.transferir') || $usuario->can('inventario.registrar_entrada')))
+                    <!-- Inventario y Almacén (Compartido según permisos) -->
+                    @if ($empresaActual && ($usuario->can('inventario.transferir') ||$usuario->can('inventario.registrar_entrada')))
                         <div class="relative" x-data="{ open: false }" @click.outside="open = false" @close.stop="open = false">
                             <button @click="open = !open"
                                     class="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg transition {{ request()->routeIs('inventario.*') ? 'text-white bg-slate-800' : 'text-slate-300 hover:text-white hover:bg-slate-800/60' }}">
@@ -133,22 +188,11 @@
                             </div>
                         </div>
                     @endif
-
-                    {{-- Enlaces para Clientes --}}
-                    @if ($usuario->hasRole('cliente'))
-                        <x-nav-link :href="route('equipos.index')" :active="request()->routeIs('equipos.*')">
-                            {{ __('Mis equipos') }}
-                        </x-nav-link>
-                        <x-nav-link :href="route('ordenes.index')" :active="request()->routeIs('ordenes.*')">
-                            {{ __('Mis reparaciones') }}
-                        </x-nav-link>
-                    @endif
                 </div>
             </div>
 
             <!-- Derecha: Notificaciones y Perfil -->
             <div class="hidden md:flex items-center space-x-3">
-                <!-- Notificaciones -->
                 <a href="{{ route('notificaciones.index') }}"
                    class="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,7 +203,6 @@
                     @endif
                 </a>
 
-                <!-- Desplegable de Usuario y Administración -->
                 <div class="relative" x-data="{ open: false }" @click.outside="open = false" @close.stop="open = false">
                     <button @click="open = !open"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-slate-800 text-xs font-semibold text-slate-300 transition">
@@ -185,9 +228,11 @@
                             <a href="{{ route('admin.dashboard') }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
                                 Panel Administrativo
                             </a>
-                            <a href="{{ route('admin.servicios.index') }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
-                                Catálogo de Servicios
-                            </a>
+                            @if ($esTaller)
+                                <a href="{{ route('admin.servicios.index') }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                    Catálogo de Servicios
+                                </a>
+                            @endif
 
                             @if ($usuario->esPropietario())
                                 <a href="{{ route('admin.usuarios.index') }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
@@ -242,11 +287,22 @@
     <!-- Menú Responsive Móvil -->
     <div :class="{'block': openMobile, 'hidden': !openMobile}" class="hidden md:hidden border-t border-slate-800 bg-slate-950 px-4 py-3 space-y-2 text-xs">
         <a href="{{ $rutaDashboard }}" class="block py-2 text-slate-300 font-semibold">Dashboard</a>
-        <a href="{{ route('pos.index') }}" class="block py-2 text-indigo-400 font-bold">POS Mostrador</a>
 
-        <div class="pt-2 border-t border-slate-900 text-[10px] font-bold uppercase text-slate-500">Operación</div>
-        <a href="{{ route('compras.ordenes.index') }}" class="block py-1.5 text-slate-300">Órdenes de Compra</a>
-        <a href="{{ route('pos.cajas.index') }}" class="block py-1.5 text-slate-300">Cortes de Caja</a>
+        @if ($esRestaurante)
+            <div class="pt-2 border-t border-slate-900 text-[10px] font-bold uppercase text-indigo-400">Restaurante</div>
+            <a href="{{ route('restaurante.comandero.index') }}" class="block py-1.5 text-slate-300">📱 Comandero</a>
+            <a href="{{ route('restaurante.kds.index') }}" class="block py-1.5 text-slate-300">👨‍🍳 Pantalla Cocina</a>
+            <a href="{{ url('/restaurante/mesas/plano') }}" class="block py-1.5 text-slate-300">🪑 Plano de Mesas</a>
+            <a href="{{ route('pos.index') }}" class="block py-1.5 text-slate-300">💳 Caja / Cobro</a>
+            @if ($esAdminOSupervisor &&$empresaActual)
+                <a href="{{ route('productos.index', ['empresa' => $empresaActual->id]) }}" class="block py-1.5 text-slate-300">🍳 Menú & Recetas</a>
+            @endif
+        @else
+            <a href="{{ route('pos.index') }}" class="block py-2 text-indigo-400 font-bold">POS Mostrador</a>
+            <div class="pt-2 border-t border-slate-900 text-[10px] font-bold uppercase text-slate-500">Operación</div>
+            <a href="{{ route('compras.ordenes.index') }}" class="block py-1.5 text-slate-300">Órdenes de Compra</a>
+            <a href="{{ route('pos.cajas.index') }}" class="block py-1.5 text-slate-300">Cortes de Caja</a>
+        @endif
 
         @if ($empresaActual)
             <div class="pt-2 border-t border-slate-900 text-[10px] font-bold uppercase text-slate-500">Inventario</div>

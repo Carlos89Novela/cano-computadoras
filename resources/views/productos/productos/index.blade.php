@@ -39,7 +39,7 @@
 
                     @can('productos.crear')
                         <a
-                            href="{{ route('productos.productos.create', [
+                            href="{{ route('productos.create', [
                                 'empresa' => $empresa->id,
                             ]) }}"
                             class="inline-flex w-fit shrink-0 self-start items-center gap-2 whitespace-nowrap rounded-md border border-transparent bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 lg:self-auto"
@@ -201,7 +201,7 @@
                     order: [[1, 'asc']],
 
                     ajax: {
-                        url: @json(route('productos.productos.data', ['empresa' => $empresa->id])),
+                        url: @json(route('productos.data', ['empresa' => $empresa->id])),
                         type: 'GET',
                         data: function (datos) {
                             datos.categoria_id = window.jQuery('#categoria-filtro').val();

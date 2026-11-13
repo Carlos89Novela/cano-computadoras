@@ -79,6 +79,18 @@ class ProductoController extends Controller
         ];
 
         // -----------------------------------------------------
+        // IDENTIFICACIÓN DEL GIRO COMERCIAL
+        // Si la empresa es de restaurante, separamos los platillos
+        // de receta para listar exclusivamente insumos de cocina/barra.
+        // -----------------------------------------------------
+
+        $esRestaurante = in_array(
+            $empresa->giro_comercial,
+            ['restaurantes_alimentos', 'restaurante_cafeteria'],
+            true
+        );
+
+        // -----------------------------------------------------
         // CONSTRUCCIÓN DE LA CONSULTA BASE
         // Delimita los registros exclusivamente a la empresa
         // inquilina (tenant) con carga ansiosa (eager loading).
@@ -88,6 +100,10 @@ class ProductoController extends Controller
             ->where(
                 'productos.empresa_id',
                 $empresa->id
+            )
+            ->when(
+                $esRestaurante,
+                fn (Builder $query): Builder => $query->where('productos.es_receta', false)
             )
             ->with([
                 'categoria:id,nombre',
@@ -100,6 +116,10 @@ class ProductoController extends Controller
             ->where(
                 'empresa_id',
                 $empresa->id
+            )
+            ->when(
+                $esRestaurante,
+                fn (Builder $query): Builder => $query->where('es_receta', false)
             )
             ->count();
 
@@ -357,7 +377,6 @@ class ProductoController extends Controller
                         'unidad_medida' => ucfirst(
                             $producto->unidad_medida
                         ),
-                        // Conversión numérica segura del precio base
                         'precio_base' => (float) $producto->precio_base,
                         'es_receta' => (bool) $producto->es_receta,
                         'estado' => $producto->activo
@@ -520,7 +539,7 @@ class ProductoController extends Controller
 
         return redirect()
             ->route(
-                'productos.productos.index',
+                'productos.index',
                 [
                     'empresa' => $empresa->id,
                 ]

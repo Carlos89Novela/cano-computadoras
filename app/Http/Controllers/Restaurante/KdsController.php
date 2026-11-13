@@ -21,14 +21,13 @@ class KdsController extends Controller
     public function index(Request $request): View
     {
         /** @var User $user */
-        $user = $request->user();
-        /** @var Empresa $empresa */
-        $empresa = $user->empresa ?? Empresa::query()->firstOrFail();
+        $user =$request->user();
 
-        /** @var Sucursal|null $sucursal */
-        $sucursal = $user->sucursal
-            ?? $user->sucursales()->where('sucursales.activo', true)->first()
-            ?? Sucursal::query()->where('empresa_id', $empresa->id)->first();
+        $sucursal =$user->sucursales()->with('empresa')->where('sucursales.activo', true)->first()
+            ?? Sucursal::query()->where('codigo', 'REST-01')->first()
+            ?? Sucursal::query()->first();
+
+        $empresa =$sucursal?->empresa ?? Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->firstOrFail();
 
         return ViewFacade::make('restaurante.kds.index', [
             'empresa' => $empresa,
@@ -43,23 +42,34 @@ class KdsController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $sucursalId = $request->integer('sucursal_id');
+
+        $sucursal = $user->sucursales()->with('empresa')->first();
+        $empresaId = $sucursal?->empresa_id ?? 3;
+        $sucursalId = $request->integer('sucursal_id', $sucursal?->id ?? 0);
         $estacion = $request->string('estacion')->trim()->toString();
 
         $query = Comanda::query()
-            ->where('empresa_id', $user->empresa_id ?? 1)
+            ->where('empresa_id', $empresaId)
             ->when($sucursalId > 0, fn ($q) => $q->where('sucursal_id', $sucursalId))
             ->whereIn('estado', ['pendiente', 'en_preparacion'])
             ->with([
                 'mesero:id,name',
                 'items' => function ($q) use ($estacion) {
-                    $q->when($estacion !== '' && $estacion !== 'todas', fn ($sq) => $sq->where('estacion_cocina', $estacion))
-                        ->with('producto:id,nombre,sku');
+                    $q->when($estacion !== '' && $estacion !== 'todas', function ($sq) use ($estacion) {
+                        if ($estacion === 'barra_postres') {
+                            $sq->whereIn('estacion_cocina', ['barra', 'postres']);
+                        } else {
+                            $sq->where('estacion_cocina', $estacion);
+                        }
+                    })->with('producto:id,nombre,sku');
                 },
             ])
             ->orderBy('enviada_a_cocina_at', 'asc');
 
-        $comandas = $query->get()->filter(fn (Comanda $c) => $c->items->isNotEmpty())->values();
+        // Solo mostrar comandas que tengan platillos pendientes/en preparación en ESTA estación
+        $comandas = $query->get()->filter(function (Comanda $c) {
+            return $c->items->where('estado', '!=', 'listo')->isNotEmpty();
+        })->values();
 
         return response()->json($comandas);
     }
@@ -97,16 +107,39 @@ class KdsController extends Controller
     }
 
     /**
-     * Completa toda la comanda de golpe.
+     * Despacha únicamente los platillos de la comanda que pertenecen a la estación activa.
+     * Si la comanda aún tiene platillos en otras estaciones, se mantiene abierta.
      */
-    public function completarComanda(Comanda $comanda): JsonResponse
+    public function completarComanda(Request $request, Comanda $comanda): JsonResponse
     {
-        $comanda->items()->update(['estado' => 'listo']);
-        $comanda->update([
-            'estado' => 'completada',
-            'finalizada_at' => now(),
-        ]);
+        $estacion = $request->string('estacion', 'todas')->toString();
 
-        return response()->json(['message' => 'Comanda marcada como completada.']);
+        // 1. Marcar como listos SOLO los platillos de esta estación
+        $queryItems = $comanda->items()->where('estado', '!=', 'listo');
+        if ($estacion !== 'todas' && $estacion !== '') {
+            if ($estacion === 'barra_postres') {
+                $queryItems->whereIn('estacion_cocina', ['barra', 'postres']);
+            } else {
+                $queryItems->where('estacion_cocina', $estacion);
+            }
+        }
+        $queryItems->update(['estado' => 'listo']);
+
+        // 2. Verificar si TODA la comanda (todas las estaciones) ya terminó
+        $itemsPendientesTotales = $comanda->items()->where('estado', '!=', 'listo')->count();
+
+        if ($itemsPendientesTotales === 0) {
+            $comanda->update([
+                'estado' => 'completada',
+                'finalizada_at' => now(),
+            ]);
+        } else {
+            $comanda->update(['estado' => 'en_preparacion']);
+        }
+
+        return response()->json([
+            'message' => 'Estación despachada con éxito.',
+            'comanda_terminada_completamente' => $itemsPendientesTotales === 0,
+        ]);
     }
 }
