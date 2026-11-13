@@ -89,6 +89,10 @@ class ProductoController extends Controller
                 'productos.empresa_id',
                 $empresa->id
             )
+            ->when(
+                $esRestaurante,
+                fn (Builder $query): Builder => $query->where('productos.es_receta', false)
+            )
             ->with([
                 'categoria:id,nombre',
                 'proveedorPrincipal:id,nombre',
@@ -100,6 +104,10 @@ class ProductoController extends Controller
             ->where(
                 'empresa_id',
                 $empresa->id
+            )
+            ->when(
+                $esRestaurante,
+                fn (Builder $query): Builder => $query->where('es_receta', false)
             )
             ->count();
 
@@ -520,7 +528,7 @@ class ProductoController extends Controller
 
         return redirect()
             ->route(
-                'productos.productos.index',
+                'productos.index',
                 [
                     'empresa' => $empresa->id,
                 ]

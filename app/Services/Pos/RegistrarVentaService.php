@@ -65,21 +65,28 @@ class RegistrarVentaService
         return DB::transaction(function () use ($datos) {
             $uuidVenta = $datos['uuid'] ?? (string) Str::uuid();
 
-            // Idempotencia: evitar duplicados en sincronización offline
+            // 1. Idempotencia: evitar duplicados en sincronización offline
             $ventaExistente = Venta::query()->where('uuid', $uuidVenta)->first();
             if ($ventaExistente !== null) {
                 return $ventaExistente;
             }
 
-            /** @var Empresa $empresa */
+            // 2. Resolución tolerante de Empresa, Sucursal y Almacén
             $empresa = Empresa::query()->findOrFail($datos['empresa_id']);
-            /** @var Sucursal $sucursal */
-            $sucursal = Sucursal::query()->where('empresa_id', $empresa->id)->findOrFail($datos['sucursal_id']);
-            /** @var Almacen $almacen */
+
+            $sucursal = Sucursal::query()->where('empresa_id', $empresa->id)->find($datos['sucursal_id'])
+                ?? Sucursal::query()->where('empresa_id', $empresa->id)->where('activo', true)->first()
+                ?? Sucursal::query()->where('empresa_id', $empresa->id)->firstOrFail();
+
             $almacen = Almacen::query()
                 ->where('empresa_id', $empresa->id)
                 ->where('sucursal_id', $sucursal->id)
-                ->findOrFail($datos['almacen_id']);
+                ->find($datos['almacen_id'])
+                ?? Almacen::query()
+                    ->where('empresa_id', $empresa->id)
+                    ->where('activo', true)
+                    ->first()
+                ?? Almacen::query()->findOrFail($datos['almacen_id']);
 
             /** @var User $cajero */
             $cajero = User::query()->findOrFail($datos['user_id']);
@@ -89,7 +96,6 @@ class RegistrarVentaService
             if (! empty($datos['caja_turno_id'])) {
                 $turno = CajaTurno::query()
                     ->where('empresa_id', $empresa->id)
-                    ->where('sucursal_id', $sucursal->id)
                     ->where('estado', 'abierto')
                     ->find($datos['caja_turno_id']);
             }
@@ -108,6 +114,7 @@ class RegistrarVentaService
 
             $detallesParaCrear = [];
 
+            // 3. Procesamiento de Líneas de Venta
             foreach ($datos['lineas'] as $linea) {
                 /** @var Producto $producto */
                 $producto = Producto::query()
@@ -181,7 +188,6 @@ class RegistrarVentaService
                 $descuentoUnitario = (float) ($linea['descuento_unitario'] ?? 0.0);
                 $tasaIva = isset($linea['tasa_iva']) ? (float) $linea['tasa_iva'] : 0.1600;
 
-                // Desglose del IVA (precio sin IVA = precio / (1 + tasa))
                 $precioUnitarioNeto = round($precioConIva / (1.0 + $tasaIva), 4);
                 $descuentoNeto = round($descuentoUnitario / (1.0 + $tasaIva), 4);
                 $precioNetoCobrado = max(0.0, $precioUnitarioNeto - $descuentoNeto);
@@ -222,9 +228,15 @@ class RegistrarVentaService
                 ];
             }
 
+            // 4. Encabezado de Venta
+            // Generar token único para el portal público de autofacturación
+            $tokenAutofactura = Str::lower(Str::random(32));
+
             /** @var Venta $venta */
             $venta = Venta::query()->create([
                 'uuid' => $uuidVenta,
+                'token_autofactura' => $tokenAutofactura,
+                'autofactura_limite_at' => now()->addDays(3),
                 'empresa_id' => $empresa->id,
                 'sucursal_id' => $sucursal->id,
                 'almacen_id' => $almacen->id,
@@ -254,6 +266,7 @@ class RegistrarVentaService
                 'notas' => $datos['notas'] ?? null,
             ]);
 
+            // 5. Persistencia de Partidas, Descuento y Kardex
             foreach ($detallesParaCrear as $detalleItem) {
                 /** @var Producto $prodModel */
                 $prodModel = $detalleItem['producto_model'];
@@ -326,6 +339,7 @@ class RegistrarVentaService
                 }
             }
 
+            // 6. Registro de Pagos e Incrementos de Caja
             foreach ($datos['pagos'] as $pagoItem) {
                 $montoPago = (float) $pagoItem['monto'];
                 $formaPago = $pagoItem['forma_pago_sat'];

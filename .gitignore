@@ -22,3 +22,11 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+*.cer
+*.key
+/storage/*.sql
+
+*.cer
+*.key
+/storage/*.sql
