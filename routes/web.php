@@ -1,12 +1,10 @@
 <?php
 
-// ---------------------------------------------------------
-// IMPORTACIONES DE CONTROLADORES
-// Se agrupan los controladores de administración, compras,
-// inventarios, pos, facturación, productos y restaurante.
-// ---------------------------------------------------------
-
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+// ---------------------------------------------------------
+// 1. CONTROLADORES GENERALES, PÚBLICOS Y TALLER
+// ---------------------------------------------------------
+use App\Http\Controllers\Admin\Inventario\InventarioOrdenController;
 use App\Http\Controllers\Admin\OrdenServicioController as AdminOrdenServicioController;
 use App\Http\Controllers\Admin\ServicioController as AdminServicioController;
 use App\Http\Controllers\Admin\SucursalController;
@@ -14,17 +12,19 @@ use App\Http\Controllers\Admin\UsuarioController;
 use App\Http\Controllers\Compras\CuentaPorPagarController;
 use App\Http\Controllers\Compras\OrdenCompraController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Empleado\DashboardController as EmpleadoDashboardController;
-use App\Http\Controllers\Empleado\OrdenAsignadaController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\Finanzas\BancoController;
 use App\Http\Controllers\Inventario\EntradaInventarioController;
 use App\Http\Controllers\Inventario\InventarioKardexController;
 use App\Http\Controllers\Inventario\RecepcionInventarioController;
 use App\Http\Controllers\Inventario\TransferenciaInventarioController;
+use App\Http\Controllers\Marketing\PromocionController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\Pos\CajaAuditoriaController;
+// ---------------------------------------------------------
+// 2. CONTROLADORES DE OPERACIÓN, INVENTARIO Y FINANZAS
+// ---------------------------------------------------------
 use App\Http\Controllers\Pos\FacturacionController;
 use App\Http\Controllers\Pos\FacturacionGlobalController;
 use App\Http\Controllers\Pos\PosController;
@@ -32,67 +32,33 @@ use App\Http\Controllers\Productos\CategoriaProductoController;
 use App\Http\Controllers\Productos\ProductoController;
 use App\Http\Controllers\Productos\RecetaController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\Proveedores\ProveedorController;
 use App\Http\Controllers\Public\AutofacturaController;
 use App\Http\Controllers\Public\PublicCotizacionController;
 use App\Http\Controllers\Restaurante\ComanderoController;
+// ---------------------------------------------------------
+// 3. CONTROLADORES DE PUNTO DE VENTA (POS), CFDI Y MARKETING
+// ---------------------------------------------------------
 use App\Http\Controllers\Restaurante\CuentaMesaController;
 use App\Http\Controllers\Restaurante\KdsController;
 use App\Http\Controllers\Restaurante\PlanoMesasController;
+use App\Http\Controllers\Restaurante\RecetarioController;
 use App\Http\Controllers\Restaurante\ReporteRestauranteController;
+// ---------------------------------------------------------
+// 4. CONTROLADORES EXCLUSIVOS DE RESTAURANTE
+// ---------------------------------------------------------
 use App\Http\Controllers\Restaurante\ReservacionController;
 use App\Http\Controllers\SeguimientoController;
-use App\Http\Controllers\Supervisor\AsignacionController;
 use App\Http\Controllers\Supervisor\DashboardController as SupervisorDashboardController;
-use App\Http\Controllers\Supervisor\EntregaOrdenController;
 use App\Http\Controllers\Supervisor\RevisionCotizacionController;
 use App\Http\Middleware\PropietarioMiddleware;
 use App\Models\Servicio;
-
-// ---------------------------------------------------------
-// 3. CONTROLADORES DE OPERACIÓN, INVENTARIO Y FINANZAS
-// ---------------------------------------------------------
-use App\Http\Controllers\Productos\ProductoController;
-use App\Http\Controllers\Productos\CategoriaProductoController;
-use App\Http\Controllers\Productos\RecetaController;
-use App\Http\Controllers\Proveedores\ProveedorController;
-use App\Http\Controllers\Compras\OrdenCompraController;
-use App\Http\Controllers\Compras\CuentaPorPagarController;
-use App\Http\Controllers\Inventario\EntradaInventarioController;
-use App\Http\Controllers\Inventario\RecepcionInventarioController;
-use App\Http\Controllers\Inventario\TransferenciaInventarioController;
-use App\Http\Controllers\Inventario\InventarioKardexController;
-use App\Http\Controllers\Finanzas\BancoController;
-
-// ---------------------------------------------------------
-// 4. CONTROLADORES DE PUNTO DE VENTA (POS) Y CFDI
-// ---------------------------------------------------------
-use App\Http\Controllers\Pos\PosController;
-use App\Http\Controllers\Pos\CajaAuditoriaController;
-use App\Http\Controllers\Pos\FacturacionController;
-use App\Http\Controllers\Pos\FacturacionGlobalController;
-
-// ---------------------------------------------------------
-// 5. CONTROLADORES EXCLUSIVOS DE RESTAURANTE
-// ---------------------------------------------------------
-use App\Http\Controllers\Restaurante\ComanderoController;
-use App\Http\Controllers\Restaurante\KdsController;
-use App\Http\Controllers\Restaurante\PlanoMesasController;
-use App\Http\Controllers\Restaurante\CuentaMesaController;
-use App\Http\Controllers\Restaurante\RecetarioController;
-use App\Http\Controllers\Restaurante\ReservacionController;
-use App\Http\Controllers\Restaurante\ReporteRestauranteController;
-
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
 | BLOQUE 1: RUTAS PÚBLICAS Y DE CLIENTES EXTERNOS
 |--------------------------------------------------------------------------
 */
-
-// =========================================================
-// RUTAS PÚBLICAS Y DE SEGUIMIENTO EXTERNO
-// =========================================================
 
 Route::get('/', function () {
     $servicios = Servicio::query()
@@ -122,7 +88,6 @@ Route::prefix('cotizacion')->name('public.cotizacion.')->group(function (): void
     Route::post('/{token}/rechazar', [PublicCotizacionController::class, 'rechazar'])->name('rechazar');
 });
 
-
 /*
 |--------------------------------------------------------------------------
 | BLOQUE 2: AUTENTICACIÓN BASE, PERFIL Y NOTIFICACIONES
@@ -133,13 +98,10 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-// =========================================================
-// PERFIL DE USUARIO Y NOTIFICACIONES
-// =========================================================
-
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])
-        ->name('profile.edit');
+Route::middleware('auth')->group(function (): void {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Notificaciones internas
     Route::get('/notificaciones', [NotificacionController::class, 'index'])->name('notificaciones.index');
@@ -147,14 +109,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/notificaciones/leer-todas', [NotificacionController::class, 'leerTodas'])->name('notificaciones.leer-todas');
 });
 
-
 /*
 |--------------------------------------------------------------------------
-| BLOQUE 3: TALLER DE REPARACIONES Y ADMINISTRACIÓN
+| BLOQUE 3: TALLER DE REPARACIONES, SUPERVISIÓN Y ADMINISTRACIÓN
 |--------------------------------------------------------------------------
 */
 
-// --- Clientes del Taller ---
 Route::middleware('auth')->group(function (): void {
     Route::resource('equipos', EquipoController::class)->except(['show']);
     Route::resource('ordenes', OrdenServicioController::class)
@@ -163,10 +123,6 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/ordenes/{orden}/autorizar', [OrdenServicioController::class, 'autorizar'])->name('ordenes.autorizar');
     Route::get('/ordenes/{orden}/pdf', [OrdenServicioController::class, 'pdf'])->name('ordenes.pdf');
 });
-
-// =========================================================
-// PANEL DE ADMINISTRACIÓN GLOBAL
-// =========================================================
 
 Route::middleware(['auth', 'administrador'])
     ->prefix('admin')
@@ -208,33 +164,24 @@ Route::middleware(['auth', 'administrador'])
         });
     });
 
-// =========================================================
-// CATÁLOGO DE PRODUCTOS Y CATEGORÍAS
-// =========================================================
-
-Route::middleware([
-    'auth',
-    'verified',
-])
-    ->prefix('operacion')
-    ->name('productos.')
+Route::middleware(['auth', 'verified', 'role:supervisor'])
+    ->prefix('supervisor')
+    ->name('supervisor.')
     ->group(function (): void {
-        Route::get(
-            '/empresas/{empresa}/productos',
-            [ProductoController::class, 'index']
-        )
-            ->middleware('permission:productos.ver')
-            ->name('index');
+        Route::get('/', [SupervisorDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/cotizaciones/data', [RevisionCotizacionController::class, 'data'])->name('cotizaciones.data');
+        Route::get('/cotizaciones/{orden}', [RevisionCotizacionController::class, 'show'])->name('cotizaciones.show');
+    });
 
 /*
 |--------------------------------------------------------------------------
-| BLOQUE 4: OPERACIONES GENERALES (CATÁLOGO, INVENTARIO, COMPRAS, BANCOS)
+| BLOQUE 4: OPERACIONES GENERALES (CATÁLOGO, RECETAS, INVENTARIO, COMPRAS, BANCOS)
 |--------------------------------------------------------------------------
 */
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
 
-    // --- Catálogo de Insumos y Categorías ---
+    // --- Catálogo de Productos y Categorías ---
     Route::prefix('operacion')->name('productos.')->group(function (): void {
         Route::get('/empresas/{empresa}/productos', [ProductoController::class, 'index'])->middleware('permission:productos.ver')->name('index');
         Route::get('/empresas/{empresa}/productos/data', [ProductoController::class, 'data'])->middleware('permission:productos.ver')->name('data');
@@ -249,154 +196,13 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::patch('/empresas/{empresa}/categorias-producto/{categoria}/estado', [CategoriaProductoController::class, 'updateStatus'])->middleware('permission:productos.cambiar_estado')->name('categorias.estado.update');
     });
 
-// =========================================================
-// GESTIÓN DE RECETAS E INSUMOS (BOM / RESTAURANTES)
-// =========================================================
-
-Route::middleware(['auth', 'verified'])
-    ->prefix('operacion/empresas/{empresa}/productos/{producto}/receta')
-    ->name('productos.recetas.')
-    ->group(function (): void {
-        Route::get('/', [RecetaController::class, 'edit'])->name('edit');
-        Route::put('/', [RecetaController::class, 'update'])->name('update');
-    });
-
-// =========================================================
-// INVENTARIO
-// Operaciones para registrar entradas, recepciones y
-// transferencias de productos en los almacenes (3 fases).
-// =========================================================
-
-Route::middleware([
-    'auth',
-    'verified',
-])
-    ->prefix('operacion')
-    ->name('inventario.')
-    ->group(function (): void {
-        // -------------------------------------------------
-        // ENTRADA SIMPLE
-        // -------------------------------------------------
-        Route::get(
-            '/empresas/{empresa}/inventario/entradas/crear',
-            [EntradaInventarioController::class, 'create']
-        )
-            ->middleware('permission:inventario.registrar_entrada')
-            ->name('entradas.create');
-
-        Route::post(
-            '/empresas/{empresa}/inventario/entradas',
-            [EntradaInventarioController::class, 'store']
-        )
-            ->middleware('permission:inventario.registrar_entrada')
-            ->name('entradas.store');
-
-        // -------------------------------------------------
-        // RECEPCIÓN MÚLTIPLE DE INVENTARIO
-        // -------------------------------------------------
-        Route::get(
-            '/empresas/{empresa}/inventario/recepciones/crear',
-            [RecepcionInventarioController::class, 'create']
-        )
-            ->middleware('permission:inventario.registrar_entrada')
-            ->name('recepciones.create');
-
-        Route::post(
-            '/empresas/{empresa}/inventario/recepciones',
-            [RecepcionInventarioController::class, 'store']
-        )
-            ->middleware('permission:inventario.registrar_entrada')
-            ->name('recepciones.store');
-
-        Route::get(
-            '/empresas/{empresa}/inventario/recepciones',
-            [RecepcionInventarioController::class, 'index']
-        )
-            ->middleware('permission:inventario.registrar_entrada')
-            ->name('recepciones.index');
-
-        Route::get(
-            '/empresas/{empresa}/inventario/recepciones/data',
-            [RecepcionInventarioController::class, 'data']
-        )
-            ->middleware('permission:inventario.registrar_entrada')
-            ->name('recepciones.data');
-
-        Route::get(
-            '/empresas/{empresa}/inventario/ordenes-compra/{orden}/detalles',
-            [RecepcionInventarioController::class, 'ordenCompraData']
-        )->name('recepciones.orden-data');
-
-        // -------------------------------------------------
-        // TRANSFERENCIAS DE INVENTARIO (3 FASES)
-        // -------------------------------------------------
-        Route::prefix('empresas/{empresa}/inventario/transferencias')
-            ->name('transferencias.')
-            ->group(function (): void {
-                Route::get('/', [TransferenciaInventarioController::class, 'index'])->name('index');
-                Route::get('/data', [TransferenciaInventarioController::class, 'data'])->name('data');
-
-                // Fase 1: Solicitud / Requisición
-                Route::get('/solicitar', [TransferenciaInventarioController::class, 'create'])->name('create');
-                Route::post('/', [TransferenciaInventarioController::class, 'store'])->name('store');
-
-                // Fase 2: Despacho y Custodia en Tránsito
-                Route::get('/{transferencia}/despachar', [TransferenciaInventarioController::class, 'despacharView'])->name('despachar.view');
-                Route::post('/{transferencia}/despachar', [TransferenciaInventarioController::class, 'despacharStore'])->name('despachar.store');
-
-                // Fase 3: Recepción y Validación en Destino
-                Route::get('/{transferencia}/recibir', [TransferenciaInventarioController::class, 'recibirView'])->name('recibir.view');
-                Route::post('/{transferencia}/recibir', [TransferenciaInventarioController::class, 'recibirStore'])->name('recibir.store');
-            });
-
-        // -------------------------------------------------
-        // CONSULTA DE EXISTENCIAS Y KARDEX
-        // -------------------------------------------------
-        Route::get(
-            '/empresas/{empresa}/inventario/existencias',
-            [InventarioKardexController::class, 'index']
-        )->name('existencias.index');
-
-        Route::get(
-            '/empresas/{empresa}/inventario/existencias/data',
-            [InventarioKardexController::class, 'dataExistencias']
-        )->name('existencias.data');
-
-        Route::get(
-            '/empresas/{empresa}/inventario/kardex/{producto}/{almacen?}',
-            [InventarioKardexController::class, 'kardex']
-        )->name('kardex.show');
-
-        Route::get(
-            '/empresas/{empresa}/inventario/kardex-data/{producto}/{almacen?}',
-            [InventarioKardexController::class, 'dataKardex']
-        )->name('kardex.data');
-
-        Route::get(
-            '/empresas/{empresa}/inventario/kardex-pdf/{producto}/{almacen?}',
-            [InventarioKardexController::class, 'exportarKardexPdf']
-        )->name('kardex.pdf');
-    });
-
-    // --- Órdenes de Compra y Cuentas por Pagar (CXP) ---
-    Route::prefix('operacion/compras')->group(function (): void {
-        Route::name('compras.ordenes.')->group(function (): void {
-            Route::get('/', [OrdenCompraController::class, 'index'])->name('index');
-            Route::get('/crear', [OrdenCompraController::class, 'create'])->name('create');
-            Route::post('/', [OrdenCompraController::class, 'store'])->name('store');
-            Route::get('/{orden}', [OrdenCompraController::class, 'show'])->name('show');
-            Route::get('/{orden}/pdf', [OrdenCompraController::class, 'pdf'])->name('pdf');
-            Route::patch('/{orden}/solicitar', [OrdenCompraController::class, 'solicitar'])->name('solicitar');
-            Route::patch('/{orden}/autorizar', [OrdenCompraController::class, 'autorizar'])->middleware('permission:compras.autorizar')->name('autorizar');
-            Route::patch('/{orden}/cancelar', [OrdenCompraController::class, 'cancelar'])->name('cancelar');
+    // --- Gestión de Recetas e Insumos (BOM / Restaurantes) ---
+    Route::prefix('operacion/empresas/{empresa}/productos/{producto}/receta')
+        ->name('productos.recetas.')
+        ->group(function (): void {
+            Route::get('/', [RecetaController::class, 'edit'])->name('edit');
+            Route::put('/', [RecetaController::class, 'update'])->name('update');
         });
-
-        Route::prefix('cuentas-por-pagar')->name('compras.cxp.')->group(function (): void {
-            Route::get('/', [CuentaPorPagarController::class, 'index'])->name('index');
-            Route::post('/subir-xml', [CuentaPorPagarController::class, 'subirXml'])->name('subir-xml');
-            Route::post('/{cuenta}/pagar', [CuentaPorPagarController::class, 'registrarPago'])->name('pagar');
-        });
-    });
 
     // --- Inventarios, Entradas, Recepciones, Transferencias y Kardex ---
     Route::prefix('operacion')->name('inventario.')->group(function (): void {
@@ -431,6 +237,26 @@ Route::middleware([
         Route::get('/empresas/{empresa}/inventario/kardex-pdf/{producto}/{almacen?}', [InventarioKardexController::class, 'exportarKardexPdf'])->name('kardex.pdf');
     });
 
+    // --- Órdenes de Compra y Cuentas por Pagar (CXP) ---
+    Route::prefix('operacion/compras')->group(function (): void {
+        Route::name('compras.ordenes.')->group(function (): void {
+            Route::get('/', [OrdenCompraController::class, 'index'])->name('index');
+            Route::get('/crear', [OrdenCompraController::class, 'create'])->name('create');
+            Route::post('/', [OrdenCompraController::class, 'store'])->name('store');
+            Route::get('/{orden}', [OrdenCompraController::class, 'show'])->name('show');
+            Route::get('/{orden}/pdf', [OrdenCompraController::class, 'pdf'])->name('pdf');
+            Route::patch('/{orden}/solicitar', [OrdenCompraController::class, 'solicitar'])->name('solicitar');
+            Route::patch('/{orden}/autorizar', [OrdenCompraController::class, 'autorizar'])->middleware('permission:compras.autorizar')->name('autorizar');
+            Route::patch('/{orden}/cancelar', [OrdenCompraController::class, 'cancelar'])->name('cancelar');
+        });
+
+        Route::prefix('cuentas-por-pagar')->name('compras.cxp.')->group(function (): void {
+            Route::get('/', [CuentaPorPagarController::class, 'index'])->name('index');
+            Route::post('/subir-xml', [CuentaPorPagarController::class, 'subirXml'])->name('subir-xml');
+            Route::post('/{cuenta}/pagar', [CuentaPorPagarController::class, 'registrarPago'])->name('pagar');
+        });
+    });
+
     // --- Bancos y Tesorería ---
     Route::prefix('operacion/empresas/{empresa}/bancos')->name('operacion.bancos.')->group(function (): void {
         Route::get('/', [BancoController::class, 'index'])->name('index');
@@ -439,15 +265,15 @@ Route::middleware([
     });
 });
 
-
 /*
 |--------------------------------------------------------------------------
-| BLOQUE 5: PUNTO DE VENTA (POS) Y FACTURACIÓN ELECTRÓNICA CFDI
+| BLOQUE 5: PUNTO DE VENTA (POS), AUDITORÍA DE CAJA Y FACTURACIÓN CFDI
 |--------------------------------------------------------------------------
 */
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
-    // Terminal POS
+
+    // --- Terminal POS ---
     Route::prefix('pos')->name('pos.')->group(function (): void {
         Route::get('/', [PosController::class, 'index'])->name('index');
         Route::get('/catalogo', [PosController::class, 'catalogo'])->name('catalogo');
@@ -459,45 +285,27 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/ultimas-ventas', [PosController::class, 'ultimasVentas'])->name('ultimas-ventas');
         Route::get('/ventas/{uuid}/ticket', [PosController::class, 'reimprimirTicket'])->name('ventas.ticket');
         Route::post('/devoluciones', [PosController::class, 'devolucion'])->middleware('permission:pos.devoluciones')->name('devoluciones.store');
-       // Cuentas y Mesas de Restaurante
+
+        // Cuentas y Mesas de Restaurante en POS
         Route::get('/restaurante/comandas-abiertas', [PosController::class, 'comandasAbiertasRestaurante'])->name('restaurante.comandas-abiertas');
         Route::get('/restaurante/mesa/{mesa}/imprimir-precuenta', [PosController::class, 'imprimirPrecuentaMesa'])->name('restaurante.mesa.precuenta');
-        //Corte de Caja
+        Route::get('/restaurante/comanda/{comanda}/imprimir-precuenta', [PosController::class, 'imprimirPrecuentaComanda'])->name('restaurante.comanda.precuenta');
+
+        // Corte de Caja X/Z
         Route::get('/caja/{turno}/resumen-parcial', [PosController::class, 'resumenCorteParcial'])->name('caja.resumen-parcial');
         Route::post('/caja/movimiento', [PosController::class, 'registrarMovimientoCaja'])->name('caja.movimiento');
         Route::get('/caja/{turno}/imprimir-corte', [PosController::class, 'imprimirTicketCorte'])->name('caja.imprimir-corte');
-        
     });
 
-// =========================================================
-// ROLES ESPECÍFICOS: SUPERVISOR Y TÉCNICO EMPLEADO
-// =========================================================
-
-Route::middleware([
-    'auth',
-    'verified',
-    'role:supervisor',
-])
-    ->prefix('supervisor')
-    ->name('supervisor.')
-    ->group(function () {
-        Route::get(
-            '/',
-            [SupervisorDashboardController::class, 'index']
-        )->name('dashboard');
-
-        Route::get(
-            '/cotizaciones/data',
-            [RevisionCotizacionController::class, 'data']
-        )->name('cotizaciones.data');
-
-        Route::get(
-            '/cotizaciones/{orden}',
-            [RevisionCotizacionController::class, 'show']
-        )->name('cotizaciones.show');
+    // --- Auditoría y Cortes de Caja (Supervisión) ---
+    Route::prefix('operacion/cajas')->name('pos.cajas.')->group(function (): void {
+        Route::get('/', [CajaAuditoriaController::class, 'index'])->name('index');
+        Route::get('/{turno}', [CajaAuditoriaController::class, 'show'])->name('show');
+        Route::post('/{turno}/movimiento', [CajaAuditoriaController::class, 'registrarMovimiento'])->name('movimiento');
+        Route::get('/{turno}/corte-pdf', [CajaAuditoriaController::class, 'cortePdf'])->name('corte-pdf');
     });
 
-    // Facturación SAT CFDI 4.0
+    // --- Facturación SAT CFDI 4.0 ---
     Route::prefix('operacion/facturacion')->name('facturacion.')->group(function (): void {
         Route::post('/ventas/{venta}/timbrar', [FacturacionController::class, 'timbrar'])->name('ventas.timbrar');
         Route::get('/ventas/{venta}/descargar-xml', [FacturacionController::class, 'descargarXml'])->name('ventas.descargar-xml');
@@ -506,15 +314,7 @@ Route::middleware([
         Route::get('/global', [FacturacionGlobalController::class, 'index'])->name('global.index');
         Route::post('/global/procesar', [FacturacionGlobalController::class, 'procesar'])->name('global.procesar');
     });
-
-    // Rutas POS para Cuentas de Restaurante
-    Route::get('/restaurante/comandas-abiertas', [App\Http\Controllers\Pos\PosController::class, 'comandasAbiertasRestaurante'])
-        ->name('restaurante.comandas-abiertas');
-    Route::get('/restaurante/comanda/{comanda}/imprimir-precuenta', [App\Http\Controllers\Pos\PosController::class, 'imprimirPrecuentaComanda'])
-        ->name('restaurante.comanda.precuenta');
-
 });
-
 
 /*
 |--------------------------------------------------------------------------
@@ -530,11 +330,11 @@ Route::middleware(['auth', 'verified'])->prefix('restaurante')->group(function (
         Route::get('/catalogo', [ComanderoController::class, 'catalogo'])->name('catalogo');
         Route::post('/enviar', [ComanderoController::class, 'enviarComanda'])->name('enviar');
         Route::get('/alertas-listas', [ComanderoController::class, 'alertasListas'])->name('alertas-listas');
-        Route::post('/pedir-cuenta-mesa', [App\Http\Controllers\Restaurante\ComanderoController::class, 'pedirCuentaMesa'])->name('pedir-cuenta-mesa');
+        Route::post('/pedir-cuenta-mesa', [ComanderoController::class, 'pedirCuentaMesa'])->name('pedir-cuenta-mesa');
         Route::get('/estado-mesas', [ComanderoController::class, 'estadoMesas'])->name('estado-mesas');
     });
 
-    // --- 2. Monitor KDS de Cocina y Barra ---
+    // --- 2. Monitor KDS de Cocina, Parrilla y Barra ---
     Route::prefix('kds')->name('restaurante.kds.')->group(function (): void {
         Route::get('/', [KdsController::class, 'index'])->name('index');
         Route::get('/comandas-activas', [KdsController::class, 'comandasActivas'])->name('comandas-activas');
@@ -582,184 +382,25 @@ Route::middleware(['auth', 'verified'])->prefix('restaurante')->group(function (
     });
 });
 
-// =========================================================
-// BLOQUE 7 PROMOCIONES, COMBOS Y PROGRAMA DE LEALTAD / MONEDERO
-// =========================================================
+/*
+|--------------------------------------------------------------------------
+| BLOQUE 7: PROMOCIONES, COMBOS Y PROGRAMA DE LEALTAD / MONEDERO
+|--------------------------------------------------------------------------
+*/
 
-Route::middleware([
-    'auth',
-    'verified',
-])
-    ->prefix('operacion/compras')
-    ->name('compras.ordenes.')
+Route::middleware(['auth', 'verified'])
+    ->prefix('marketing/promociones')
+    ->name('marketing.promociones.')
     ->group(function (): void {
         Route::get('/', [PromocionController::class, 'index'])->name('index');
         Route::post('/', [PromocionController::class, 'store'])->name('store');
-        Route::patch('/{promocion}/toggle', [PromocionController::class, 'toggleEstado'])->name('toggle');
-        Route::delete('/{promocion}', [PromocionController::class, 'destroy'])->name('destroy');
-        Route::put('{promocion}', [\App\Http\Controllers\Marketing\PromocionController::class, 'update'])->name('update');
-        Route::get('/{promocion}', fn () => redirect()->route('marketing.promociones.index'));
-        Route::post('/clientes/{cliente}/lealtad', [PromocionController::class, 'actualizarLealtadCliente'])->name('clientes.lealtad');
         Route::get('/vigentes-api', [PromocionController::class, 'vigentesApi'])->name('vigentes');
         Route::post('/clientes', [PromocionController::class, 'storeCliente'])->name('clientes.store');
+        Route::post('/clientes/{cliente}/lealtad', [PromocionController::class, 'actualizarLealtadCliente'])->name('clientes.lealtad');
+        Route::patch('/{promocion}/toggle', [PromocionController::class, 'toggleEstado'])->name('toggle');
+        Route::put('/{promocion}', [PromocionController::class, 'update'])->name('update');
+        Route::delete('/{promocion}', [PromocionController::class, 'destroy'])->name('destroy');
+        Route::get('/{promocion}', fn () => redirect()->route('marketing.promociones.index'));
     });
 
-// Ruta heredada para edición directa de receta técnica por producto
-Route::middleware(['auth', 'verified'])
-    ->prefix('operacion/empresas/{empresa}/productos/{producto}/receta')
-    ->name('productos.recetas.')
-    ->group(function (): void {
-        Route::get('/', [RecetaController::class, 'edit'])->name('edit');
-        Route::put('/', [RecetaController::class, 'update'])->name('update');
-    });
-
-// =========================================================
-// AUDITORÍA Y CORTES DE CAJA (SUPERVISIÓN)
-// =========================================================
-
-Route::middleware(['auth', 'verified'])
-    ->prefix('operacion/cajas')
-    ->name('pos.cajas.')
-    ->group(function (): void {
-        Route::get('/', [CajaAuditoriaController::class, 'index'])->name('index');
-        Route::get('/{turno}', [CajaAuditoriaController::class, 'show'])->name('show');
-        Route::post('/{turno}/movimiento', [CajaAuditoriaController::class, 'registrarMovimiento'])->name('movimiento');
-        Route::get('/{turno}/corte-pdf', [CajaAuditoriaController::class, 'cortePdf'])->name('corte-pdf');
-    });
-
-// =========================================================
-// FACTURACIÓN ELECTRÓNICA SAT (CFDI 4.0)
-// =========================================================
-
-Route::middleware(['auth', 'verified'])
-    ->prefix('operacion/facturacion')
-    ->name('facturacion.')
-    ->group(function (): void {
-        Route::post('/ventas/{venta}/timbrar', [FacturacionController::class, 'timbrar'])->name('ventas.timbrar');
-        Route::get('/ventas/{venta}/descargar-xml', [FacturacionController::class, 'descargarXml'])->name('ventas.descargar-xml');
-        Route::post('/lote-pendientes', [FacturacionController::class, 'procesarLotePendientes'])->name('lote-pendientes');
-        Route::get('/ventas/{venta}/descargar-pdf', [FacturacionController::class, 'descargarPdf'])->name('ventas.descargar-pdf');
-        // Facturación Global CFDI 4.0 (Público en General)
-        Route::get('/global', [FacturacionGlobalController::class, 'index'])->name('global.index');
-        Route::post('/global/procesar', [FacturacionGlobalController::class, 'procesar'])->name('global.procesar');
-    });
-
-// =========================================================
-// PANTALLAS DE COCINA Y BARRA (KDS - KITCHEN DISPLAY SYSTEM)
-// =========================================================
-Route::middleware(['auth', 'verified'])
-    ->prefix('restaurante/kds')
-    ->name('restaurante.kds.')
-    ->group(function (): void {
-        Route::get('/', [KdsController::class, 'index'])->name('index');
-        Route::get('/comandas-activas', [KdsController::class, 'comandasActivas'])->name('comandas-activas');
-        Route::patch('/items/{item}/estado', [KdsController::class, 'cambiarEstadoItem'])->name('items.estado');
-        Route::post('/comandas/{comanda}/completar', [KdsController::class, 'completarComanda'])->name('completar');
-    });
-
-// =========================================================
-// COMANDERO MÓVIL EN TABLETS PARA MESEROS
-// =========================================================
-Route::middleware(['auth', 'verified'])
-    ->prefix('restaurante/comandero')
-    ->name('restaurante.comandero.')
-    ->group(function (): void {
-        Route::get('/', [ComanderoController::class, 'index'])->name('index');
-        Route::get('/catalogo', [ComanderoController::class, 'catalogo'])->name('catalogo');
-        Route::post('/enviar', [ComanderoController::class, 'enviarComanda'])->name('enviar');
-    });
-
-// =========================================================
-// PLANO GRÁFICO DE MESAS (FLOOR PLAN / DRAG & DROP)
-// =========================================================
-Route::middleware(['auth', 'verified'])
-    ->prefix('restaurante/mesas')
-    ->name('restaurante.mesas.')
-    ->group(function (): void {
-        Route::get('/plano', [PlanoMesasController::class, 'index'])->name('plano');
-        Route::post('/guardar-posiciones', [PlanoMesasController::class, 'guardarPosiciones'])
-            ->middleware('role:administrador|supervisor')
-            ->name('guardar-posiciones');
-        Route::post('/crear', [PlanoMesasController::class, 'storeMesa'])
-            ->middleware('role:administrador|supervisor')
-            ->name('store');
-    });
-
-// =========================================================
-// PRECUENTA, COBRO Y LIBERACIÓN DE MESAS
-// =========================================================
-Route::middleware(['auth', 'verified'])
-    ->prefix('restaurante/mesas/{mesa}')
-    ->name('restaurante.mesas.')
-    ->group(function (): void {
-        Route::get('/precuenta', [CuentaMesaController::class, 'precuenta'])->name('precuenta');
-        Route::patch('/pedir-cuenta', [CuentaMesaController::class, 'pedirCuenta'])->name('pedir-cuenta');
-        Route::post('/liquidar', [CuentaMesaController::class, 'liquidarMesa'])->name('liquidar');
-        Route::post('/dividir-cuenta', [CuentaMesaController::class, 'dividirCuenta'])->name('dividir-cuenta');
-    });
-
-// =========================================================
-// PORTAL PÚBLICO DE AUTOFACTURACIÓN (ESCÁNER QR EN TICKET)
-// =========================================================
-Route::prefix('autofactura')->name('autofactura.')->group(function (): void {
-    Route::get('/{token}', [AutofacturaController::class, 'show'])->name('show');
-    Route::post('/{token}/timbrar', [AutofacturaController::class, 'procesar'])->name('procesar');
-});
-
-// =========================================================
-// REPORTES Y ANALÍTICA DE RESTAURANTE
-// =========================================================
-Route::middleware(['auth', 'verified', 'role:administrador|supervisor'])
-    ->prefix('restaurante/reportes')
-    ->name('restaurante.reportes.')
-    ->group(function (): void {
-        Route::get('/', [ReporteRestauranteController::class, 'index'])->name('index');
-    });
-
-// =========================================================
-// AGENDA Y RECEPCIÓN DE RESERVACIONES DE MESAS
-// =========================================================
-Route::middleware(['auth', 'verified'])
-    ->prefix('restaurante/reservaciones')
-    ->name('restaurante.reservaciones.')
-    ->group(function (): void {
-        Route::get('/', [ReservacionController::class, 'index'])->name('index');
-        Route::post('/', [ReservacionController::class, 'store'])->name('store');
-        Route::patch('/{reservacion}/sentar', [ReservacionController::class, 'sentar'])->name('sentar');
-        Route::patch('/{reservacion}/estado', [ReservacionController::class, 'updateEstado'])->name('estado.update');
-    });
-
-// =========================================================
-// CUENTAS POR PAGAR (CXP) Y CONCILIACIÓN XML
-// =========================================================
-Route::middleware(['auth', 'verified'])
-    ->prefix('operacion/compras/cuentas-por-pagar')
-    ->name('compras.cxp.')
-    ->group(function (): void {
-        Route::get('/', [CuentaPorPagarController::class, 'index'])->name('index');
-        Route::post('/subir-xml', [CuentaPorPagarController::class, 'subirXml'])->name('subir-xml');
-        Route::post('/{cuenta}/pagar', [CuentaPorPagarController::class, 'registrarPago'])->name('pagar');
-    });
-
-// =========================================================
-// PORTAL PÚBLICO DE COTIZACIONES CON FIRMA DIGITAL
-// =========================================================
-Route::prefix('cotizacion')->name('public.cotizacion.')->group(function (): void {
-    Route::get('/{token}', [PublicCotizacionController::class, 'show'])->name('show');
-    Route::post('/{token}/autorizar', [PublicCotizacionController::class, 'autorizar'])->name('autorizar');
-    Route::post('/{token}/rechazar', [PublicCotizacionController::class, 'rechazar'])->name('rechazar');
-});
-
-// =========================================================
-// BANCOS Y TESORERÍA EMPRESARIAL
-// =========================================================
-Route::middleware(['auth', 'verified'])
-    ->prefix('operacion/empresas/{empresa}/bancos')
-    ->name('operacion.bancos.')
-    ->group(function (): void {
-        Route::get('/', [BancoController::class, 'index'])->name('index');
-        Route::post('/movimientos', [BancoController::class, 'storeMovimiento'])->name('movimientos.store');
-        Route::post('/movimientos/{movimiento}/conciliar', [BancoController::class, 'conciliar'])->name('movimientos.conciliar');
-    });
-    
 require __DIR__.'/auth.php';

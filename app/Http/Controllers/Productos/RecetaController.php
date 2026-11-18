@@ -18,11 +18,11 @@ class RecetaController extends Controller
     /**
      * Muestra la interfaz de edición o creación de la receta para un producto.
      */
-    public function edit(Empresa $empresa, Producto$producto): View
+    public function edit(Empresa $empresa, Producto $producto): View
     {
-        abort_unless($producto->empresa_id ===$empresa->id, 404);
+        abort_unless($producto->empresa_id === $empresa->id, 404);
 
-        $receta =$producto->receta()->with('ingredientes.insumo')->first();
+        $receta = $producto->receta()->with('ingredientes.insumo')->first();
 
         // Insumos elegibles (productos de la empresa que no son recetas elaboradas)
         $insumosDisponibles = Producto::query()
@@ -44,9 +44,9 @@ class RecetaController extends Controller
     /**
      * Guarda o actualiza la ficha técnica y la lista de ingredientes del platillo.
      */
-    public function update(Request $request, Empresa $empresa, Producto$producto): RedirectResponse
+    public function update(Request $request, Empresa $empresa, Producto $producto): RedirectResponse
     {
-        abort_unless($producto->empresa_id ===$empresa->id, 404);
+        abort_unless($producto->empresa_id === $empresa->id, 404);
 
         /** @var array{
          *     rendimiento_porciones: numeric,
@@ -60,7 +60,7 @@ class RecetaController extends Controller
          *         porcentaje_merma?: numeric|null
          *     }>
          * } $validated */
-        $validated =$request->validate([
+        $validated = $request->validate([
             'rendimiento_porciones' => ['required', 'numeric', 'gt:0'],
             'tiempo_preparacion_minutos' => ['required', 'integer', 'min:1'],
             'estacion_cocina' => ['required', 'string', 'max:50'],
@@ -72,11 +72,11 @@ class RecetaController extends Controller
             'ingredientes.*.porcentaje_merma' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        DB::transaction(function () use ($empresa, $producto,$validated) {
+        DB::transaction(function () use ($empresa, $producto, $validated) {
             // Marcar el producto como receta
             $producto->update(['es_receta' => true]);
 
-            /** @var ProductoReceta $receta */$receta = ProductoReceta::query()->updateOrCreate(
+            /** @var ProductoReceta $receta */ $receta = ProductoReceta::query()->updateOrCreate(
                 [
                     'empresa_id' => $empresa->id,
                     'producto_id' => $producto->id,
@@ -94,7 +94,7 @@ class RecetaController extends Controller
             $receta->ingredientes()->delete();
 
             if (! empty($validated['ingredientes'])) {
-                foreach ($validated['ingredientes'] as$ing) {
+                foreach ($validated['ingredientes'] as $ing) {
                     ProductoRecetaDetalle::query()->create([
                         'producto_receta_id' => $receta->id,
                         'insumo_producto_id' => $ing['insumo_producto_id'],
@@ -106,7 +106,7 @@ class RecetaController extends Controller
         });
 
         return redirect()
-            ->route('productos.recetas.edit', ['empresa' => $empresa, 'producto' =>$producto])
+            ->route('productos.recetas.edit', ['empresa' => $empresa, 'producto' => $producto])
             ->with('success', 'Receta y componentes guardados exitosamente.');
     }
 }

@@ -20,6 +20,7 @@ class RestauranteMenuCompletoSeeder extends Seeder
 
         if (! $empresa) {
             $this->command->error('No se encontró la empresa de restaurante.');
+
             return;
         }
 

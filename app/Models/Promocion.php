@@ -2,93 +2,122 @@
 
 namespace App\Models;
 
-use Carbon\Carbon;
+// ---------------------------------------------------------
+// IMPORTACIONES DE ELOQUENT Y COLECCIONES
+// ---------------------------------------------------------
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * Gestión de promociones, descuentos y combos para marketing y POS.
+ *
+ * @property int $id
+ * @property int $empresa_id
+ * @property string $nombre
+ * @property string $tipo
+ * @property string|null $valor
+ * @property Carbon|null $fecha_inicio
+ * @property Carbon|null $fecha_fin
+ * @property bool $activo
+ * @property int $usos_actuales
+ * @property int|null $limite_usos
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property-read Empresa $empresa
+ * @property-read Collection<int, PromocionItem> $items
+ */
 class Promocion extends Model
 {
+    use HasFactory;
+
     protected $table = 'promociones';
 
     protected $fillable = [
         'empresa_id',
-        'sucursal_id',
         'nombre',
-        'codigo_cupon',
-        'descripcion',
         'tipo',
-        'valor_descuento',
-        'precio_combo',
-        'cantidad_requerida',
+        'valor',
         'fecha_inicio',
         'fecha_fin',
-        'dias_semana',
-        'hora_inicio',
-        'hora_fin',
-        'solo_clientes_destacados',
-        'puntos_extra_otorgados',
-        'limite_usos',
-        'usos_actuales',
         'activo',
+        'usos_actuales',
+        'limite_usos',
     ];
 
-    protected $casts = [
-        'valor_descuento' => 'decimal:2',
-        'precio_combo' => 'decimal:2',
-        'fecha_inicio' => 'datetime',
-        'fecha_fin' => 'datetime',
-        'dias_semana' => 'array',
-        'solo_clientes_destacados' => 'boolean',
-        'activo' => 'boolean',
-    ];
-
-    public function empresa(): BelongsTo
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
     {
-        return $this->belongsTo(Empresa::class);
+        return [
+            'fecha_inicio' => 'datetime',
+            'fecha_fin' => 'datetime',
+            'activo' => 'boolean',
+            'usos_actuales' => 'integer',
+            'limite_usos' => 'integer',
+            'dias_semana' => 'array', // <-- Asegúrate de incluir esta línea
+        ];
     }
 
-    public function sucursal(): BelongsTo
-    {
-        return $this->belongsTo(Sucursal::class);
-    }
+    // =========================================================
+    // MÉTODOS DE NEGOCIO Y VIGENCIA
+    // =========================================================
 
-    public function items(): HasMany
-    {
-        return $this->hasMany(PromocionItem::class, 'promocion_id');
-    }
-
-    public function estaVigenteAhora(?Carbon $momento = null): bool
+    /**
+     * Valida si la promoción se encuentra vigente para ser aplicada.
+     */
+    public function estaVigente(): bool
     {
         if (! $this->activo) {
             return false;
         }
 
-        $ahora =$momento ?? now();
+        $now = now();
 
-        if ($this->fecha_inicio !== null && $ahora->lt($this->fecha_inicio)) {
-            return false;
-        }
-        if ($this->fecha_fin !== null && $ahora->gt($this->fecha_fin)) {
-            return false;
-        }
-        if ($this->limite_usos !== null && $this->usos_actuales >=$this->limite_usos) {
-            return false;
-        }
-        if (! empty($this->dias_semana) && is_array($this->dias_semana)) {
-            $diaActual = (int)$ahora->dayOfWeek;
-            $diasPermitidos = array_map('intval',$this->dias_semana);
-            if (! in_array($diaActual,$diasPermitidos, true)) {
-                return false;
-            }
-        }
-        if ($this->hora_inicio !== null &&$this->hora_fin !== null) {
-            $horaActual =$ahora->format('H:i:s');
-            if ($horaActual <$this->hora_inicio || $horaActual >$this->hora_fin) {
-                return false;
-            }
+        $inicioValido = $this->fecha_inicio === null || $now->greaterThanOrEqualTo($this->fecha_inicio);
+        $finValido = $this->fecha_fin === null || $now->lessThanOrEqualTo($this->fecha_fin);
+
+        $limiteValido = true;
+        if ($this->limite_usos !== null) {
+            $limiteValido = (int) $this->usos_actuales < (int) $this->limite_usos;
         }
 
-        return true;
+        return (bool) ($inicioValido && $finValido && $limiteValido);
+    }
+
+    /**
+     * Alias requerido por los servicios de cálculo de promociones.
+     */
+    public function estaVigenteAhora(): bool
+    {
+        return $this->estaVigente();
+    }
+
+    // =========================================================
+    // RELACIONES ELOQUENT
+    // =========================================================
+
+    /**
+     * Empresa propietaria de la promoción.
+     *
+     * @return BelongsTo<Empresa, $this>
+     */
+    public function empresa(): BelongsTo
+    {
+        return $this->belongsTo(Empresa::class);
+    }
+
+    /**
+     * Ítems, productos o categorías participantes en la promoción.
+     *
+     * @return HasMany<PromocionItem, $this>
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(PromocionItem::class, 'promocion_id');
     }
 }

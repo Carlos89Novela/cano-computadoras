@@ -1,147 +1,113 @@
-<!DOCTYPE html>
-<html lang="es" class="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>KDS - Monitor de Cocina | {{ $empresa->nombre }}</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <style>
-        [x-cloak] { display: none !important; }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen overflow-x-hidden font-sans">
-
+<x-app-layout>
     <div x-data="kdsMonitor({
-             sucursalId: {{ $sucursal?->id ?? 1 }},
-             routes: {
-                 activas: '{{ route('restaurante.kds.comandas-activas') }}',
-                 csrf: '{{ csrf_token() }}'
-             }
+            sucursalId: {{ $sucursal?->id ?? 1 }},
+            routes: {
+                activas: '{{ route('restaurante.kds.comandas-activas') }}',
+                csrf: '{{ csrf_token() }}'
+            }
          })"
          x-init="iniciarMonitor()"
-         class="p-4 flex flex-col h-screen">
+         class="min-h-screen bg-slate-950 text-slate-100 p-4 lg:p-6 flex flex-col">
 
-        {{-- Barra superior de la Pantalla de Cocina --}}
-        <header class="flex flex-wrap items-center justify-between pb-3 mb-4 border-b border-slate-800 gap-3">
+        {{-- Barra Superior / Header Exacto --}}
+        <header class="flex flex-wrap items-center justify-between pb-4 mb-6 border-b border-slate-800/80 gap-4">
             <div class="flex items-center gap-3">
-                <div class="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20 font-bold text-lg">
-                    👨‍🍳 KDS
+                <div class="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20 text-xl flex items-center justify-center">
+                    👨‍🍳
                 </div>
                 <div>
-                    <h1 class="text-lg font-bold text-white flex items-center gap-2">
-                        Cocina & Preparación
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono"
-                              x-text="`${comandas.length} activas`"></span>
-                    </h1>
-                    <p class="text-xs text-slate-400">
-                        {{ $sucursal?->nombre ?? 'Sucursal Matriz' }} | Hora: <strong class="text-white font-mono" x-text="horaActual"></strong>
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-base font-bold text-white tracking-tight">Monitor KDS</h1>
+                        <div class="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono text-slate-300 shadow-inner"
+                             x-text="horaActual"></div>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        {{ $empresa->nombre ?? 'La Fogata Bistro' }} | {{ $sucursal?->nombre ?? 'Sucursal Centro' }}
                     </p>
                 </div>
             </div>
 
-            {{-- Filtro por Estación de Trabajo --}}
-            <div class="flex items-center gap-2">
+            {{-- Filtros por Estación Exactos --}}
+            <div class="flex items-center gap-2 flex-wrap">
                 <template x-for="est in ['todas', 'cocina', 'parrilla', 'barra', 'postres']" :key="est">
                     <button type="button"
                             @click="cambiarEstacion(est)"
-                            :class="estacionSeleccionada === est ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'"
-                            class="px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider transition capitalize"
-                            x-text="est === 'todas' ? 'Todas las estaciones' : est">
+                            class="px-3.5 py-2 rounded-xl text-xs font-semibold transition capitalize flex items-center gap-1.5 cursor-pointer border"
+                            :class="estacionSeleccionada === est 
+                                ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-600/30' 
+                                : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'">
+                        <span x-show="est === 'cocina'">🍳</span>
+                        <span x-show="est === 'parrilla'">🔥</span>
+                        <span x-show="est === 'barra'">🍹</span>
+                        <span x-show="est === 'postres'">🍰</span>
+                        <span x-text="est.charAt(0).toUpperCase() + est.slice(1)"></span>
                     </button>
                 </template>
 
-                <a href="{{ route('dashboard') }}" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs border border-slate-800 transition">
+                <a href="{{ route('dashboard') }}" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs border border-slate-800 transition">
                     Salir
                 </a>
             </div>
         </header>
 
-        {{-- Grid Dinámico de Comandas --}}
-        <main class="flex-1 overflow-x-auto overflow-y-hidden pb-2">
+        {{-- Contenedor de Comandas --}}
+        <main class="flex-1 overflow-x-auto overflow-y-hidden pb-4">
             <div class="flex gap-4 h-full items-start">
 
                 <template x-if="comandas.length === 0">
-                    <div class="w-full flex flex-col items-center justify-center h-96 text-slate-500">
-                        <div class="text-4xl mb-2">🍽️</div>
-                        <p class="text-sm">No hay pedidos pendientes en esta estación.</p>
-                        <span class="text-xs text-slate-600">Los nuevos pedidos aparecerán aquí al instante.</span>
+                    <div class="w-full flex flex-col items-center justify-center h-96 text-slate-500 text-xs">
+                        <div class="text-3xl mb-2">🍽️</div>
+                        <span>No hay comandas pendientes para esta estación.</span>
                     </div>
                 </template>
 
                 <template x-for="c in comandas" :key="c.id">
-                    <div class="w-80 shrink-0 bg-slate-900 border rounded-2xl flex flex-col max-h-full shadow-2xl transition"
-                         :class="{
-                             'border-emerald-500/40': minutosTranscurridos(c.enviada_a_cocina_at) < 10,
-                             'border-amber-500/50 shadow-amber-500/5': minutosTranscurridos(c.enviada_a_cocina_at) >= 10 && minutosTranscurridos(c.enviada_a_cocina_at) < 20,
-                             'border-rose-500/70 shadow-rose-500/10 animate-pulse': minutosTranscurridos(c.enviada_a_cocina_at) >= 20
-                         }">
-
-                        {{-- Encabezado de la Tarjeta de Pedido --}}
-                        <div class="p-3.5 border-b border-slate-800 flex items-center justify-between rounded-t-2xl"
-                             :class="{
-                                 'bg-emerald-950/30': minutosTranscurridos(c.enviada_a_cocina_at) < 10,
-                                 'bg-amber-950/30': minutosTranscurridos(c.enviada_a_cocina_at) >= 10 && minutosTranscurridos(c.enviada_a_cocina_at) < 20,
-                                 'bg-rose-950/40': minutosTranscurridos(c.enviada_a_cocina_at) >= 20
-                             }">
-                            <div>
-                                <div class="text-sm font-black text-white font-mono" x-text="c.mesa_o_referencia"></div>
-                                <div class="text-[11px] text-slate-400 font-mono" x-text="`${c.folio} • Mesero: ${c.mesero?.name || 'Caja'}`"></div>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-xs font-mono font-bold px-2 py-0.5 rounded-full"
-                                      :class="{
-                                          'bg-emerald-500/20 text-emerald-300': minutosTranscurridos(c.enviada_a_cocina_at) < 10,
-                                          'bg-amber-500/20 text-amber-300': minutosTranscurridos(c.enviada_a_cocina_at) >= 10 && minutosTranscurridos(c.enviada_a_cocina_at) < 20,
-                                          'bg-rose-500/20 text-rose-300': minutosTranscurridos(c.enviada_a_cocina_at) >= 20
-                                      }"
-                                      x-text="`${minutosTranscurridos(c.enviada_a_cocina_at)} min`">
-                                </span>
-                            </div>
-                        </div>
-
-                        {{-- Lista de Platillos / Bebidas --}}
-                        <div class="p-3 overflow-y-auto flex-1 space-y-2">
-                            <template x-for="item in c.items" :key="item.id">
-                                <div @click="toggleItemEstado(item)"
-                                     class="p-2.5 rounded-xl border cursor-pointer select-none transition flex items-start justify-between gap-2"
-                                     :class="{
-                                         'bg-slate-950/80 border-slate-800 text-slate-200 hover:border-slate-700': item.estado === 'pendiente',
-                                         'bg-amber-500/10 border-amber-500/30 text-amber-200': item.estado === 'en_preparacion',
-                                         'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 line-through opacity-60': item.estado === 'listo'
-                                     }">
-                                    <div>
-                                        <div class="font-bold text-xs flex items-center gap-1.5">
-                                            <span class="w-5 h-5 rounded bg-slate-800 text-white flex items-center justify-center font-mono text-[11px]"
-                                                  x-text="Number(item.cantidad).toFixed(0)"></span>
-                                            <span x-text="item.producto?.nombre"></span>
-                                        </div>
-                                        <template x-if="item.notas_especiales">
-                                            <p class="text-[11px] text-amber-400 mt-1 pl-6 italic" x-text="`⚠️ ${item.notas_especiales}`"></p>
-                                        </template>
-                                    </div>
-                                    <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border"
-                                          :class="{
-                                              'border-slate-700 text-slate-400': item.estado === 'pendiente',
-                                              'border-amber-500/40 text-amber-300': item.estado === 'en_preparacion',
-                                              'border-emerald-500/40 text-emerald-300': item.estado === 'listo'
-                                          }"
-                                          x-text="item.estado === 'listo' ? '✓ Listo' : (item.estado === 'en_preparacion' ? 'Fuego' : 'Espera')">
-                                    </span>
+                    <div class="w-80 shrink-0 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col justify-between space-y-4">
+                        <div>
+                            {{-- Cabecera de la Tarjeta (Mesa y Minutos) --}}
+                            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-amber-400 text-base">🪑</span>
+                                    <h3 class="text-sm font-black text-white" x-text="c.mesa_o_referencia"></h3>
                                 </div>
-                            </template>
+                                <div class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-mono font-bold flex items-center gap-1">
+                                    <span>⏱️</span>
+                                    <span x-text="minutosTranscurridos(c.enviada_a_cocina_at) + ' min'"></span>
+                                </div>
+                            </div>
+
+                            <div class="text-[11px] font-mono text-slate-500 mt-2 mb-3" x-text="c.folio"></div>
+
+                            {{-- Partidas / Items --}}
+                            <div class="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                                <template x-for="item in c.items" :key="item.id">
+                                    <div class="p-3 bg-slate-950 border border-slate-800/80 rounded-xl flex items-start justify-between gap-2">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs font-bold text-white flex items-start gap-2">
+                                                <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[11px] shrink-0" x-text="item.cantidad + 'x'"></span>
+                                                <span class="leading-snug" x-text="item.producto?.nombre"></span>
+                                            </div>
+                                            <template x-if="item.notas_especiales">
+                                                <p class="text-[11px] text-amber-400 mt-1 italic" x-text="item.notas_especiales"></p>
+                                            </template>
+                                        </div>
+                                        <span class="px-2 py-0.5 bg-slate-900 text-slate-400 border border-slate-800 rounded text-[10px] font-bold uppercase tracking-wider shrink-0"
+                                              x-text="item.estado"></span>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
 
-                        {{-- Botón para Despachar / Completar toda la comanda --}}
-                        <div class="p-3 border-t border-slate-800 bg-slate-950/50 rounded-b-2xl">
-                            <button type="button"
-                                    @click="despacharComandaCompleta(c.id)"
-                                    class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg transition flex items-center justify-center gap-1.5">
-                                <span>✓ Marcar Orden Completa</span>
+                        {{-- Botón Despachar Comanda --}}
+                        <div>
+                            <button type="button" @click="despacharComanda(c.id)"
+                                    class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 cursor-pointer">
+                                <span>✓ Despachar Comanda</span>
                             </button>
                         </div>
                     </div>
                 </template>
+
             </div>
         </main>
     </div>
@@ -154,22 +120,17 @@
                 comandas: [],
                 estacionSeleccionada: 'todas',
                 horaActual: '',
-                timerActualizacion: null,
 
-                async iniciarMonitor() {
+                iniciarMonitor() {
                     this.actualizarHora();
                     setInterval(() => this.actualizarHora(), 1000);
-
-                    await this.cargarComandas();
-                    // Polling reactivo cada 5 segundos
-                    this.timerActualizacion = setInterval(() => {
-                        this.cargarComandas();
-                    }, 5000);
+                    this.cargarComandas();
+                    setInterval(() => this.cargarComandas(), 5000);
                 },
 
                 actualizarHora() {
                     const ahora = new Date();
-                    this.horaActual = ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    this.horaActual = ahora.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
                 },
 
                 cambiarEstacion(estacion) {
@@ -185,7 +146,7 @@
                             this.comandas = await res.json();
                         }
                     } catch (e) {
-                        console.error('Error al actualizar pantalla KDS:', e);
+                        console.error('Error cargando comandas KDS:', e);
                     }
                 },
 
@@ -195,32 +156,9 @@
                     return Math.max(0, Math.floor(diffMs / 60000));
                 },
 
-                async toggleItemEstado(item) {
-                    const siguienteEstado = item.estado === 'pendiente'
-                        ? 'en_preparacion'
-                        : (item.estado === 'en_preparacion' ? 'listo' : 'pendiente');
-
-                    item.estado = siguienteEstado;
-
+                async despacharComanda(comandaId) {
                     try {
-                        await fetch(`/restaurante/kds/items/${item.id}/estado`, {
-                            method: 'PATCH',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': this.routes.csrf,
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({ estado: siguienteEstado })
-                        });
-                        await this.cargarComandas();
-                    } catch (e) {
-                        console.error('Error al actualizar item:', e);
-                    }
-                },
-
-                async despacharComandaCompleta(comandaId) {
-                    try {
-                        await fetch(`/restaurante/kds/comandas/${comandaId}/completar`, {
+                        const res = await fetch(`/restaurante/kds/comandas/${comandaId}/completar`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -228,13 +166,14 @@
                                 'Accept': 'application/json'
                             }
                         });
-                        await this.cargarComandas();
+                        if (res.ok) {
+                            await this.cargarComandas();
+                        }
                     } catch (e) {
-                        console.error('Error al completar comanda:', e);
+                        console.error('Error al despachar comanda:', e);
                     }
                 }
-            };
+            }
         }
     </script>
-</body>
-</html>
+</x-app-layout>

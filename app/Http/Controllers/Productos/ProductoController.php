@@ -3,11 +3,8 @@
 namespace App\Http\Controllers\Productos;
 
 // ---------------------------------------------------------
-// IMPORTACIONES
-// Clases del framework, acciones de dominio, peticiones
-// form request y modelos de datos necesarios para el catálogo.
+// IMPORTACIONES DE CLASES, ACCIONES Y MODELOS
 // ---------------------------------------------------------
-
 use App\Actions\Productos\CrearProducto;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Productos\CrearProductoRequest;
@@ -25,15 +22,16 @@ use Illuminate\View\View;
 
 class ProductoController extends Controller
 {
-    // ---------------------------------------------------------
-    // VISTA PRINCIPAL DEL CATÁLOGO
-    // Carga la plantilla inicial con el listado de categorías
-    // activas para alimentar los filtros de búsqueda en la UI.
-    // ---------------------------------------------------------
+    // =========================================================
+    // VISTA PRINCIPAL DEL CATÁLOGO DE PRODUCTOS
+    // =========================================================
 
-    public function index(
-        Empresa $empresa
-    ): View {
+    /**
+     * Carga la plantilla inicial con el listado de categorías
+     * activas para alimentar los filtros de búsqueda en la UI.
+     */
+    public function index(Empresa $empresa): View
+    {
         // Recupera categorías activas ordenadas alfabéticamente
         $categorias = $empresa
             ->categoriasProducto()
@@ -54,22 +52,29 @@ class ProductoController extends Controller
         );
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // SERVICIO AJAX PARA DATATABLES
-    // Procesa búsquedas, ordenamiento dinámico, filtros por
-    // categoría y estado, entregando resultados paginados.
-    // ---------------------------------------------------------
+    // =========================================================
 
+    /**
+     * Procesa búsquedas, ordenamiento dinámico, filtros por
+     * categoría y estado, entregando resultados paginados en JSON.
+     */
     public function data(
         Request $request,
         Empresa $empresa
     ): JsonResponse {
         // -----------------------------------------------------
-        // COLUMNAS PERMITIDAS PARA ORDENAMIENTO
-        // Lista blanca de columnas para prevenir inyecciones SQL
-        // o errores por nombres de campos arbitrarios.
+        // 1. CONTEXTO DE NEGOCIO Y GIRO COMERCIAL
+        // Determina si la empresa opera como restaurante para ocultar
+        // o segmentar productos de tipo receta/escandallo si aplica.
         // -----------------------------------------------------
+        $esRestaurante = $empresa->giro_comercial === 'restaurantes_alimentos';
 
+        // -----------------------------------------------------
+        // 2. COLUMNAS PERMITIDAS PARA ORDENAMIENTO
+        // Lista blanca de columnas para prevenir inyecciones SQL.
+        // -----------------------------------------------------
         $columnasPermitidas = [
             'sku' => 'productos.sku',
             'nombre' => 'productos.nombre',
@@ -79,11 +84,9 @@ class ProductoController extends Controller
         ];
 
         // -----------------------------------------------------
-        // CONSTRUCCIÓN DE LA CONSULTA BASE
-        // Delimita los registros exclusivamente a la empresa
-        // inquilina (tenant) con carga ansiosa (eager loading).
+        // 3. CONSTRUCCIÓN DE LA CONSULTA BASE
+        // Delimita los registros exclusivamente a la empresa inquilina.
         // -----------------------------------------------------
-
         $consulta = Producto::query()
             ->where(
                 'productos.empresa_id',
@@ -112,22 +115,14 @@ class ProductoController extends Controller
             ->count();
 
         // -----------------------------------------------------
-        // FILTRADO: CATEGORÍA
-        // Aplica el filtro únicamente si la categoría pertenece
-        // legítimamente a la empresa en sesión.
+        // 4. FILTRADO POR CATEGORÍA
         // -----------------------------------------------------
-
-        $categoriaId = $request->integer(
-            'categoria_id'
-        );
+        $categoriaId = $request->integer('categoria_id');
 
         if (
             $categoriaId > 0
             && CategoriaProducto::query()
-                ->where(
-                    'empresa_id',
-                    $empresa->id
-                )
+                ->where('empresa_id', $empresa->id)
                 ->whereKey($categoriaId)
                 ->exists()
         ) {
@@ -138,36 +133,23 @@ class ProductoController extends Controller
         }
 
         // -----------------------------------------------------
-        // FILTRADO: ESTADO OPERATIVO
-        // Permite conmutar entre registros activos, inactivos o todos.
+        // 5. FILTRADO POR ESTADO OPERATIVO (Activo / Inactivo)
         // -----------------------------------------------------
-
         $estado = $request
             ->string('estado')
             ->trim()
             ->toString();
 
         if ($estado === 'activo') {
-            $consulta->where(
-                'productos.activo',
-                true
-            );
+            $consulta->where('productos.activo', true);
         } elseif ($estado === 'inactivo') {
-            $consulta->where(
-                'productos.activo',
-                false
-            );
+            $consulta->where('productos.activo', false);
         }
 
         // -----------------------------------------------------
-        // BÚSQUEDA GLOBAL
-        // Localiza coincidencias en SKU, código de barras, nombre,
-        // marca, modelo, o nombres de categoría y proveedor.
+        // 6. BÚSQUEDA GLOBAL
         // -----------------------------------------------------
-
-        $search = $request->input(
-            'search.value'
-        );
+        $search = $request->input('search.value');
 
         if (
             is_string($search)
@@ -176,99 +158,39 @@ class ProductoController extends Controller
             $search = trim($search);
 
             $consulta->where(
-                function (Builder $query) use (
-                    $search
-                ): void {
+                function (Builder $query) use ($search): void {
                     $query
-                        ->where(
-                            'productos.sku',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'productos.codigo_barras',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'productos.nombre',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'productos.marca',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'productos.modelo',
-                            'like',
-                            "%{$search}%"
-                        )
+                        ->where('productos.sku', 'like', "%{$search}%")
+                        ->orWhere('productos.codigo_barras', 'like', "%{$search}%")
+                        ->orWhere('productos.nombre', 'like', "%{$search}%")
+                        ->orWhere('productos.marca', 'like', "%{$search}%")
+                        ->orWhere('productos.modelo', 'like', "%{$search}%")
                         ->orWhereHas(
                             'categoria',
-                            function (Builder $categoria) use (
-                                $search
-                            ): void {
-                                $categoria->where(
-                                    'nombre',
-                                    'like',
-                                    "%{$search}%"
-                                );
+                            function (Builder $categoria) use ($search): void {
+                                $categoria->where('nombre', 'like', "%{$search}%");
                             }
                         )
                         ->orWhereHas(
                             'proveedorPrincipal',
-                            function (Builder $proveedor) use (
-                                $search
-                            ): void {
-                                $proveedor->where(
-                                    'nombre',
-                                    'like',
-                                    "%{$search}%"
-                                );
+                            function (Builder $proveedor) use ($search): void {
+                                $proveedor->where('nombre', 'like', "%{$search}%");
                             }
                         );
                 }
             );
         }
 
-        // Cantidad de registros encontrados tras aplicar criterios de búsqueda
-        $recordsFiltered = (
-            clone $consulta
-        )->count();
+        $recordsFiltered = (clone $consulta)->count();
 
         // -----------------------------------------------------
-        // APLICACIÓN DE ORDENAMIENTO
-        // Determina la columna seleccionada en la cabecera de la tabla
-        // y ejecuta subconsultas para relaciones foráneas.
+        // 7. APLICACIÓN DE ORDENAMIENTO
         // -----------------------------------------------------
+        $orderColumnIndex = $request->integer('order.0.column');
+        $orderColumn = $request->input("columns.{$orderColumnIndex}.data");
+        $orderDirection = strtolower((string) $request->input('order.0.dir', 'asc'));
 
-        $orderColumnIndex = $request->integer(
-            'order.0.column'
-        );
-
-        $orderColumn = $request->input(
-            "columns.{$orderColumnIndex}.data"
-        );
-
-        $orderDirection = strtolower(
-            (string) $request->input(
-                'order.0.dir',
-                'asc'
-            )
-        );
-
-        if (
-            ! in_array(
-                $orderDirection,
-                [
-                    'asc',
-                    'desc',
-                ],
-                true
-            )
-        ) {
+        if (! in_array($orderDirection, ['asc', 'desc'], true)) {
             $orderDirection = 'asc';
         }
 
@@ -296,58 +218,30 @@ class ProductoController extends Controller
             );
         } elseif (
             is_string($orderColumn)
-            && array_key_exists(
-                $orderColumn,
-                $columnasPermitidas
-            )
+            && array_key_exists($orderColumn, $columnasPermitidas)
         ) {
             $consulta->orderBy(
                 $columnasPermitidas[$orderColumn],
                 $orderDirection
             );
         } else {
-            // Orden por defecto: productos activos primero, luego alfabético
             $consulta
                 ->orderByDesc('productos.activo')
                 ->orderBy('productos.nombre');
         }
 
         // -----------------------------------------------------
-        // CONTROL DE PAGINACIÓN POR LOTES
-        // Restringe el número de filas por petición para mantener
-        // bajo consumo de memoria y respuesta ágil en la red.
+        // 8. PAGINACIÓN Y MAPEO DE RESULTADOS
         // -----------------------------------------------------
-
-        $start = max(
-            $request->integer('start'),
-            0
-        );
-
-        $requestedLength = $request->integer(
-            'length',
-            10
-        );
-
-        $length = min(
-            max(
-                $requestedLength,
-                1
-            ),
-            100
-        );
+        $start = max($request->integer('start'), 0);
+        $requestedLength = $request->integer('length', 10);
+        $length = min(max($requestedLength, 1), 100);
 
         /** @var Collection<int, Producto> $rows */
         $rows = $consulta
             ->skip($start)
             ->take($length)
             ->get();
-
-        // -----------------------------------------------------
-        // TRANSFORMACIÓN Y FORMATEO DE RESPUESTA
-        // Mapea la información técnica del modelo a tipos nativos
-        // compatibles con el renderizado de DataTables en JavaScript,
-        // incluyendo el identificador de fila y la bandera es_receta.
-        // -----------------------------------------------------
 
         $data = $rows
             ->map(
@@ -356,30 +250,16 @@ class ProductoController extends Controller
                         'id' => $producto->id,
                         'sku' => $producto->sku,
                         'nombre' => $producto->nombre,
-                        'categoria' => $producto->categoria->nombre
-                            ?? 'Sin categoría',
-                        'proveedor' => $producto
-                            ->proveedorPrincipal
-                            ->nombre
-                            ?? 'Sin proveedor',
-                        'unidad_medida' => ucfirst(
-                            $producto->unidad_medida
-                        ),
-                        // Conversión numérica segura del precio base
+                        'categoria' => $producto->categoria->nombre ?? 'Sin categoría',
+                        'proveedor' => $producto->proveedorPrincipal->nombre ?? 'Sin proveedor',
+                        'unidad_medida' => ucfirst($producto->unidad_medida),
                         'precio_base' => (float) $producto->precio_base,
                         'es_receta' => (bool) $producto->es_receta,
-                        'estado' => $producto->activo
-                            ? 'Activo'
-                            : 'Inactivo',
+                        'estado' => $producto->activo ? 'Activo' : 'Inactivo',
                     ];
                 }
             )
             ->values();
-
-        // -----------------------------------------------------
-        // RETORNO DEL PROTOCOLO DATATABLES
-        // Estructura JSON requerida por la biblioteca del cliente.
-        // -----------------------------------------------------
 
         return response()->json([
             'draw' => $request->integer('draw'),
@@ -389,15 +269,16 @@ class ProductoController extends Controller
         ]);
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // FORMULARIO DE ALTA DE PRODUCTOS
-    // Entrega los catálogos auxiliares (categorías, proveedores
-    // y unidades de medida) autorizados para la empresa.
-    // ---------------------------------------------------------
+    // =========================================================
 
-    public function create(
-        Empresa $empresa
-    ): View {
+    /**
+     * Entrega los catálogos auxiliares (categorías, proveedores
+     * y unidades de medida) autorizados para la empresa.
+     */
+    public function create(Empresa $empresa): View
+    {
         $categorias = $empresa
             ->categoriasProducto()
             ->where('activo', true)
@@ -436,12 +317,14 @@ class ProductoController extends Controller
         );
     }
 
-    // ---------------------------------------------------------
+    // =========================================================
     // PERSISTENCIA Y REGISTRO DE PRODUCTO
-    // Valida la identidad del usuario responsable y delega a la
-    // Action de dominio la inserción y auditoría inmutable.
-    // ---------------------------------------------------------
+    // =========================================================
 
+    /**
+     * Valida la identidad del usuario responsable y delega a la
+     * Action de dominio la inserción y auditoría inmutable.
+     */
     public function store(
         CrearProductoRequest $request,
         Empresa $empresa,
@@ -456,38 +339,20 @@ class ProductoController extends Controller
 
         $datos = $request->validated();
 
-        $categoriaId = $datos[
-            'categoria_producto_id'
-        ] ?? null;
+        $categoriaId = $datos['categoria_producto_id'] ?? null;
 
         abort_unless(
-            is_int($categoriaId)
-            || is_string($categoriaId),
+            is_int($categoriaId) || is_string($categoriaId),
             422
         );
 
-        // -----------------------------------------------------
-        // VALIDACIÓN DE PERTENENCIA: CATEGORÍA
-        // Comprueba que la categoría pertenezca a la empresa actual.
-        // -----------------------------------------------------
-
+        // Validación de pertenencia: Categoría
         $categoria = CategoriaProducto::query()
-            ->where(
-                'empresa_id',
-                $empresa->id
-            )
-            ->findOrFail(
-                $categoriaId
-            );
+            ->where('empresa_id', $empresa->id)
+            ->findOrFail($categoriaId);
 
-        // -----------------------------------------------------
-        // VALIDACIÓN DE PERTENENCIA: PROVEEDOR
-        // Si se especificó un proveedor opcional, valida su vínculo.
-        // -----------------------------------------------------
-
-        $proveedorId = $datos[
-            'proveedor_principal_id'
-        ] ?? null;
+        // Validación de pertenencia: Proveedor (Opcional)
+        $proveedorId = $datos['proveedor_principal_id'] ?? null;
 
         abort_unless(
             $proveedorId === null
@@ -499,19 +364,10 @@ class ProductoController extends Controller
         $proveedor = $proveedorId === null
             ? null
             : Proveedor::query()
-                ->where(
-                    'empresa_id',
-                    $empresa->id
-                )
-                ->findOrFail(
-                    $proveedorId
-                );
+                ->where('empresa_id', $empresa->id)
+                ->findOrFail($proveedorId);
 
-        // -----------------------------------------------------
-        // EJECUCIÓN DE LA ACCIÓN DE DOMINIO
-        // Invoca CrearProducto para aplicar reglas y auditoría.
-        // -----------------------------------------------------
-
+        // Ejecución de la acción de dominio
         $crearProducto->ejecutar(
             empresa: $empresa,
             categoria: $categoria,
@@ -520,11 +376,6 @@ class ProductoController extends Controller
             datos: $datos,
             request: $request
         );
-
-        // -----------------------------------------------------
-        // REDIRECCIÓN FINAL
-        // Regresa al listado con notificación de éxito.
-        // -----------------------------------------------------
 
         return redirect()
             ->route(

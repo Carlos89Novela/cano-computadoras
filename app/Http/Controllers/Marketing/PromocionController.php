@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Marketing;
 
+// ---------------------------------------------------------
+// IMPORTACIONES DE CONTROLADORES, MODELOS Y FACADES
+// ---------------------------------------------------------
 use App\Http\Controllers\Controller;
 use App\Models\CategoriaProducto;
 use App\Models\Cliente;
@@ -10,6 +13,7 @@ use App\Models\Empresa;
 use App\Models\Producto;
 use App\Models\Promocion;
 use App\Models\PromocionItem;
+use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +23,13 @@ use Illuminate\View\View;
 
 class PromocionController extends Controller
 {
+    // =========================================================
+    // VISTA PRINCIPAL DE PROMOCIONES Y LEALTAD
+    // =========================================================
+
+    /**
+     * Muestra la interfaz de gestión de promociones, combos y clientes.
+     */
     public function index(Request $request): View
     {
         /** @var User $user */
@@ -63,6 +74,13 @@ class PromocionController extends Controller
         ]);
     }
 
+    // =========================================================
+    // REGISTRO DE NUEVA PROMOCIÓN / COMBO
+    // =========================================================
+
+    /**
+     * Valida y almacena una nueva promoción en la base de datos de forma transaccional.
+     */
     public function store(Request $request): RedirectResponse
     {
         /** @var User $user */
@@ -90,7 +108,7 @@ class PromocionController extends Controller
             'categoria_id' => ['nullable', 'integer', 'exists:categorias_producto,id'],
         ]);
 
-        DB::transaction(function () use ($validated, $empresa) {
+        DB::transaction(function () use ($validated, $empresa): void {
             $promo = Promocion::query()->create([
                 'empresa_id' => $empresa->id,
                 'nombre' => $validated['nombre'],
@@ -102,8 +120,8 @@ class PromocionController extends Controller
                 'fecha_inicio' => $validated['fecha_inicio'] ?? null,
                 'fecha_fin' => $validated['fecha_fin'] ?? null,
                 'dias_semana' => $validated['dias_semana'] ?? null,
-                'hora_inicio' => ! empty($validated['hora_inicio']) ? $validated['hora_inicio'] . ':00' : null,
-                'hora_fin' => ! empty($validated['hora_fin']) ? $validated['hora_fin'] . ':00' : null,
+                'hora_inicio' => ! empty($validated['hora_inicio']) ? $validated['hora_inicio'].':00' : null,
+                'hora_fin' => ! empty($validated['hora_fin']) ? $validated['hora_fin'].':00' : null,
                 'solo_clientes_destacados' => (bool) ($validated['solo_clientes_destacados'] ?? false),
                 'puntos_extra_otorgados' => (int) ($validated['puntos_extra_otorgados'] ?? 0),
                 'limite_usos' => $validated['limite_usos'] ?? null,
@@ -129,16 +147,19 @@ class PromocionController extends Controller
                     'rol' => 'participante',
                 ]);
             }
-            
         });
 
         return back()->with('success', 'Promoción / Combo creado y activado correctamente.');
     }
 
+    // =========================================================
+    // ACTUALIZACIÓN DE PROMOCIÓN
+    // =========================================================
+
     /**
-     * Actualiza una promoción o combo existente (fechas, horarios, días y productos).
+     * Actualiza una promoción o combo existente.
      */
-    public function update(Request $request, \App\Models\Promocion $promocion): \Illuminate\Http\RedirectResponse
+    public function update(Request $request, Promocion $promocion): RedirectResponse
     {
         $validated = $request->validate([
             'nombre' => ['required', 'string', 'max:150'],
@@ -158,7 +179,6 @@ class PromocionController extends Controller
             'solo_clientes_destacados' => ['nullable', 'boolean'],
         ]);
 
-        // Si se marcaron los 7 días o ninguno, guardar null para indicar vigencia diaria
         $diasLimpios = ! empty($validated['dias_semana']) ? array_values(array_unique(array_map('intval', $validated['dias_semana']))) : null;
         if (is_array($diasLimpios) && count($diasLimpios) >= 7) {
             $diasLimpios = null;
@@ -180,7 +200,6 @@ class PromocionController extends Controller
             'solo_clientes_destacados' => $request->boolean('solo_clientes_destacados'),
         ]);
 
-        // Sincronizar partidas participantes (productos específicos o categoría completa)
         $promocion->items()->delete();
 
         $productoIds = array_filter(array_map('intval', $validated['producto_ids'] ?? []));
@@ -205,6 +224,10 @@ class PromocionController extends Controller
         return back()->with('success', "Promoción «{$promocion->nombre}» actualizada correctamente.");
     }
 
+    // =========================================================
+    // OPERACIONES RÁPIDAS (TOGGLE Y ELIMINACIÓN)
+    // =========================================================
+
     public function toggleEstado(Promocion $promocion): RedirectResponse
     {
         $promocion->update(['activo' => ! $promocion->activo]);
@@ -219,6 +242,10 @@ class PromocionController extends Controller
         return back()->with('success', 'Promoción eliminada.');
     }
 
+    // =========================================================
+    // PROGRAMA DE LEALTAD Y MONEDERO DE CLIENTES
+    // =========================================================
+
     public function actualizarLealtadCliente(Request $request, Cliente $cliente): RedirectResponse
     {
         $validated = $request->validate([
@@ -231,7 +258,7 @@ class PromocionController extends Controller
         $abono = (float) ($validated['abono_monedero'] ?? 0);
         $puntos = (int) ($validated['puntos_ajuste'] ?? 0);
 
-        DB::transaction(function () use ($cliente, $validated, $abono, $puntos) {
+        DB::transaction(function () use ($cliente, $validated, $abono, $puntos): void {
             $cliente->update([
                 'nivel_lealtad' => $validated['nivel_lealtad'],
                 'saldo_monedero' => max(0, (float) $cliente->saldo_monedero + $abono),
@@ -253,6 +280,13 @@ class PromocionController extends Controller
         return back()->with('success', "Perfil de lealtad de {$cliente->nombre} actualizado.");
     }
 
+    // =========================================================
+    // ENDPOINTS API / JSON
+    // =========================================================
+
+    /**
+     * Retorna las promociones activas y vigentes para el POS.
+     */
     public function vigentesApi(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -264,16 +298,24 @@ class PromocionController extends Controller
             ->where('activo', true)
             ->with(['items.producto', 'items.categoria'])
             ->get()
-            ->filter(fn (Promocion $p) => $p->estaVigenteAhora())
+            ->filter(fn (Promocion $p) => $p->estaVigente())
             ->values();
 
         return response()->json($promos);
     }
 
+    // =========================================================
+    // MÉTODOS AUXILIARES PRIVADOS
+    // =========================================================
+
     private function resolveEmpresa(User $user): Empresa
     {
+        /** @var Sucursal|null $sucursalActiva */
+        $sucursalActiva = $user->sucursales()->with('empresa')->where('sucursales.activo', true)->first();
+        $empresaSucursal = $sucursalActiva !== null ? $sucursalActiva->empresa : null;
+
         return Empresa::query()->where('id', 3)->first()
-            ?? $user->sucursales()->with('empresa')->where('sucursales.activo', true)->first()?->empresa
+            ?? $empresaSucursal
             ?? $user->empresa
             ?? Empresa::query()->where('activo', true)->firstOrFail();
     }

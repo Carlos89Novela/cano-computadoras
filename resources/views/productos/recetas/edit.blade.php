@@ -4,7 +4,7 @@
             <h2 class="font-bold text-lg text-slate-100 flex items-center gap-2">
                 <span>🍳</span> Ficha Técnica de Receta: {{ $producto->nombre }}
             </h2>
-            <a href="{{ route('productos.productos.index', $empresa) }}" class="text-xs text-slate-400 hover:text-white transition">
+            <a href="{{ route('productos.index', $empresa) }}" class="text-xs text-slate-400 hover:text-white transition">
                 &larr; Volver al Catálogo
             </a>
         </div>

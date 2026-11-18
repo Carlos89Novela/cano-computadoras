@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+// ---------------------------------------------------------
+// IMPORTACIONES DE CONTROLADORES Y MODELOS
+// ---------------------------------------------------------
 use App\Http\Controllers\Controller;
 use App\Models\Empresa;
 use App\Models\OrdenServicio;
@@ -12,20 +15,31 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    // =========================================================
+    // VISTA PRINCIPAL DEL PANEL ADMINISTRATIVO
+    // =========================================================
+
+    /**
+     * Muestra el dashboard general del sistema, distinguiendo
+     * entre el flujo de taller de computadoras y restaurantes.
+     */
     public function index(Request $request): View
     {
         /** @var User $usuario */
         $usuario = $request->user();
 
-        // 1. Obtener la sucursal activa y empresa del usuario autenticado
-        $sucursalActiva = method_exists($usuario, 'sucursales')
-            ? $usuario->sucursales()->with('empresa')->first()
-            : null;
+        // ---------------------------------------------------------
+        // 1. RESOLUCIÓN DE SUCURSAL Y EMPRESA ACTIVA
+        // ---------------------------------------------------------
+        $sucursalActiva = $usuario->sucursales()->with('empresa')->first();
 
-        $empresa = $sucursalActiva?->empresa ?? Empresa::query()->first();
-        $giro = $empresa?->giro_comercial ?? 'computadoras_tecnologia';
+        // Acceso directo con operador estándar -> para cumplir con PHPStan Nivel 8
+        $empresa = $sucursalActiva->empresa ?? Empresa::query()->first();
+        $giro = $empresa->giro_comercial ?? 'computadoras_tecnologia';
 
-        // 2. Si la empresa es de giro gastronómico/restaurante, no mezclar con órdenes del taller
+        // ---------------------------------------------------------
+        // 2. SEGMENTACIÓN DE MÉTRICAS SEGÚN GIRO COMERCIAL
+        // ---------------------------------------------------------
         if ($giro === 'restaurantes_alimentos') {
             $totalOrdenes = 0;
             $ordenesSinAsignar = 0;

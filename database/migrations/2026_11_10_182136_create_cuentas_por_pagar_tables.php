@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignId('proveedor_id')->constrained('proveedores')->cascadeOnDelete();
             $table->foreignId('recepcion_inventario_id')->nullable()->constrained('recepciones_inventario')->nullOnDelete();
             $table->foreignId('orden_compra_id')->nullable()->constrained('ordenes_compra')->nullOnDelete();
-            
+
             $table->uuid('uuid_sat')->nullable()->unique();
             $table->string('serie', 20)->nullable();
             $table->string('folio', 50)->nullable();
@@ -27,7 +27,7 @@ return new class extends Migration
             $table->decimal('total', 14, 4);
             $table->decimal('monto_pagado', 14, 4)->default(0);
             $table->decimal('saldo_pendiente', 14, 4);
-            
+
             $table->enum('estado', ['pendiente', 'parcial', 'pagada', 'cancelada'])->default('pendiente');
             $table->text('notas')->nullable();
             $table->foreignId('registrado_por_user_id')->constrained('users')->cascadeOnDelete();

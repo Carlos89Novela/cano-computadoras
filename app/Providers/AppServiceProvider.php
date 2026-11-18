@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Facturacion\Contracts\PacConnectorInterface;
+use App\Services\Facturacion\MockPacConnector;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -11,8 +13,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(
-            \App\Services\Facturacion\Contracts\PacConnectorInterface::class,
-            \App\Services\Facturacion\MockPacConnector::class
+            PacConnectorInterface::class,
+            MockPacConnector::class
         );
     }
 

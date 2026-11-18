@@ -82,7 +82,7 @@ class FacturaGlobalCfdiTest extends TestCase
     public function consolida_ventas_del_dia_en_un_cfdi_global_4_y_las_asocia(): void
     {
         // 1. Crear 2 ventas de mostrador completadas
-        $v1 = new Venta();
+        $v1 = new Venta;
         $v1->forceFill([
             'empresa_id' => $this->empresa->id,
             'sucursal_id' => $this->sucursal->id,
@@ -97,7 +97,7 @@ class FacturaGlobalCfdiTest extends TestCase
         ]);
         $v1->save();
 
-        $v2 = new Venta();
+        $v2 = new Venta;
         $v2->forceFill([
             'empresa_id' => $this->empresa->id,
             'sucursal_id' => $this->sucursal->id,

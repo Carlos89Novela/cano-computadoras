@@ -9,7 +9,6 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
-
 uses(RefreshDatabase::class);
 
 beforeEach(function () {

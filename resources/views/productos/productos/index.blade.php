@@ -201,7 +201,7 @@
                     order: [[1, 'asc']],
 
                     ajax: {
-                        url: @json(route('productos.productos.data', ['empresa' => $empresa->id])),
+                        url: @json(route('productos.data', ['empresa' => $empresa->id])),
                         type: 'GET',
                         data: function (datos) {
                             datos.categoria_id = window.jQuery('#categoria-filtro').val();

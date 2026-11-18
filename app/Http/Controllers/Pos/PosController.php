@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Pos;
 
+// ---------------------------------------------------------
+// IMPORTACIONES DE CONTROLADORES, MODELOS Y SERVICIOS
+// ---------------------------------------------------------
 use App\Http\Controllers\Controller;
 use App\Models\Almacen;
 use App\Models\CajaMovimiento;
@@ -19,6 +22,8 @@ use App\Models\RestauranteMesa;
 use App\Models\Sucursal;
 use App\Models\User;
 use App\Models\Venta;
+use App\Models\VentaDetalle;
+use App\Models\VentaPago;
 use App\Services\Marketing\CalcularPromocionesService;
 use App\Services\Pos\ProcesarDevolucionPosService;
 use App\Services\Pos\RegistrarMovimientoCajaService;
@@ -32,6 +37,9 @@ use Throwable;
 
 class PosController extends Controller
 {
+    /**
+     * Constructor con inyección de dependencias para el servicio de ventas.
+     */
     public function __construct(
         protected RegistrarVentaService $ventaService
     ) {}
@@ -40,12 +48,38 @@ class PosController extends Controller
     // SECCIÓN 1: INTERFAZ PRINCIPAL DEL PUNTO DE VENTA Y PLANO DE MESAS
     // =========================================================================
 
+    /**
+     * Carga la terminal principal del POS, resolviendo sucursal, almacén, turno y entorno de restaurante.
+     */
     public function index(Request $request): View
     {
-        /** @var User $user */ $user = $request->user();
-        $empresaId = $this->resolveEmpresaId($user);
+        /** @var User $user */
+        $user = $request->user();
+        
+        // 1. Resolver la empresa correcta asegurando el giro de restaurantes
+        $empresa = Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->first()
+            ?? $user->empresa 
+            ?? Empresa::query()->first();
 
-        // 1. Resolver sucursal: de sus relaciones, o la primera sucursal activa de la empresa
+        $empresaId = $empresa !== null ? (int) $empresa->id : 3;
+
+        // Contexto de negocio: Detectar si opera como restaurante de forma robusta
+        $esRestaurante = false;
+        if ($empresa !== null && $empresa->giro_comercial === 'restaurantes_alimentos') {
+            $esRestaurante = true;
+        }
+
+        // Áreas y zonas de mesas para el plano interactivo
+        $areas = [];
+        if ($esRestaurante && class_exists(RestauranteArea::class)) {
+            $areas = RestauranteArea::query()
+                ->where('empresa_id', $empresaId)
+                ->where('activo', true)
+                ->with('mesas')
+                ->get();
+        }
+
+        // 2. Resolver sucursal asignada o fallback a la primera activa de la empresa
         /** @var Sucursal|null $sucursal */
         $sucursal = $user->sucursales()->where('sucursales.activo', true)->first()
             ?? Sucursal::query()->where('empresa_id', $empresaId)->where('activo', true)->first()
@@ -53,18 +87,20 @@ class PosController extends Controller
 
         $sucursalId = $sucursal !== null ? (int) $sucursal->id : 1;
 
-        // 2. Resolver almacén físico de la sucursal o el almacén principal disponible
-        /** @var Almacen|null $almacen */ $almacen = Almacen::query()
+        // 3. Resolver almacén físico de la sucursal
+        /** @var Almacen|null $almacen */
+        $almacen = Almacen::query()
             ->where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
             ->where('activo', true)
             ->where('permite_existencias', true)
             ->first()
-                    ?? Almacen::query()->where('activo', true)->where('permite_existencias', true)->first()
-                    ?? Almacen::query()->first();
+            ?? Almacen::query()->where('empresa_id', $empresaId)->first()
+            ?? Almacen::query()->first();
 
-        // 3. Buscar turno abierto para el cajero en esta sucursal
-        /** @var CajaTurno|null $turnoActivo */ $turnoActivo = CajaTurno::query()
+        // 4. Buscar turno abierto para el cajero en esta sucursal
+        /** @var CajaTurno|null $turnoActivo */
+        $turnoActivo = CajaTurno::query()
             ->where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
             ->where('user_id', $user->id)
@@ -72,7 +108,8 @@ class PosController extends Controller
             ->latest('id')
             ->first();
 
-        /** @var view-string $viewName */ $viewName = 'pos.index';
+        /** @var view-string $viewName */
+        $viewName = 'pos.index';
 
         return view($viewName, [
             'sucursal' => $sucursal,
@@ -87,6 +124,9 @@ class PosController extends Controller
     // SECCIÓN 2: CATÁLOGO DE PRODUCTOS, CLIENTES LEALTAD Y TURNOS DE CAJA
     // =========================================================================
 
+    /**
+     * Entrega el catálogo reactivo de productos con existencias físicas en el almacén seleccionado.
+     */
     public function catalogo(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -147,16 +187,18 @@ class PosController extends Controller
         return response()->json($clientes);
     }
 
+    /**
+     * Abre un nuevo turno de caja con fondo inicial en efectivo.
+     */
     public function aperturaCaja(Request $request): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
 
-        // Resolver explícitamente la empresa restaurantera activa
         $empresa = Empresa::query()->where('id', 3)->first()
             ?? Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->first();
 
-        $empresaId = $empresa?->id ?? $this->resolveEmpresaId($user);
+        $empresaId = $empresa !== null ? (int) $empresa->id : $this->resolveEmpresaId($user);
 
         $validated = $request->validate([
             'sucursal_id' => ['required', 'integer'],
@@ -164,7 +206,6 @@ class PosController extends Controller
             'observaciones' => ['nullable', 'string', 'max:500'],
         ]);
 
-        // Verificar si el cajero ya tiene un turno abierto en esta sucursal
         $turnoExistente = CajaTurno::query()
             ->where('sucursal_id', $validated['sucursal_id'])
             ->where('user_id', $user->id)
@@ -177,7 +218,6 @@ class PosController extends Controller
             ], 422);
         }
 
-        // Crear el turno nuevo con contadores inicializados para Corte X / Z
         $turno = CajaTurno::query()->create([
             'empresa_id' => $empresaId,
             'sucursal_id' => $validated['sucursal_id'],
@@ -200,6 +240,9 @@ class PosController extends Controller
         ]);
     }
 
+    /**
+     * Cierra el turno de caja activo calculando la diferencia de efectivo.
+     */
     public function cierreCaja(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -217,7 +260,6 @@ class PosController extends Controller
             ->where('estado', 'abierto')
             ->findOrFail($validated['caja_turno_id']);
 
-        // Recalcular desglose real del turno (ventas efectivo + ingresos - retiros)
         $desglose = $this->calcularDesgloseTurno($turno);
 
         $montoReal = (float) $validated['monto_real_efectivo'];
@@ -248,6 +290,9 @@ class PosController extends Controller
     // SECCIÓN 3: PROCESAMIENTO DE COBROS, PROMOCIONES, MONEDERO Y SPLIT BILL
     // =========================================================================
 
+    /**
+     * Procesa la venta directa en línea, aplicando descuentos, monedero, lealtad y liberando mesas de restaurante.
+     */
     public function storeVenta(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -257,7 +302,7 @@ class PosController extends Controller
             ?? Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->first()
             ?? Empresa::query()->first();
 
-        $empresaId = $empresa?->id ?? 3;
+        $empresaId = $empresa !== null ? (int) $empresa->id : 3;
 
         $sucursal = $user->sucursales()
             ->where('sucursales.empresa_id', $empresaId)
@@ -266,7 +311,7 @@ class PosController extends Controller
             ?? Sucursal::query()->where('empresa_id', $empresaId)->where('codigo', 'REST-01')->first()
             ?? Sucursal::query()->first();
 
-        $sucursalId = $sucursal?->id ?? 2;
+        $sucursalId = $sucursal !== null ? (int) $sucursal->id : 2;
 
         $almacen = Almacen::query()
             ->where('empresa_id', $empresaId)
@@ -276,7 +321,7 @@ class PosController extends Controller
             ?? Almacen::query()->where('empresa_id', $empresaId)->where('activo', true)->first()
             ?? Almacen::query()->first();
 
-        $almacenId = $almacen?->id ?? 1;
+        $almacenId = $almacen !== null ? (int) $almacen->id : 1;
 
         $validated = $request->validate([
             'uuid' => ['nullable', 'string', 'size:36'],
@@ -304,7 +349,6 @@ class PosController extends Controller
         ]);
 
         try {
-            // 1. Preparar metadatos compactos de promociones y monedero para el Ticket y Cortes X/Z
             $descuentoPromos = (float) $request->input('descuento_promociones', 0);
             $montoMonederoUsado = (float) $request->input('monto_monedero_usado', 0);
             $promosDetalle = $request->input('promociones_aplicadas_detalle', []);
@@ -323,8 +367,8 @@ class PosController extends Controller
                 $etiquetasCompactas[] = "[M:{$mUsado}]";
             }
 
-            $sufijoPromos = ! empty($etiquetasCompactas) ? ' ' . implode(' ', $etiquetasCompactas) : '';
-            $notasVenta = mb_substr(trim(($validated['notas'] ?? '') . $sufijoPromos), 0, 250);
+            $sufijoPromos = ! empty($etiquetasCompactas) ? ' '.implode(' ', $etiquetasCompactas) : '';
+            $notasVenta = mb_substr(trim(($validated['notas'] ?? '').$sufijoPromos), 0, 250);
 
             $payload = array_merge($validated, [
                 'empresa_id' => (int) $empresaId,
@@ -338,24 +382,20 @@ class PosController extends Controller
 
             $venta = $this->ventaService->ejecutar($payload);
 
-            // Asegurar que las etiquetas compactas [P:id:ahorro] queden persistidas en la venta
             if ($notasVenta !== '' && $venta->notas !== $notasVenta) {
                 $venta->update(['notas' => $notasVenta]);
             }
 
-            // 2. Incrementar contador de usos de las promociones aplicadas
             if (! empty($promocionesAplicadasIds) && is_array($promocionesAplicadasIds)) {
                 Promocion::query()
                     ->whereIn('id', $promocionesAplicadasIds)
                     ->increment('usos_actuales');
             }
 
-            // 3. Procesar Lealtad: Canje de Monedero Electrónico y Acumulación de Puntos / Cashback
             $clienteId = $request->integer('cliente_id');
             if ($clienteId > 0) {
                 $cliente = Cliente::query()->find($clienteId);
                 if ($cliente !== null) {
-                    // Descontar saldo usado del monedero electrónico
                     if ($montoMonederoUsado > 0) {
                         $descuentoReal = min((float) $cliente->saldo_monedero, $montoMonederoUsado);
                         if ($descuentoReal > 0) {
@@ -373,7 +413,6 @@ class PosController extends Controller
                         }
                     }
 
-                    // Abonar 5% en monedero electrónico y 1 punto por cada $10 de compra
                     $cashbackGanado = round((float) $venta->total * 0.05, 2);
                     $puntosGanados = (int) floor((float) $venta->total / 10);
 
@@ -398,7 +437,6 @@ class PosController extends Controller
                 }
             }
 
-            // 4. Actualizar estado de comandas y mesa si la venta proviene del restaurante
             $comandaIds = $request->input('comanda_ids', []);
             $esSubcuenta = $request->boolean('es_subcuenta', false);
 
@@ -406,7 +444,6 @@ class PosController extends Controller
                 $comandas = Comanda::query()->whereIn('id', $comandaIds)->get();
 
                 if (! $esSubcuenta) {
-                    // CASO A: PAGO TOTAL DIRECTO DE LA MESA
                     $nombresMesas = $comandas->pluck('mesa_o_referencia')->filter()->unique()->all();
 
                     Comanda::query()
@@ -429,11 +466,9 @@ class PosController extends Controller
                             'comanda_actual_id' => null,
                         ]);
                 } else {
-                    // CASO B: COBRO DE SUBCUENTA (DIVISIÓN DE CUENTA / SPLIT BILL)
                     $itemIdsPagados = $request->input('comanda_item_ids_pagados', []);
 
                     if (! empty($itemIdsPagados) && is_array($itemIdsPagados)) {
-                        // MODO 1: DIVISIÓN POR PLATILLOS ESPECÍFICOS
                         ComandaItem::query()
                             ->whereIn('id', $itemIdsPagados)
                             ->update([
@@ -441,7 +476,6 @@ class PosController extends Controller
                                 'notas_especiales' => DB::raw("CONCAT(COALESCE(notas_especiales, ''), ' [PAGADO-VTA:{$venta->id}]')"),
                             ]);
 
-                        // Revisar si aún quedan platillos sin pagar
                         $itemsSinPagar = ComandaItem::query()
                             ->whereIn('comanda_id', $comandaIds)
                             ->where(function ($q) {
@@ -452,21 +486,19 @@ class PosController extends Controller
 
                         $mesaLiquidada = ($itemsSinPagar === 0);
                     } else {
-                        // MODO 2: DIVISIÓN EN PARTES IGUALES (ABONO MONETARIO)
                         foreach ($comandas as $cmd) {
                             $notaActual = (string) ($cmd->notas_generales ?? '');
                             $cmd->update([
-                                'notas_generales' => trim($notaActual . " [ABONO:{$venta->total} VTA:{$venta->id}]"),
+                                'notas_generales' => trim($notaActual." [ABONO:{$venta->total} VTA:{$venta->id}]"),
                             ]);
                         }
 
-                        // Sumar consumo total y abonos realizados
                         $totalConsumo = 0.0;
                         $totalAbonado = 0.0;
 
                         foreach ($comandas->fresh() as $cmd) {
                             foreach ($cmd->items as $it) {
-                                $totalConsumo += ((float) $it->cantidad) * ((float) ($it->producto?->precio_base ?? 0));
+                                $totalConsumo += ((float) $it->cantidad) * ((float) ($it->producto->precio_base ?? 0));
                             }
                             preg_match_all('/\[ABONO:([0-9.]+)/', (string) $cmd->notas_generales, $matches);
                             if (! empty($matches[1])) {
@@ -477,7 +509,6 @@ class PosController extends Controller
                         $mesaLiquidada = ($totalAbonado >= ($totalConsumo - 0.50));
                     }
 
-                    // Liberar la mesa solo si ya se cubrió el 100%
                     if ($mesaLiquidada) {
                         $nombresMesas = $comandas->pluck('mesa_o_referencia')->filter()->unique()->all();
 
@@ -511,7 +542,7 @@ class PosController extends Controller
                 'venta_id' => $venta->id,
             ]);
         } catch (Throwable $e) {
-            return response()->json(['message' => 'Error al procesar cobro: ' . $e->getMessage()], 422);
+            return response()->json(['message' => 'Error al procesar cobro: '.$e->getMessage()], 422);
         }
     }
 
@@ -519,6 +550,9 @@ class PosController extends Controller
     // SECCIÓN 4: SINCRONIZACIÓN OFFLINE, TICKETS Y DEVOLUCIONES
     // =========================================================================
 
+    /**
+     * Sincroniza ventas realizadas sin conexión (Offline-First).
+     */
     public function sincronizarOffline(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -583,6 +617,9 @@ class PosController extends Controller
         return $empresa !== null ? (int) $empresa->id : 1;
     }
 
+    /**
+     * Renderiza el ticket térmico de una venta.
+     */
     public function ticket(Request $request, Venta $venta): View
     {
         /** @var User $user */
@@ -601,6 +638,9 @@ class PosController extends Controller
         ]);
     }
 
+    /**
+     * Retorna las últimas ventas completadas.
+     */
     public function ultimasVentas(Request $request): JsonResponse
     {
         $sucursalId = $request->integer('sucursal_id');
@@ -626,6 +666,9 @@ class PosController extends Controller
         return response()->json($ventas);
     }
 
+    /**
+     * Reimprime un ticket por su UUID o ID.
+     */
     public function reimprimirTicket(string $uuid): View
     {
         $venta = Venta::query()
@@ -645,6 +688,9 @@ class PosController extends Controller
         ]);
     }
 
+    /**
+     * Procesa una devolución de mercancía con reingreso al almacén.
+     */
     public function devolucion(Request $request, ProcesarDevolucionPosService $service): JsonResponse
     {
         /** @var User $user */
@@ -689,14 +735,14 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Lista todas las mesas con comandas activas y saldos pendientes (descontando subcuentas pagadas).
+     * Lista todas las mesas con comandas activas y saldos pendientes.
      */
     public function comandasAbiertasRestaurante(Request $request): JsonResponse
     {
         $empresa = Empresa::query()->where('id', 3)->first()
             ?? Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->first();
 
-        $empresaId = $empresa?->id ?? 3;
+        $empresaId = $empresa !== null ? (int) $empresa->id : 3;
 
         $comandas = Comanda::query()
             ->where('empresa_id', $empresaId)
@@ -714,7 +760,7 @@ class PosController extends Controller
                     'mesa' => $nombreMesa,
                     'comanda_ids' => [],
                     'folios' => [],
-                    'mesero' => $cmd->mesero?->name ?? 'Mesero',
+                    'mesero' => $cmd->mesero->name ?? 'Mesero',
                     'cuenta_pedida' => false,
                     'total' => 0.0,
                     'items' => [],
@@ -733,7 +779,7 @@ class PosController extends Controller
                     continue;
                 }
 
-                $precio = (float) ($item->producto?->precio_base ?? 0);
+                $precio = (float) ($item->producto->precio_base ?? 0);
                 $cant = (float) $item->cantidad;
                 $sub = $precio * $cant;
                 $mesas[$nombreMesa]['total'] += $sub;
@@ -741,8 +787,8 @@ class PosController extends Controller
                 $mesas[$nombreMesa]['items'][] = [
                     'id' => $item->id,
                     'producto_id' => $item->producto_id,
-                    'sku' => $item->producto?->sku ?? 'CMD',
-                    'nombre' => $item->producto?->nombre ?? 'Platillo',
+                    'sku' => $item->producto->sku ?? 'CMD',
+                    'nombre' => $item->producto->nombre ?? 'Platillo',
                     'cantidad' => $cant,
                     'precio_unitario' => $precio,
                     'subtotal' => $sub,
@@ -751,7 +797,6 @@ class PosController extends Controller
             }
         }
 
-        // Descontar abonos de división por partes iguales y consolidar folios
         foreach ($mesas as &$m) {
             $abonosPrevios = 0.0;
             $cmdsMesa = Comanda::query()->whereIn('id', $m['comanda_ids'])->get();
@@ -772,14 +817,14 @@ class PosController extends Controller
     }
 
     /**
-     * Imprime la Precuenta Térmica consolidando el consumo activo y evaluando promociones/combos vigentes.
+     * Imprime la Precuenta Térmica consolidando el consumo activo y evaluando promociones.
      */
     public function imprimirPrecuentaMesa(Request $request, string $mesa): View
     {
         $empresa = Empresa::query()->where('id', 3)->first()
             ?? Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->first();
 
-        $empresaId = $empresa?->id ?? 3;
+        $empresaId = $empresa !== null ? (int) $empresa->id : 3;
 
         $comandas = Comanda::query()
             ->where('empresa_id', $empresaId)
@@ -802,7 +847,7 @@ class PosController extends Controller
                     continue;
                 }
 
-                $precio = (float) ($item->producto?->precio_base ?? 0);
+                $precio = (float) ($item->producto->precio_base ?? 0);
                 $cantidad = (float) $item->cantidad;
                 $subtotal = $precio * $cantidad;
                 $totalBruto += $subtotal;
@@ -816,45 +861,22 @@ class PosController extends Controller
             }
         }
 
-        // Evaluar promociones y combos vigentes para esta mesa
         $evaluacionPromos = app(CalcularPromocionesService::class)
             ->evaluar($empresaId, $itemsParaPromos);
 
-        $descuentoPromociones = (float) $evaluacionPromos['descuento_total'];
-        $totalConsumo = max(0, round($totalBruto - $descuentoPromociones, 2));
+        $descuentoPromos = (float) $evaluacionPromos['descuento_total'];
+        $totalConsumo = max(0, round($totalBruto - $descuentoPromos, 2));
 
         return view('restaurante.mesas.precuenta_ticket', [
             'mesa' => (object) ['numero_o_nombre' => $mesa],
             'comanda' => $primeraComanda,
             'itemsConsolidados' => $itemsConsolidados,
             'totalBruto' => round($totalBruto, 2),
-            'descuentoPromociones' => round($descuentoPromociones, 2),
+            'descuentoPromociones' => round($descuentoPromos, 2),
             'promocionesAplicadas' => $evaluacionPromos['promociones'],
             'totalConsumo' => $totalConsumo,
             'tokenFactura' => strtoupper(Str::random(10)),
         ]);
-    }
-
-    // =========================================================================
-    // SECCIÓN 6: MÉTODOS PRIVADOS DE APOYO
-    // =========================================================================
-
-    private function resolveEmpresaId(User $user): int
-    {
-        /** @var int|string|null $empresaId */
-        $empresaId = $user->getAttribute('empresa_id');
-
-        if (! empty($empresaId)) {
-            return (int) $empresaId;
-        }
-
-        /** @var Empresa|null $empresa */
-        $empresa = Empresa::query()->where('id', 3)->first()
-            ?? $user->empresa
-            ?? Empresa::query()->where('activo', true)->first()
-            ?? Empresa::query()->first();
-
-        return $empresa !== null ? (int) $empresa->id : 3;
     }
 
     // =========================================================================
@@ -893,7 +915,7 @@ class PosController extends Controller
             $turnoActualizado = CajaTurno::query()->find($validated['caja_turno_id']);
 
             return response()->json([
-                'message' => ($validated['tipo'] === 'retiro' ? 'Retiro' : 'Ingreso') . ' registrado correctamente.',
+                'message' => ($validated['tipo'] === 'retiro' ? 'Retiro' : 'Ingreso').' registrado correctamente.',
                 'movimiento' => $movimiento,
                 'turno' => $turnoActualizado,
             ]);
@@ -918,7 +940,7 @@ class PosController extends Controller
     }
 
     /**
-     * Calcula totales por forma de pago, movimientos, promociones/combos aplicados y productos vendidos.
+     * Calcula totales por forma de pago, movimientos, promociones y productos vendidos.
      *
      * @return array<string, mixed>
      */
@@ -934,6 +956,8 @@ class PosController extends Controller
         $tarjetaDebitoCredito = 0.0;
         $transferencia = 0.0;
         $otrosMetodos = 0.0;
+
+        /** @var array<string|int, array{nombre: string|null, cantidad: float, total: float}> $productosAgrupados */
         $productosAgrupados = [];
 
         $totalDescuentosPromos = 0.0;
@@ -941,14 +965,13 @@ class PosController extends Controller
         $promocionesResumen = [];
 
         foreach ($ventas as $v) {
-            // 1. Extraer promociones, combos y monedero aplicados en la venta
             $notasVenta = (string) ($v->notas ?? '');
             $descuentoVentaActual = 0.0;
 
             if (preg_match_all('/\[P:(\d+):([0-9.]+)\]/', $notasVenta, $matchesP, PREG_SET_ORDER)) {
                 foreach ($matchesP as $mp) {
                     $promoObj = Promocion::find((int) $mp[1]);
-                    $nombrePromo = $promoObj?->nombre ?? 'Promoción / Combo';
+                    $nombrePromo = $promoObj->nombre ?? 'Promoción / Combo';
                     $ahorro = (float) $mp[2];
 
                     $totalDescuentosPromos += $ahorro;
@@ -970,8 +993,8 @@ class PosController extends Controller
                 $totalCanjeMonedero += (float) $matchM[1];
             }
 
-            // Respaldo si la venta tuvo descuento pero sin etiqueta [P:...] (ej. ventas previas)
             $sumaBrutaV = (float) $v->detalles->sum('total');
+
             if ($descuentoVentaActual === 0.0 && ($sumaBrutaV - (float) $v->total) > 0.01) {
                 $ahorroExtra = round($sumaBrutaV - (float) $v->total, 2);
                 $totalDescuentosPromos += $ahorroExtra;
@@ -987,8 +1010,8 @@ class PosController extends Controller
                 $promocionesResumen[$nombreFallback]['ahorro_total'] += $ahorroExtra;
             }
 
-            // 2. Clasificar cobros por clave SAT
             foreach ($v->pagos as $p) {
+                /** @var VentaPago $p */
                 $montoNeto = (float) $p->monto;
                 match ($p->forma_pago_sat) {
                     '01' => $efectivoVentas += $montoNeto,
@@ -998,8 +1021,8 @@ class PosController extends Controller
                 };
             }
 
-            // 3. Agrupar productos vendidos para el Corte Z
             foreach ($v->detalles as $det) {
+                /** @var VentaDetalle $det */
                 $key = $det->producto_id ?? $det->descripcion_producto;
                 if (! isset($productosAgrupados[$key])) {
                     $productosAgrupados[$key] = [
@@ -1013,8 +1036,7 @@ class PosController extends Controller
             }
         }
 
-        // Ordenar productos de mayor a menor cantidad vendida
-        usort($productosAgrupados, fn ($a, $b) => $b['cantidad'] <=> $a['cantidad']);
+        usort($productosAgrupados, fn (array $a, array $b): int => $b['cantidad'] <=> $a['cantidad']);
 
         $movimientos = CajaMovimiento::query()
             ->where('caja_turno_id', $turno->id)
