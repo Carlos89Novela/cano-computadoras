@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Pos;
 
-// ---------------------------------------------------------
+// =========================================================================
 // IMPORTACIONES DE CONTROLADORES, MODELOS Y SERVICIOS
-// ---------------------------------------------------------
+// =========================================================================
 use App\Http\Controllers\Controller;
 use App\Models\Almacen;
 use App\Models\CajaMovimiento;
@@ -31,14 +31,19 @@ use App\Services\Pos\RegistrarVentaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
+/**
+ * Controlador principal del Punto de Venta (POS).
+ * Gestiona el plano/consumo de mesas, cobros, cortes de caja y alertas de precuenta.
+ */
 class PosController extends Controller
 {
     /**
-     * Constructor con inyección de dependencias para el servicio de ventas.
+     * Inyección de dependencias del servicio de registro de ventas.
      */
     public function __construct(
         protected RegistrarVentaService $ventaService
@@ -49,56 +54,72 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Carga la terminal principal del POS, resolviendo sucursal, almacén, turno y entorno de restaurante.
+     * Carga la terminal principal del POS resolviendo empresa, sucursal, almacén y turno.
      */
     public function index(Request $request): View
     {
         /** @var User $user */
         $user = $request->user();
-        
-        // 1. Resolver la empresa correcta asegurando el giro de restaurantes
+
+        // 1. Resolver empresa del giro de restaurantes
         $empresa = Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->first()
-            ?? $user->empresa 
+            ?? $user->empresa
             ?? Empresa::query()->first();
 
         $empresaId = $empresa !== null ? (int) $empresa->id : 3;
 
-        // Contexto de negocio: Detectar si opera como restaurante de forma robusta
-        $esRestaurante = false;
-        if ($empresa !== null && $empresa->giro_comercial === 'restaurantes_alimentos') {
-            $esRestaurante = true;
-        }
+        // Detectar si opera como restaurante
+        $esRestaurante = $empresa !== null && $empresa->giro_comercial === 'restaurantes_alimentos';
 
-        // Áreas y zonas de mesas para el plano interactivo
-        $areas = [];
-        if ($esRestaurante && class_exists(RestauranteArea::class)) {
-            $areas = RestauranteArea::query()
+        // 2. Resolver sucursal del restaurante (priorizando REST-01 o sucursal activa de la empresa)
+        /** @var Sucursal|null $sucursal */
+        $sucursal = Sucursal::query()
+            ->where('empresa_id', $empresaId)
+            ->where('codigo', 'REST-01')
+            ->where('activo', true)
+            ->first()
+            ?? Sucursal::query()
                 ->where('empresa_id', $empresaId)
                 ->where('activo', true)
-                ->with('mesas')
-                ->get();
-        }
-
-        // 2. Resolver sucursal asignada o fallback a la primera activa de la empresa
-        /** @var Sucursal|null $sucursal */
-        $sucursal = $user->sucursales()->where('sucursales.activo', true)->first()
-            ?? Sucursal::query()->where('empresa_id', $empresaId)->where('activo', true)->first()
+                ->first()
+            ?? $user->sucursales()->where('sucursales.activo', true)->first()
             ?? Sucursal::query()->first();
 
         $sucursalId = $sucursal !== null ? (int) $sucursal->id : 1;
 
-        // 3. Resolver almacén físico de la sucursal
+        // 3. Cargar áreas y mesas para el plano interactivo
+        $areas = [];
+        if ($esRestaurante && class_exists(RestauranteArea::class)) {
+            $tieneSucursalId = Schema::hasColumn('restaurante_mesas', 'sucursal_id');
+
+            $areas = RestauranteArea::query()
+                ->where('empresa_id', $empresaId)
+                ->where('activo', true)
+                ->with(['mesas' => function ($q) use ($sucursalId, $tieneSucursalId) {
+                    $q->where('activo', true);
+                    if ($tieneSucursalId && $sucursalId > 0) {
+                        $q->where(function ($sub) use ($sucursalId) {
+                            $sub->where('sucursal_id', $sucursalId)->orWhereNull('sucursal_id');
+                        });
+                    }
+                }])
+                ->get();
+        }
+
+        // 4. Resolver almacén físico correspondiente a la sucursal del restaurante
         /** @var Almacen|null $almacen */
         $almacen = Almacen::query()
             ->where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
             ->where('activo', true)
-            ->where('permite_existencias', true)
             ->first()
-            ?? Almacen::query()->where('empresa_id', $empresaId)->first()
+            ?? Almacen::query()
+                ->where('empresa_id', $empresaId)
+                ->where('activo', true)
+                ->first()
             ?? Almacen::query()->first();
 
-        // 4. Buscar turno abierto para el cajero en esta sucursal
+        // 5. Buscar turno abierto para el cajero en esta sucursal
         /** @var CajaTurno|null $turnoActivo */
         $turnoActivo = CajaTurno::query()
             ->where('empresa_id', $empresaId)
@@ -125,7 +146,7 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Entrega el catálogo reactivo de productos con existencias físicas en el almacén seleccionado.
+     * Entrega el catálogo reactivo de productos con existencias físicas en el almacén.
      */
     public function catalogo(Request $request): JsonResponse
     {
@@ -291,7 +312,7 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Procesa la venta directa en línea, aplicando descuentos, monedero, lealtad y liberando mesas de restaurante.
+     * Procesa la venta directa en línea, aplicando descuentos, monedero y liberando mesas.
      */
     public function storeVenta(Request $request): JsonResponse
     {
@@ -624,9 +645,22 @@ class PosController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $empresaId = $this->resolveEmpresaId($user);
 
-        if ((int) $venta->empresa_id !== $empresaId) {
+        $empresaRestauranteId = Empresa::query()
+            ->where('giro_comercial', 'restaurantes_alimentos')
+            ->value('id');
+
+        $empresasPermitidas = array_filter([
+            (int) $this->resolveEmpresaId($user),
+            $user->empresa?->id ? (int) $user->empresa->id : null,
+            $empresaRestauranteId ? (int) $empresaRestauranteId : null,
+        ]);
+
+        $tieneAccesoSucursal = $venta->sucursal_id
+            ? $user->sucursales()->where('sucursales.id', $venta->sucursal_id)->exists()
+            : false;
+
+        if (! in_array((int) $venta->empresa_id, $empresasPermitidas, true) && ! $tieneAccesoSucursal) {
             abort(403, 'No autorizado para ver este ticket.');
         }
 
@@ -639,17 +673,69 @@ class PosController extends Controller
     }
 
     /**
-     * Retorna las últimas ventas completadas.
+     * Retorna los tickets recientes filtrados automáticamente según el rol del usuario:
+     * - Administrador, Gerente, Subgerente o Supervisor: todos los tickets del día en la sucursal.
+     * - Empleado / Cajero normal: únicamente los tickets del turno de caja abierto actual.
      */
     public function ultimasVentas(Request $request): JsonResponse
     {
+        /** @var User $user */
+        $user = $request->user();
         $sucursalId = $request->integer('sucursal_id');
+        $cajaTurnoId = $request->integer('caja_turno_id');
 
-        $ventas = Venta::query()
+        // Detectar si el usuario tiene perfil de supervisión o gerencia (Spatie roles o atributo/nombre)
+        $esGerenciaOSupervision = false;
+
+        if (method_exists($user, 'hasAnyRole')) {
+            $esGerenciaOSupervision = $user->hasAnyRole([
+                'administrador',
+                'gerente',
+                'subgerente',
+                'sub_gerente',
+                'supervisor',
+            ]);
+        }
+
+        if (! $esGerenciaOSupervision) {
+            $rolTexto = strtolower((string) ($user->rol ?? $user->role ?? $user->puesto ?? $user->name ?? ''));
+            foreach (['administrador', 'gerente', 'subgerente', 'sub gerente', 'supervisor'] as $palabraClave) {
+                if (str_contains($rolTexto, $palabraClave)) {
+                    $esGerenciaOSupervision = true;
+                    break;
+                }
+            }
+        }
+
+        $query = Venta::query()
             ->when($sucursalId > 0, fn ($q) => $q->where('sucursal_id', $sucursalId))
-            ->where('estado', 'completada')
+            ->where('estado', 'completada');
+
+        if ($esGerenciaOSupervision) {
+            // Supervisores, subgerentes, gerentes y administradores ven todos los tickets del día
+            $query->whereDate('created_at', today());
+        } else {
+            // Empleados / cajeros normales ven únicamente los tickets de su turno abierto actual
+            if ($cajaTurnoId <= 0) {
+                $cajaTurnoId = (int) (CajaTurno::query()
+                    ->when($sucursalId > 0, fn ($q) => $q->where('sucursal_id', $sucursalId))
+                    ->where('user_id', $user->id)
+                    ->where('estado', 'abierto')
+                    ->latest('id')
+                    ->value('id') ?? 0);
+            }
+
+            if ($cajaTurnoId > 0) {
+                $query->where('caja_turno_id', $cajaTurnoId);
+            } else {
+                // Si el empleado no tiene turno abierto, no devuelve tickets de otros turnos
+                return response()->json([]);
+            }
+        }
+
+        $ventas = $query
             ->latest('id')
-            ->take(15)
+            ->take(50)
             ->get([
                 'id',
                 'uuid',
@@ -731,8 +817,26 @@ class PosController extends Controller
     }
 
     // =========================================================================
-    // SECCIÓN 5: CONSULTA DE COMANDAS ABIERTAS Y PRECUENTA TÉRMICA (RESTAURANTE)
+    // SECCIÓN 5: COMANDAS ABIERTAS, PRECUENTA TÉRMICA Y ALERTAS DE PRECUENTA
     // =========================================================================
+
+    /**
+     * Devuelve las alertas recientes de precuenta enviadas desde el comandero.
+     */
+    public function alertasPrecuenta(Request $request): JsonResponse
+    {
+        $sucursalId = $request->integer('sucursal_id', 1);
+        $alertas = cache()->get("pos_alertas_precuenta_{$sucursalId}", []);
+
+        if (empty($alertas)) {
+            $alertas = cache()->get('pos_alertas_precuenta_1', []);
+        }
+        if (empty($alertas)) {
+            $alertas = cache()->get('pos_alertas_precuenta_0', []);
+        }
+
+        return response()->json(array_values($alertas));
+    }
 
     /**
      * Lista todas las mesas con comandas activas y saldos pendientes.
@@ -745,7 +849,9 @@ class PosController extends Controller
         $empresaId = $empresa !== null ? (int) $empresa->id : 3;
 
         $comandas = Comanda::query()
-            ->where('empresa_id', $empresaId)
+            ->where(function ($q) use ($empresaId) {
+                $q->where('empresa_id', $empresaId)->orWhereNull('empresa_id');
+            })
             ->whereNull('venta_id')
             ->where('estado', '!=', 'cancelada')
             ->with(['items.producto', 'mesero:id,name'])
@@ -754,7 +860,11 @@ class PosController extends Controller
 
         $mesas = [];
         foreach ($comandas as $cmd) {
-            $nombreMesa = $cmd->mesa_o_referencia;
+            $nombreMesa = trim((string) $cmd->mesa_o_referencia);
+            if ($nombreMesa === '') {
+                continue;
+            }
+
             if (! isset($mesas[$nombreMesa])) {
                 $mesas[$nombreMesa] = [
                     'mesa' => $nombreMesa,
@@ -779,7 +889,7 @@ class PosController extends Controller
                     continue;
                 }
 
-                $precio = (float) ($item->producto->precio_base ?? 0);
+                $precio = (float) ($item->producto?->precio_base ?? 0);
                 $cant = (float) $item->cantidad;
                 $sub = $precio * $cant;
                 $mesas[$nombreMesa]['total'] += $sub;
@@ -787,8 +897,8 @@ class PosController extends Controller
                 $mesas[$nombreMesa]['items'][] = [
                     'id' => $item->id,
                     'producto_id' => $item->producto_id,
-                    'sku' => $item->producto->sku ?? 'CMD',
-                    'nombre' => $item->producto->nombre ?? 'Platillo',
+                    'sku' => $item->producto?->sku ?? 'CMD',
+                    'nombre' => $item->producto?->nombre ?? 'Platillo',
                     'cantidad' => $cant,
                     'precio_unitario' => $precio,
                     'subtotal' => $sub,
@@ -811,7 +921,7 @@ class PosController extends Controller
             $m['folio'] = implode(', ', array_unique($m['folios']));
         }
 
-        $mesasPendientes = array_filter(array_values($mesas), fn ($m) => count($m['items']) > 0 && $m['total'] > 0.00);
+        $mesasPendientes = array_filter(array_values($mesas), fn ($m) => count($m['items']) > 0);
 
         return response()->json(array_values($mesasPendientes));
     }
@@ -880,7 +990,7 @@ class PosController extends Controller
     }
 
     // =========================================================================
-    // SECCIÓN 7: CORTES DE CAJA (CORTE X PARCIAL, RETIROS Y CORTE Z FINAL)
+    // SECCIÓN 6: CORTES DE CAJA (CORTE X PARCIAL, RETIROS Y CORTE Z FINAL)
     // =========================================================================
 
     /**

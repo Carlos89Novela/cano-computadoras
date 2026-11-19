@@ -7,6 +7,7 @@
     <title>Comandero Digital | {{ $empresa->nombre ?? 'La Fogata Bistro' }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
+    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
 
     <style>
@@ -14,29 +15,72 @@
         .touch-action-manipulation { touch-action: manipulation; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .kds-toast-container {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 380px;
+            width: calc(100% - 32px);
+            pointer-events: none;
+        }
+
+        .kds-toast-card {
+            pointer-events: auto;
+            background: rgba(15, 23, 42, 0.96);
+            border: 1px solid rgba(52, 211, 153, 0.65);
+            color: #f1f5f9;
+            padding: 12px 16px;
+            border-radius: 16px;
+            box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            opacity: 1;
+            filter: blur(0px);
+            transform: translateY(0) scale(1);
+            transition: opacity 1.5s ease-in-out, filter 1.5s ease-in-out, transform 1.5s ease-in-out;
+        }
+
+        .kds-toast-card.is-fading {
+            opacity: 0;
+            filter: blur(10px);
+            transform: translateY(-14px) scale(0.96);
+            pointer-events: none;
+        }
     </style>
 </head>
-<body class="bg-[#0b0f19] text-slate-100 min-h-screen font-sans select-none touch-action-manipulation">
+<body class="bg-[#0b0f19] text-slate-100 h-screen overflow-hidden font-sans select-none touch-action-manipulation"
+      x-data="comanderoApp">
 
-    <div x-data='comanderoApp({
-            sucursalId: {{ $sucursal?->id ?? 1 }},
-            routes: {
-                catalogo: "{{ route("restaurante.comandero.catalogo") }}",
-                enviar: "{{ route("restaurante.comandero.enviar") }}",
-                pedirCuenta: "{{ route("restaurante.comandero.pedir-cuenta-mesa") }}",
-                csrf: "{{ csrf_token() }}"
-            },
-            extrasDisponibles: @json($extrasDisponibles ?? []),
-            promocionesVigentes: @json($promocionesVigentes ?? [])
-         })'
-         class="h-screen flex flex-col p-3 lg:p-4">
+    {{-- NOTIFICACIONES FLOTANTES KDS (FUERA DE CONTENEDORES CON OVERFLOW-HIDDEN) --}}
+    <div class="kds-toast-container">
+        <template x-for="notif in notificacionesKds" :key="notif.id">
+            <div class="kds-toast-card" :class="notif.fading ? 'is-fading' : ''">
+                <div class="p-2 bg-emerald-500/15 text-emerald-300 rounded-xl border border-emerald-500/30 text-lg shrink-0">🔔</div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2">
+                        <h4 class="text-xs font-bold text-emerald-300 uppercase tracking-wider truncate" x-text="notif.titulo"></h4>
+                        <span class="text-[10px] font-mono text-slate-400 shrink-0" x-text="notif.hora"></span>
+                    </div>
+                    <p class="text-xs text-slate-200 mt-0.5 leading-snug break-words" x-text="notif.mensaje"></p>
+                </div>
+            </div>
+        </template>
+    </div>
 
-        {{-- ENCABEZADO SUPERIOR --}}
+    <div class="h-screen flex flex-col p-3 lg:p-4 overflow-hidden relative">
+
+        {{-- ENCABEZADO --}}
         <header class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800/80 shrink-0">
             <div class="flex items-center gap-3">
-                <div class="p-2.5 bg-indigo-600/10 text-indigo-400 rounded-xl border border-indigo-500/20 text-xl flex items-center justify-center">
-                    📱
-                </div>
+                <div class="p-2.5 bg-indigo-600/10 text-indigo-400 rounded-xl border border-indigo-500/20 text-xl flex items-center justify-center">📱</div>
                 <div>
                     <h1 class="text-base font-bold text-white flex items-center gap-2">
                         Comandero Digital
@@ -47,171 +91,131 @@
             </div>
 
             <div class="flex items-center gap-2">
-                <button type="button" @click="modalMesa = true"
-                        class="px-4 py-2 bg-slate-800/50 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-2 cursor-pointer shadow-sm">
+                <button type="button" @click="modalMesa = true" class="px-4 py-2 bg-slate-800/50 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-2">
                     <span>🪑</span> Cambiar Mesa
                 </button>
-                <a href="{{ route('restaurante.mesas.plano') }}" class="px-4 py-2 bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-semibold border border-slate-800 transition flex items-center gap-2">
-                    <span>🗺️</span> Plano
-                </a>
-                <a href="{{ route('dashboard') }}" class="px-4 py-2 bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-semibold border border-slate-800 transition">
-                    Salir
-                </a>
+                <a href="{{ route('restaurante.mesas.plano') }}" class="px-4 py-2 bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-semibold border border-slate-800 transition"><span>🗺️</span> Plano</a>
+                <a href="{{ route('dashboard') }}" class="px-4 py-2 bg-slate-900/80 hover:bg-slate-800 text-slate-400 rounded-xl text-xs font-semibold border border-slate-800 transition">Salir</a>
             </div>
         </header>
 
-        {{-- ÁREA PRINCIPAL (CATÁLOGO Y ORDEN) --}}
-        <main class="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 overflow-hidden">
+        {{-- CONTENEDOR 2 COLUMNAS --}}
+        <main class="flex-1 grid gap-4 min-h-0 overflow-hidden pb-1" style="grid-template-columns: 1fr 370px;">
 
-            {{-- PANEL IZQUIERDO (Categorías y Platillos) --}}
-            <div class="md:col-span-8 lg:col-span-8 xl:col-span-9 flex flex-col h-full overflow-hidden space-y-4">
-
-                {{-- Navegación de Categorías Horizontal --}}
+            {{-- MENÚ IZQUIERDO --}}
+            <div class="flex flex-col min-h-0 h-full overflow-hidden space-y-3">
                 <div class="flex gap-2 overflow-x-auto pb-1 shrink-0 items-center hide-scrollbar border-b border-slate-800/50">
-                    <button type="button" @click="seleccionarCategoria(0)"
-                            :class="categoriaSeleccionada === 0 ? 'border-b-2 border-indigo-500 text-white font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'"
-                            class="px-4 py-2.5 text-xs whitespace-nowrap transition cursor-pointer font-semibold rounded-t-lg">
-                        Todos
-                    </button>
-
+                    <button type="button" @click="seleccionarCategoria(0)" :class="categoriaSeleccionada === 0 ? 'border-b-2 border-indigo-500 text-white font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'" class="px-4 py-2.5 text-xs whitespace-nowrap transition cursor-pointer font-semibold rounded-t-lg">Todos</button>
                     @foreach ($categorias as $cat)
-                        <button type="button" @click="seleccionarCategoria({{ $cat->id }})"
-                                :class="categoriaSeleccionada === {{ $cat->id }} ? 'border-b-2 border-indigo-500 text-white font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'"
-                                class="px-4 py-2.5 text-xs whitespace-nowrap transition cursor-pointer font-semibold rounded-t-lg">
-                            {{ $cat->nombre }}
-                        </button>
+                        <button type="button" @click="seleccionarCategoria({{ $cat->id }})" :class="categoriaSeleccionada === {{ $cat->id }} ? 'border-b-2 border-indigo-500 text-white font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'" class="px-4 py-2.5 text-xs whitespace-nowrap transition cursor-pointer font-semibold rounded-t-lg">{{ $cat->nombre }}</button>
                     @endforeach
-
-                    {{-- Pestaña Fija de Extras Sueltos --}}
-                    <button type="button" @click="seleccionarCategoria('extras')"
-                            :class="categoriaSeleccionada === 'extras' ? 'border-b-2 border-amber-500 text-white font-bold' : 'text-amber-500/70 hover:text-amber-400 hover:bg-amber-900/20'"
-                            class="px-4 py-2.5 text-xs whitespace-nowrap transition cursor-pointer font-semibold flex items-center gap-1.5 rounded-t-lg ml-auto">
-                        <span>🍟</span> Extras
-                    </button>
-
-                    {{-- Pestaña Fija de Promociones --}}
-                    <button type="button" @click="seleccionarCategoria('promociones')"
-                            :class="categoriaSeleccionada === 'promociones' ? 'border-b-2 border-purple-500 text-white font-bold' : 'text-purple-400/70 hover:text-purple-400 hover:bg-purple-900/20'"
-                            class="px-4 py-2.5 text-xs whitespace-nowrap transition cursor-pointer font-semibold flex items-center gap-1.5 rounded-t-lg">
-                        <span>🎁</span> Promos
-                    </button>
+                    <button type="button" @click="seleccionarCategoria('extras')" class="px-3 py-1.5 text-xs whitespace-nowrap transition cursor-pointer font-semibold flex items-center gap-1.5 rounded-xl border bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30 ml-auto"><span>🍟</span> Extras</button>
+                    <button type="button" @click="seleccionarCategoria('promociones')" class="px-3 py-1.5 text-xs whitespace-nowrap transition cursor-pointer font-semibold flex items-center gap-1.5 rounded-xl border bg-purple-500/20 text-purple-300 border-purple-500/40 hover:bg-purple-500/30"><span>🎁</span> Promos</button>
                 </div>
 
-                {{-- 1. GRID PRINCIPAL (Platillos del Menú) --}}
-                {{-- Nota: Se agregó content-start items-start para que las tarjetas NO se estiren hacia abajo --}}
-                <div class="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pr-2 hide-scrollbar pb-4 content-start items-start"
-                     x-show="categoriaSeleccionada !== 'promociones' && categoriaSeleccionada !== 'extras'">
-
-                    <template x-if="productos.length === 0 && !cargando">
-                        <div class="col-span-full text-center py-20 text-slate-500 text-sm">
-                            <div class="text-4xl mb-3">🍽️</div>
-                            No hay platillos en esta categoría.
-                        </div>
-                    </template>
-
-                    <template x-if="cargando">
-                        <div class="col-span-full flex justify-center py-20">
-                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-                        </div>
-                    </template>
-
-                    <template x-for="p in productos" :key="p.id">
-                        <div @click="abrirModalExtras(p)"
-                             class="h-28 p-3 bg-[#111827] border border-slate-800/80 rounded-2xl cursor-pointer flex flex-col justify-between hover:border-indigo-500/50 hover:bg-slate-900 transition-all shadow-lg active:scale-95 group">
-
-                            <div>
-                                <div class="flex items-center justify-between mb-1.5">
-                                    <span class="text-[9px] uppercase font-bold px-2 py-0.5 rounded border"
-                                          :class="(p.estacion === 'bar' || p.estacion === 'barra') ? 'bg-cyan-950/40 text-cyan-400 border-cyan-500/20' : 'bg-amber-950/40 text-amber-400 border-amber-500/20'"
-                                          x-text="p.estacion"></span>
-                                    <span class="text-[10px] text-slate-500 font-mono group-hover:text-slate-400" x-text="`${p.tiempo_min}m`"></span>
+                {{-- GRID PRODUCTOS --}}
+                <div class="flex-1 overflow-y-auto pr-2 hide-scrollbar content-start" x-show="categoriaSeleccionada !== 'promociones' && categoriaSeleccionada !== 'extras'">
+                    <div class="grid gap-2.5" style="grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));">
+                        <template x-for="p in productos" :key="p.id">
+                            <div @click="abrirModalExtras(p)" class="h-28 p-3 bg-slate-800/80 border border-slate-700/60 rounded-xl cursor-pointer flex flex-col justify-between hover:bg-slate-700 hover:border-indigo-500/50 transition-all shadow-sm relative overflow-hidden group">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border" :class="(p.estacion === 'bar' || p.estacion === 'barra') ? 'bg-cyan-950/40 text-cyan-400 border-cyan-500/20' : 'bg-amber-950/40 text-amber-400 border-amber-500/20'" x-text="p.estacion || 'GENERAL'"></span>
+                                    </div>
+                                    <h3 class="text-xs font-bold text-slate-100 group-hover:text-white line-clamp-2 leading-snug" x-text="p.nombre"></h3>
                                 </div>
-                                {{-- Forzamos a máximo 2 líneas de texto para que no estire la tarjeta --}}
-                                <h3 class="text-[13px] font-bold text-white leading-snug line-clamp-2" title="" x-text="p.nombre"></h3>
-                            </div>
-
-                            <div class="pt-2 border-t border-slate-800/50 flex items-center justify-between text-xs mt-auto">
-                                <span class="font-mono font-bold text-emerald-400 text-sm" x-text="'$' + Number(p.precio).toFixed(2)"></span>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                {{-- 2. GRID DE EXTRAS SUELTOS (Pestaña "Extras") --}}
-                <div class="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pr-2 hide-scrollbar pb-4 content-start items-start"
-                     x-show="categoriaSeleccionada === 'extras'" x-cloak>
-                    <template x-for="ext in extrasDisponibles" :key="'extra-'+ext.id">
-                        <div @click="agregarExtraSuelto(ext)"
-                             class="h-28 p-3 bg-gradient-to-b from-[#111827] to-[#1a1f33] border border-amber-500/30 rounded-2xl cursor-pointer flex flex-col justify-between hover:border-amber-400 hover:bg-slate-900 transition-all shadow-lg active:scale-95">
-                            <div>
-                                <div class="flex items-center justify-between mb-1.5">
-                                    <span class="text-[9px] uppercase font-bold px-2 py-0.5 rounded border bg-amber-950/40 text-amber-400 border-amber-500/20">Modificador</span>
+                                <div class="flex items-center justify-between mt-auto">
+                                    <span class="text-xs font-extrabold text-emerald-400 font-mono" x-text="'$' + Number(p.precio).toFixed(2)"></span>
                                 </div>
-                                <h3 class="text-[13px] font-bold text-white leading-snug line-clamp-2" x-text="ext.nombre"></h3>
                             </div>
-                            <div class="pt-2 border-t border-slate-800/50 flex items-center justify-between text-xs mt-auto">
-                                <span class="font-mono font-bold text-emerald-400 text-sm" x-text="'$' + Number(ext.precio_extra || ext.precio_base || 0).toFixed(2)"></span>
-                                <span class="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold text-xs">+</span>
-                            </div>
-                        </div>
-                    </template>
-                    <template x-if="extrasDisponibles.length === 0">
-                        <div class="col-span-full text-center py-20 text-slate-500 text-sm">
-                            <div class="text-4xl mb-3">🍟</div>
-                            No hay extras configurados en el sistema.
-                        </div>
-                    </template>
+                        </template>
+                    </div>
                 </div>
 
-                {{-- 3. GRID DE PROMOCIONES Y COMBOS (Pestaña "Promos") --}}
-                <div class="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pr-2 pb-4 hide-scrollbar content-start items-start"
-                     x-show="categoriaSeleccionada === 'promociones'" x-cloak>
-                    <template x-for="promo in promocionesVigentes" :key="promo.id">
-                        <div class="p-4 bg-gradient-to-br from-purple-900/30 to-[#111827] border border-purple-500/30 rounded-2xl flex flex-col justify-between shadow-xl">
-                            <div>
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-[9px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono tracking-wider"
-                                          x-text="promo.tipo.replace(/_/g, ' ')"></span>
+                {{-- GRID EXTRAS --}}
+                <div class="flex-1 overflow-y-auto pr-2 hide-scrollbar content-start" x-show="categoriaSeleccionada === 'extras'" x-cloak>
+                    <div class="grid gap-2.5" style="grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));">
+                        <template x-for="ext in extrasDisponibles" :key="'extra-'+ext.id">
+                            <div @click="agregarExtraSuelto(ext)" class="h-28 p-3 bg-[#1c1811] border border-amber-500/60 rounded-xl cursor-pointer flex flex-col justify-between hover:border-amber-400 hover:bg-[#262016] transition-all shadow-md relative overflow-hidden group">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border bg-amber-950/85 text-amber-300 border-amber-500/50">Modificador</span>
+                                    </div>
+                                    <h3 class="text-xs font-bold text-amber-200 group-hover:text-amber-100 line-clamp-2 leading-snug" x-text="ext.nombre"></h3>
                                 </div>
-                                <h3 class="text-[15px] font-black text-white leading-tight mb-1.5" x-text="promo.nombre"></h3>
-                                <p class="text-[11px] text-purple-300/70" x-text="promo.descripcion || 'Promoción especial para consumo en restaurante.'"></p>
+                                <div class="flex items-center justify-between mt-auto">
+                                    <span class="text-xs font-extrabold text-emerald-400 font-mono" x-text="'$' + Number(ext.precio_extra || ext.precio_base || 0).toFixed(2)"></span>
+                                </div>
                             </div>
-                            <button type="button" @click="aplicarPromocion(promo)"
-                                    class="w-full mt-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-purple-900/50 cursor-pointer flex items-center justify-center gap-2">
-                                <span>🎉</span> Aplicar a la Comanda
-                            </button>
-                        </div>
-                    </template>
-                    <template x-if="promocionesVigentes.length === 0">
-                        <div class="col-span-full text-center py-20 text-slate-500 text-sm">
-                            <div class="text-3xl mb-3">🎁</div>
-                            No hay promociones o combos activos en este horario.
-                        </div>
-                    </template>
+                        </template>
+                    </div>
                 </div>
 
+                {{-- GRID PROMOS --}}
+                <div class="flex-1 overflow-y-auto pr-2 hide-scrollbar content-start" x-show="categoriaSeleccionada === 'promociones'" x-cloak>
+                    <div class="grid gap-2.5" style="grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));">
+                        <template x-for="promo in promocionesVigentes" :key="'promo-'+promo.id">
+                            <div class="h-28 p-3 bg-[#19111f] border border-purple-500/60 rounded-xl cursor-pointer flex flex-col justify-between hover:border-purple-400 hover:bg-[#23172c] transition-all shadow-md relative overflow-hidden group">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border bg-purple-950/85 text-purple-300 border-purple-500/50">Promoción</span>
+                                    </div>
+                                    <h3 class="text-xs font-bold text-purple-200 group-hover:text-purple-100 line-clamp-2 leading-snug" x-text="promo.nombre"></h3>
+                                </div>
+                                <div class="flex items-center justify-between mt-auto">
+                                    <span class="text-xs font-extrabold text-emerald-400 font-mono" x-text="'$' + Number(promo.precio || 0).toFixed(2)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
             </div>
 
-            {{-- PANEL DERECHO (Orden de Mesa) --}}
-            <div class="md:col-span-4 lg:col-span-4 xl:col-span-3 bg-[#111827] border border-slate-800 rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl relative">
-
-                <div class="flex items-center justify-between p-4 pb-3 border-b border-slate-800/80 bg-slate-900/50">
-                    <h2 class="text-xs font-bold uppercase text-white tracking-wider flex items-center gap-2">
-                        <span>📋</span> ORDEN: <span class="text-indigo-400 font-mono ml-1" x-text="mesaActual"></span>
-                    </h2>
-                    <button type="button" @click="vaciarOrden()" class="text-[11px] text-rose-400 font-semibold hover:text-rose-300 transition cursor-pointer">Vaciar</button>
+            {{-- TICKET DERECHO --}}
+            <div class="bg-[#111827] border border-slate-800 rounded-2xl flex flex-col min-h-0 h-full overflow-hidden shadow-2xl relative">
+                <div class="flex items-center justify-between p-3.5 pb-2.5 border-b border-slate-800/80 bg-slate-900/50 shrink-0">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-wider flex items-center gap-2"><span>📋</span> ORDEN: <span class="text-indigo-400 font-mono ml-1" x-text="mesaActual"></span></h2>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="cargarConsumoMesa()" class="text-[10px] text-indigo-300 hover:text-indigo-200 transition" title="Actualizar consumo de la mesa">🔄</button>
+                        <button type="button" @click="vaciarOrden()" class="text-[11px] text-rose-400 hover:text-rose-300 transition">Vaciar</button>
+                    </div>
                 </div>
 
-                <div class="flex-1 overflow-y-auto space-y-2 p-3 hide-scrollbar">
-                    <template x-if="orden.length === 0">
-                        <div class="text-center h-full flex flex-col items-center justify-center text-slate-500 text-[11px] px-4">
-                            <div class="text-4xl mb-4 opacity-50">🍽️</div>
-                            La comanda está vacía.<br>Selecciona platillos para agregarlos.
+                <div class="flex-1 overflow-y-auto space-y-3 p-3 hide-scrollbar">
+
+                    {{-- YA PEDIDO EN ESTA MESA (CONSUMO ACTIVO) --}}
+                    <template x-if="consumoMesa.length > 0">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between px-1">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400/90">🍽️ Ya pedido en <span x-text="mesaActual"></span></span>
+                                <span class="text-[10px] font-mono text-slate-400" x-text="consumoMesa.length + ' ítem(s)'"></span>
+                            </div>
+                            <template x-for="(cItem, cIdx) in consumoMesa" :key="'consumo-' + (cItem.id || cIdx)">
+                                <div class="p-2 bg-slate-900/75 border border-slate-800/90 rounded-xl flex items-center justify-between gap-2 text-xs">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="font-semibold text-slate-200 truncate">
+                                            <span class="font-mono text-indigo-400 mr-1" x-text="(cItem.cantidad || 1) + 'x'"></span>
+                                            <span x-text="cItem.nombre || cItem.producto?.nombre || 'Platillo'"></span>
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-0.5">
+                                            <span class="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-slate-400" x-text="cItem.estacion_cocina || cItem.estacion || 'cocina'"></span>
+                                            <span class="text-[9px] uppercase font-bold"
+                                                  :class="(cItem.estado === 'listo') ? 'text-emerald-400' : 'text-amber-400'"
+                                                  x-text="cItem.estado === 'listo' ? '✓ Listo' : '⏳ En preparación'"></span>
+                                        </div>
+                                    </div>
+                                    <span class="font-mono text-slate-300 text-[11px] shrink-0" x-text="'$' + Number(cItem.subtotal || ((cItem.precio || 0) * (cItem.cantidad || 1))).toFixed(2)"></span>
+                                </div>
+                            </template>
+                            <div class="border-t border-dashed border-slate-800 pt-2">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90 px-1">➕ Por enviar ahora</span>
+                            </div>
                         </div>
                     </template>
 
+                    {{-- ITEMS NUEVOS EN CARRITO --}}
                     <template x-for="(item, idx) in orden" :key="idx">
-                        <div class="p-3 bg-[#172033] border border-slate-800 rounded-xl space-y-2.5 relative">
+                        <div class="p-2.5 bg-[#172033] border border-slate-800 rounded-xl space-y-2">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="flex-1 min-w-0">
                                     <h4 class="font-bold text-white text-xs leading-tight" x-text="item.nombre"></h4>
@@ -219,80 +223,81 @@
                                         <div class="mt-1 space-y-0.5">
                                             <template x-for="ext in item.extras" :key="ext.id">
                                                 <div class="text-[9px] text-indigo-300 flex justify-between pr-2">
-                                                    <span x-text="`+ ${ext.nombre}`"></span>
-                                                    <span class="font-mono opacity-70" x-text="`+$${Number(ext.precio_extra || ext.precio_base || 0).toFixed(2)}`"></span>
+                                                    <span x-text="`+ ${ext.nombre}`"></span><span class="font-mono opacity-70" x-text="`+$${Number(ext.precio_extra || ext.precio_base || 0).toFixed(2)}`"></span>
                                                 </div>
                                             </template>
                                         </div>
                                     </template>
                                 </div>
-
                                 <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg shrink-0">
-                                    <button type="button" @click="decrementar(idx)" class="w-7 h-7 text-slate-300 hover:text-white font-bold flex items-center justify-center cursor-pointer transition">-</button>
-                                    <span class="w-6 text-center font-mono font-bold text-white text-[11px]" x-text="item.cantidad"></span>
-                                    <button type="button" @click="incrementar(idx)" class="w-7 h-7 text-slate-300 hover:text-white font-bold flex items-center justify-center cursor-pointer transition">+</button>
+                                    <button @click="decrementar(idx)" class="w-6 h-6 text-slate-300">-</button>
+                                    <span class="w-5 text-center font-mono font-bold text-white text-[11px]" x-text="item.cantidad"></span>
+                                    <button @click="incrementar(idx)" class="w-6 h-6 text-slate-300">+</button>
                                 </div>
                             </div>
-
-                            <div class="flex items-center justify-between pt-1.5 border-t border-slate-800/80">
-                                <div class="flex items-center gap-2 flex-1">
-                                    <span class="font-mono text-emerald-400 font-bold text-xs" x-text="'$' + calcularSubtotalItem(item).toFixed(2)"></span>
-                                    <input type="text" x-model="item.notas_especiales" placeholder="Notas a cocina..."
-                                           class="w-full bg-slate-900 border border-slate-800 rounded-md px-2 py-1 text-[10px] text-amber-400 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
-                                </div>
-                                <button type="button" @click="eliminar(idx)" class="w-6 h-6 ml-2 rounded text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center cursor-pointer transition">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
+                            <div class="flex items-center justify-between pt-1 border-t border-slate-800/80">
+                                <span class="font-mono text-emerald-400 font-bold text-xs" x-text="'$' + calcularSubtotalItem(item).toFixed(2)"></span>
+                                <button @click="eliminar(idx)" class="text-rose-500">&times;</button>
                             </div>
                         </div>
                     </template>
+
+                    <div x-show="orden.length === 0 && consumoMesa.length === 0" class="h-32 flex items-center justify-center text-xs text-slate-500 text-center px-4">
+                        Sin ítems en esta mesa. Selecciona platillos del menú para comenzar.
+                    </div>
                 </div>
 
-                {{-- Totales --}}
-                <div class="p-4 bg-slate-900/80 border-t border-slate-800 shrink-0">
-                    <div class="flex items-end justify-between mb-4">
-                        <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Comanda:</span>
-                        <span class="font-mono font-black text-emerald-400 text-xl" x-text="'$' + totalOrden.toFixed(2)"></span>
+                <div class="p-3.5 bg-slate-900/80 border-t border-slate-800 shrink-0">
+                    <div class="flex items-end justify-between mb-1">
+                        <span class="text-[11px] text-slate-400 font-semibold">Ya pedido:</span>
+                        <span class="font-mono font-bold text-slate-300 text-xs" x-text="'$' + totalConsumoMesa.toFixed(2)"></span>
                     </div>
-
-                    <div class="space-y-2">
-                        <button type="button" @click="pedirCuenta()"
-                                :disabled="orden.length > 0"
-                                :class="orden.length > 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:border-amber-500/40 cursor-pointer'"
-                                class="w-full py-2.5 bg-slate-800/80 text-amber-400 border border-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2">
-                            <span>🧾</span> Pedir Cuenta a Caja (Precuenta)
-                        </button>
-
-                        <button type="button"
-                                @click="enviarOrdenACocina()"
-                                :disabled="orden.length === 0 || enviando"
-                                class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl text-[13px] shadow-lg shadow-emerald-900/20 transition flex items-center justify-center gap-2 cursor-pointer">
-                            <span x-show="!enviando">🚀 Enviar a Cocina</span>
-                            <span x-show="enviando">Enviando a KDS...</span>
-                        </button>
+                    <div class="flex items-end justify-between mb-3">
+                        <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Comanda:</span>
+                        <span class="font-mono font-black text-emerald-400 text-lg" x-text="'$' + (totalOrden + totalConsumoMesa).toFixed(2)"></span>
+                    </div>
+                    <div class="space-y-1.5">
+                        <button @click="pedirCuenta()" class="w-full py-2 bg-slate-800/80 text-amber-400 border border-slate-700 font-bold text-xs rounded-xl">🧾 Pedir Cuenta</button>
+                        <button @click="enviarOrdenACocina()" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl text-xs">🚀 Enviar a Cocina</button>
                     </div>
                 </div>
             </div>
         </main>
 
-        {{-- MODAL DE EXTRAS --}}
+        {{-- MODAL EXTRAS --}}
         <div x-show="modalExtras" x-cloak class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div @click.away="modalExtras = false" x-transition.opacity
-                 class="bg-[#111827] border border-slate-700 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh]">
+            <div @click.away="modalExtras = false" class="bg-[#111827] border border-slate-700 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh]">
                 <div class="p-4 border-b border-slate-800 flex justify-between items-start">
                     <div>
-                        <span class="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" x-text="productoSeleccionado?.estacion"></span>
+                        <span class="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400" x-text="productoSeleccionado?.estacion"></span>
                         <h3 class="text-[15px] font-bold text-white mt-2 leading-tight pr-4" x-text="productoSeleccionado?.nombre"></h3>
-                        <p class="text-xs font-mono font-bold text-emerald-400 mt-1" x-text="productoSeleccionado ? '$' + Number(productoSeleccionado.precio).toFixed(2) : ''"></p>
                     </div>
-                    <button @click="modalExtras = false" class="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
+                    <button @click="modalExtras = false" class="text-slate-400 text-xl">&times;</button>
                 </div>
                 <div class="p-4 overflow-y-auto flex-1 hide-scrollbar">
-                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Agregar Extras / Modificadores:</h4>
+                    <template x-if="requiereLeche()">
+                        <div class="mb-5 p-3 bg-slate-900/80 border border-slate-700 rounded-xl">
+                            <label class="text-[11px] text-slate-400 font-bold block mb-2 uppercase tracking-wider">🥛 Elegir Leche (Base):</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" @click="lecheSeleccionada = null"
+                                        :class="lecheSeleccionada === null ? 'bg-indigo-600 text-white border-indigo-500 shadow-md' : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'"
+                                        class="py-2.5 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer">
+                                    Entera (Normal)
+                                </button>
+                                <template x-for="leche in lechesDisponibles" :key="leche.id">
+                                    <button type="button" @click="lecheSeleccionada = leche"
+                                            :class="lecheSeleccionada?.id === leche.id ? 'bg-indigo-600 text-white border-indigo-500 shadow-md' : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'"
+                                            class="py-2 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer flex flex-col items-center justify-center gap-1">
+                                        <span x-text="leche.nombre.replace('Leche de ', '').replace('Leche ', '')"></span>
+                                        <span class="opacity-75 text-[10px]" x-text="'+$' + Number(leche.precio_extra || leche.precio_base).toFixed(2)"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Agregar Modificadores:</h4>
                     <div class="space-y-2">
-                        <template x-for="ext in extrasDisponibles" :key="ext.id">
+                        <template x-for="ext in extrasFiltradosPorEstacion" :key="ext.id">
                             <label class="flex items-center justify-between p-3 bg-slate-900/80 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-800 transition">
                                 <div class="flex items-center gap-3">
                                     <input type="checkbox" :value="ext.id" @change="toggleExtra(ext)" class="w-4 h-4 rounded bg-slate-950 border-slate-700 text-indigo-600">
@@ -303,12 +308,12 @@
                         </template>
                     </div>
                     <div class="mt-5">
-                        <label class="text-[11px] text-slate-400 font-bold block mb-2 uppercase tracking-wider">Instrucciones a Cocina:</label>
-                        <input type="text" x-model="notaTemporal" placeholder="ej. Término medio..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-xs text-white shadow-inner">
+                        <label class="text-[11px] text-slate-400 font-bold block mb-2 uppercase tracking-wider">Instrucciones:</label>
+                        <input type="text" x-model="notaTemporal" placeholder="ej. Sin espuma..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-xs text-white">
                     </div>
                 </div>
                 <div class="p-4 border-t border-slate-800 bg-slate-900/50 rounded-b-2xl">
-                    <button type="button" @click="confirmarAgregarItem()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[13px] rounded-xl transition shadow-lg cursor-pointer">
+                    <button type="button" @click="confirmarAgregarItem()" class="w-full py-3 bg-indigo-600 text-white font-bold text-[13px] rounded-xl shadow-lg cursor-pointer">
                         Agregar a la Comanda
                     </button>
                 </div>
@@ -317,51 +322,239 @@
 
         {{-- MODAL MESAS --}}
         <div x-show="modalMesa" x-cloak class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div @click.away="modalMesa = false" class="bg-[#111827] border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4">
-                <h3 class="text-sm font-bold text-white uppercase tracking-wider">Seleccionar Mesa</h3>
+            <div @click.away="modalMesa = false" class="bg-[#111827] border border-slate-700 rounded-2xl max-w-md w-full p-5 flex flex-col gap-4 max-h-[85vh] overflow-y-auto hide-scrollbar">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                    <h3 class="text-xs font-bold uppercase text-white tracking-wider">Seleccionar Mesa</h3>
+                    <button @click="modalMesa = false" class="text-slate-400 text-lg">&times;</button>
+                </div>
                 <div class="grid grid-cols-3 gap-2.5">
-                    <template x-for="m in ['Mesa 1', 'Mesa 2', 'Mesa 3', 'Mesa 4', 'Mesa 5', 'Terraza 1', 'Terraza 2', 'Barra', 'Llevar']" :key="m">
-                        <button type="button" @click="mesaActual = m; modalMesa = false"
-                                :class="mesaActual === m ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'"
-                                class="py-3 rounded-xl text-xs font-semibold transition cursor-pointer border" x-text="m"></button>
-                    </template>
+                    @foreach($mesas as $mesa)
+                        @php
+                            $etiquetaMesa = $mesa->nombre ?? $mesa->identificador ?? ('Mesa ' . ($mesa->numero ?? $mesa->id));
+                        @endphp
+                        <button type="button" @click="seleccionarMesa('{{ $etiquetaMesa }}')" class="py-3 bg-slate-900 hover:bg-indigo-600/20 hover:border-indigo-500/50 text-slate-300 border-slate-800 rounded-xl text-xs font-semibold border transition" x-text="'{{ $etiquetaMesa }}'"></button>
+                    @endforeach
+                    <button type="button" @click="seleccionarMesa('Llevar')" class="py-3 bg-slate-900 hover:bg-indigo-600/20 hover:border-indigo-500/50 text-slate-300 border-slate-800 rounded-xl text-xs font-semibold border transition">Llevar</button>
+                    <button type="button" @click="seleccionarMesa('Barra')" class="py-3 bg-slate-900 hover:bg-indigo-600/20 hover:border-indigo-500/50 text-slate-300 border-slate-800 rounded-xl text-xs font-semibold border transition">Barra</button>
                 </div>
             </div>
         </div>
 
     </div>
 
-    {{-- LÓGICA ALPINE --}}
+    {{-- SCRIPT ALPINE.JS GLOBAL --}}
     <script>
         document.addEventListener('alpine:init', () => {
-            Alpine.data('comanderoApp', (config) => ({
-                sucursalId: config.sucursalId,
-                routes: config.routes,
-                extrasDisponibles: config.extrasDisponibles || [],
-                promocionesVigentes: config.promocionesVigentes || [],
+            Alpine.data('comanderoApp', () => ({
+                sucursalId: {{ $sucursal?->id ?? 1 }},
+                routes: {
+                    catalogo: '{{ route('restaurante.comandero.catalogo') }}',
+                    enviar: '{{ route('restaurante.comandero.enviar') }}',
+                    pedirCuenta: '{{ route('restaurante.comandero.pedir-cuenta-mesa') }}',
+                    csrf: '{{ csrf_token() }}'
+                },
+                extrasDisponibles: @json($extrasDisponibles ?? []),
+                promocionesVigentes: @json($promocionesVigentes ?? []),
                 productos: [],
                 orden: [],
+                consumoMesa: [],
                 categoriaSeleccionada: 0,
                 mesaActual: 'Mesa 1',
                 modalMesa: false,
                 modalExtras: false,
                 productoSeleccionado: null,
                 extrasSeleccionados: [],
+                lecheSeleccionada: null,
                 notaTemporal: '',
                 enviando: false,
                 cargando: false,
+                notificacionesKds: [],
+                alertasVistas: new Set(),
+                audioCtx: null,
 
                 get totalOrden() {
                     return this.orden.reduce((sum, item) => sum + this.calcularSubtotalItem(item), 0);
                 },
 
+                get totalConsumoMesa() {
+                    return this.consumoMesa.reduce((sum, item) => {
+                        const sub = item.subtotal ?? ((Number(item.precio || 0)) * Number(item.cantidad || 1));
+                        return sum + Number(sub || 0);
+                    }, 0);
+                },
+
+                get lechesDisponibles() {
+                    return this.extrasDisponibles.filter(ext => {
+                        const nombre = (ext.nombre || '').toLowerCase();
+                        const sku = (ext.sku || '').toLowerCase();
+                        return nombre.includes('leche') || sku.includes('lech');
+                    });
+                },
+
+                requiereLeche() {
+                    if (!this.productoSeleccionado) return false;
+                    const n = (this.productoSeleccionado.nombre || '').toLowerCase();
+                    const e = (this.productoSeleccionado.estacion || '').toLowerCase();
+                    return e.includes('bar') || n.includes('cap') || n.includes('latte') || n.includes('moka') || n.includes('té') || n.includes('te ') || n.includes('chai') || n.includes('avena') || n.includes('crema');
+                },
+
+                get extrasFiltradosPorEstacion() {
+                    if (!this.productoSeleccionado) return [];
+                    const est = (this.productoSeleccionado.estacion || '').toLowerCase();
+                    const esBebida = est.includes('bar') || est.includes('bebida');
+
+                    return this.extrasDisponibles.filter(ext => {
+                        const nombreExtra = (ext.nombre || '').toLowerCase();
+                        const skuExtra = (ext.sku || '').toLowerCase();
+                        if (nombreExtra.includes('leche') || skuExtra.includes('lech')) return false;
+
+                        const esSab = nombreExtra.includes('sabor') || nombreExtra.includes('jarabe');
+                        const esEsp = nombreExtra.includes('espresso');
+                        const esLic = nombreExtra.includes('tequila') || nombreExtra.includes('mezcal') || nombreExtra.includes('licor');
+                        const esExtraBarra = esSab || esEsp || esLic;
+
+                        if (esBebida) {
+                            return this.requiereLeche() ? (esSab || esEsp) : esLic;
+                        } else {
+                            return !esExtraBarra;
+                        }
+                    });
+                },
+
                 async init() {
-                    await this.cargarProductos();
+                    window.addEventListener('pointerdown', () => this.desbloquearAudio(), { once: true });
+                    this.categoriaSeleccionada = 0;
+                    await Promise.all([
+                        this.cargarProductos(),
+                        this.cargarConsumoMesa()
+                    ]);
+                    this.iniciarEscuchaAlertasKds();
+                },
+
+                desbloquearAudio() {
+                    try {
+                        if (!this.audioCtx) {
+                            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                            if (AudioContextClass) {
+                                this.audioCtx = new AudioContextClass();
+                            }
+                        }
+                        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                            this.audioCtx.resume();
+                        }
+                    } catch (e) {
+                        console.log('No se pudo inicializar AudioContext:', e);
+                    }
+                },
+
+                async seleccionarMesa(nombreMesa) {
+                    this.mesaActual = nombreMesa;
+                    this.modalMesa = false;
+                    await this.cargarConsumoMesa();
+                },
+
+                async cargarConsumoMesa() {
+                    try {
+                        const params = new URLSearchParams({
+                            mesa: this.mesaActual,
+                            sucursal_id: this.sucursalId
+                        });
+                        const res = await fetch(`/restaurante/comandero/consumo-mesa?${params.toString()}`, {
+                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (Array.isArray(data)) {
+                                this.consumoMesa = data;
+                            } else if (Array.isArray(data.items)) {
+                                this.consumoMesa = data.items;
+                            } else if (Array.isArray(data.comanda?.items)) {
+                                this.consumoMesa = data.comanda.items;
+                            } else {
+                                this.consumoMesa = [];
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error al cargar consumo de la mesa:', e);
+                    }
+                },
+
+                reproducirTimbre() {
+                    try {
+                        this.desbloquearAudio();
+                        if (!this.audioCtx || this.audioCtx.state !== 'running') return;
+
+                        const now = this.audioCtx.currentTime;
+                        const osc = this.audioCtx.createOscillator();
+                        const gain = this.audioCtx.createGain();
+
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(880, now);
+                        gain.gain.setValueAtTime(0.18, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+
+                        osc.connect(gain);
+                        gain.connect(this.audioCtx.destination);
+
+                        osc.start(now);
+                        osc.stop(now + 0.8);
+                    } catch (e) {
+                        console.log('Error al reproducir timbre:', e);
+                    }
+                },
+
+                agregarNotificacionKds(alerta) {
+                    const idUnico = `${alerta.tipo || 'kds'}_${alerta.id ?? Math.random()}_${alerta.timestamp ?? Date.now()}`;
+                    if (this.alertasVistas.has(idUnico)) return;
+                    this.alertasVistas.add(idUnico);
+
+                    this.reproducirTimbre();
+
+                    const estacion = (alerta.estacion || alerta.estacion_cocina || 'cocina').toString().toUpperCase();
+                    const mesa = alerta.mesa || alerta.mesa_o_referencia || 'Mesa';
+                    const platillo = alerta.platillo || alerta.item_nombre || alerta.nombre || 'Orden despachada';
+
+                    const notifId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                    const nuevaNotif = {
+                        id: notifId,
+                        titulo: `¡Despacho en ${estacion}!`,
+                        mensaje: `${mesa} — ${platillo}`,
+                        hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                        fading: false
+                    };
+
+                    this.notificacionesKds = [...this.notificacionesKds, nuevaNotif];
+
+                    setTimeout(() => {
+                        this.notificacionesKds = this.notificacionesKds.map(n =>
+                            n.id === notifId ? { ...n, fading: true } : n
+                        );
+                    }, 7500);
+
+                    setTimeout(() => {
+                        this.notificacionesKds = this.notificacionesKds.filter(n => n.id !== notifId);
+                    }, 9100);
+                },
+
+                iniciarEscuchaAlertasKds() {
+                    setInterval(async () => {
+                        try {
+                            const res = await fetch(`/restaurante/comandero/alertas-listas?sucursal_id=${this.sucursalId}`, {
+                                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                const alertas = Array.isArray(data) ? data : (data.alertas || []);
+                                alertas.forEach(alerta => this.agregarNotificacionKds(alerta));
+                            }
+                        } catch (e) {
+                            console.error('Error en alertas KDS', e);
+                        }
+                    }, 2500);
                 },
 
                 async seleccionarCategoria(catId) {
                     this.categoriaSeleccionada = catId;
-                    // Solo recarga productos vía AJAX si NO es la pestaña Promociones ni Extras
                     if (catId !== 'promociones' && catId !== 'extras') {
                         await this.cargarProductos();
                     }
@@ -375,10 +568,11 @@
                             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                         });
                         if (res.ok) {
-                            this.productos = await res.json();
+                            const data = await res.json();
+                            this.productos = Array.isArray(data) ? data : [];
                         }
                     } catch (e) {
-                        console.error('Error AJAX:', e);
+                        console.error('Error al cargar catálogo:', e);
                     } finally {
                         this.cargando = false;
                     }
@@ -387,60 +581,37 @@
                 abrirModalExtras(producto) {
                     this.productoSeleccionado = JSON.parse(JSON.stringify(producto));
                     this.extrasSeleccionados = [];
+                    this.lecheSeleccionada = null;
                     this.notaTemporal = '';
-                    document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
                     this.modalExtras = true;
                 },
 
                 toggleExtra(ext) {
                     const idx = this.extrasSeleccionados.findIndex(e => e.id === ext.id);
-                    if (idx > -1) {
-                        this.extrasSeleccionados.splice(idx, 1);
-                    } else {
-                        this.extrasSeleccionados.push(JSON.parse(JSON.stringify(ext)));
-                    }
+                    if (idx > -1) this.extrasSeleccionados.splice(idx, 1);
+                    else this.extrasSeleccionados.push(JSON.parse(JSON.stringify(ext)));
                 },
 
                 confirmarAgregarItem() {
                     if (!this.productoSeleccionado) return;
+                    let extrasFinales = [...this.extrasSeleccionados];
+                    if (this.lecheSeleccionada) {
+                        extrasFinales.unshift(JSON.parse(JSON.stringify(this.lecheSeleccionada)));
+                    }
+
                     this.orden.push({
                         producto_id: this.productoSeleccionado.id,
                         nombre: this.productoSeleccionado.nombre,
                         precio: Number(this.productoSeleccionado.precio),
                         cantidad: 1,
-                        extras: [...this.extrasSeleccionados],
+                        extras: extrasFinales,
                         notas_especiales: this.notaTemporal.trim()
                     });
                     this.modalExtras = false;
                 },
 
-                // Nueva función para agregar un extra como un platillo independiente
                 agregarExtraSuelto(ext) {
-                    this.orden.push({
-                        producto_id: ext.id,
-                        nombre: `[Extra] ${ext.nombre}`,
-                        precio: Number(ext.precio_extra || ext.precio_base || 0),
-                        cantidad: 1,
-                        extras: [],
-                        notas_especiales: ''
-                    });
-                },
-
-                aplicarPromocion(promo) {
-                    if (promo.items && promo.items.length > 0) {
-                        promo.items.forEach(pi => {
-                            if (pi.producto) {
-                                this.orden.push({
-                                    producto_id: pi.producto.id,
-                                    nombre: `[PROMO] ${pi.producto.nombre}`,
-                                    precio: Number(pi.producto.precio_base || 0),
-                                    cantidad: Number(pi.cantidad || 1),
-                                    extras: [],
-                                    notas_especiales: `Promo/Combo: ${promo.nombre}`
-                                });
-                            }
-                        });
-                    }
+                    this.orden.push({ producto_id: ext.id, nombre: `[Extra] ${ext.nombre}`, precio: Number(ext.precio_extra || ext.precio_base || 0), cantidad: 1, extras: [], notas_especiales: '' });
                 },
 
                 calcularSubtotalItem(item) {
@@ -452,24 +623,19 @@
                 incrementar(idx) { this.orden[idx].cantidad += 1; },
                 decrementar(idx) { if (this.orden[idx].cantidad > 1) this.orden[idx].cantidad -= 1; },
                 eliminar(idx) { this.orden.splice(idx, 1); },
-                vaciarOrden() { if (confirm('¿Vaciar orden completa?')) this.orden = []; },
+                vaciarOrden() { if (confirm('¿Vaciar orden?')) this.orden = []; },
 
                 async pedirCuenta() {
-                    if (this.orden.length > 0) {
-                        alert('Aún tienes platillos sin enviar a cocina.');
-                        return;
-                    }
-                    if (!confirm(`¿Pedir PRECUENTA para ${this.mesaActual}?`)) return;
+                    if (!confirm(`¿Solicitar cuenta para ${this.mesaActual}?`)) return;
                     try {
                         const res = await fetch(this.routes.pedirCuenta, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.routes.csrf, 'Accept': 'application/json' },
-                            body: JSON.stringify({ mesa: this.mesaActual })
+                            body: JSON.stringify({ mesa: this.mesaActual, sucursal_id: this.sucursalId })
                         });
-                        const data = await res.json();
-                        alert((res.ok ? '✓ ' : 'Error: ') + data.message);
+                        if (res.ok) alert('Cuenta solicitada a caja exitosamente.');
                     } catch (e) {
-                        alert('Error de conexión.');
+                        console.error('Error al pedir cuenta', e);
                     }
                 },
 
@@ -486,18 +652,14 @@
                         })
                     };
                     try {
-                        const res = await fetch(this.routes.enviar, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.routes.csrf, 'Accept': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        if (res.ok) this.orden = [];
-                        else alert((await res.json()).message || 'Error en servidor.');
-                    } catch (e) {
-                        alert('Sin conexión.');
-                    } finally {
-                        this.enviando = false;
-                    }
+                        const res = await fetch(this.routes.enviar, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.routes.csrf, 'Accept': 'application/json' }, body: JSON.stringify(payload) });
+                        if (res.ok) {
+                            this.orden = [];
+                            await this.cargarConsumoMesa();
+                        } else {
+                            alert('Error en servidor.');
+                        }
+                    } finally { this.enviando = false; }
                 }
             }));
         });

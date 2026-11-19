@@ -290,6 +290,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/restaurante/comandas-abiertas', [PosController::class, 'comandasAbiertasRestaurante'])->name('restaurante.comandas-abiertas');
         Route::get('/restaurante/mesa/{mesa}/imprimir-precuenta', [PosController::class, 'imprimirPrecuentaMesa'])->name('restaurante.mesa.precuenta');
         Route::get('/restaurante/comanda/{comanda}/imprimir-precuenta', [PosController::class, 'imprimirPrecuentaComanda'])->name('restaurante.comanda.precuenta');
+        Route::get('/restaurante/alertas-precuenta', [PosController::class, 'alertasPrecuenta'])->name('restaurante.alertas-precuenta');
 
         // Corte de Caja X/Z
         Route::get('/caja/{turno}/resumen-parcial', [PosController::class, 'resumenCorteParcial'])->name('caja.resumen-parcial');
@@ -329,6 +330,7 @@ Route::middleware(['auth', 'verified'])->prefix('restaurante')->group(function (
         Route::get('/', [ComanderoController::class, 'index'])->name('index');
         Route::get('/catalogo', [ComanderoController::class, 'catalogo'])->name('catalogo');
         Route::post('/enviar', [ComanderoController::class, 'enviarComanda'])->name('enviar');
+        Route::get('/consumo-mesa', [ComanderoController::class, 'consumoMesa'])->name('consumo-mesa');
         Route::get('/alertas-listas', [ComanderoController::class, 'alertasListas'])->name('alertas-listas');
         Route::post('/pedir-cuenta-mesa', [ComanderoController::class, 'pedirCuentaMesa'])->name('pedir-cuenta-mesa');
         Route::get('/estado-mesas', [ComanderoController::class, 'estadoMesas'])->name('estado-mesas');

@@ -16,10 +16,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View as ViewFacade;
 
+/**
+ * Controlador principal del Kitchen Display System (KDS / Monitor de Cocina).
+ */
 class KdsController extends Controller
 {
     // =========================================================
-    // MÉTODOS PRIVADOS DE VALIDACIÓN Y PERMISOS
+    // SECCIÓN 1: MÉTODOS PRIVADOS DE VALIDACIÓN Y PERMISOS
     // =========================================================
 
     /**
@@ -28,7 +31,7 @@ class KdsController extends Controller
      */
     private function puedeVerTodasLasEstaciones(User $user): bool
     {
-        // Verificación directa optimizada para PHPStan
+        // Verificación directa optimizada para PHPStan y roles
         if ($user->hasAnyRole(['administrador', 'gerente', 'subgerente', 'supervisor', 'propietario'])) {
             return true;
         }
@@ -62,24 +65,40 @@ class KdsController extends Controller
     }
 
     // =========================================================
-    // VISTA PRINCIPAL DEL MONITOR KDS
+    // SECCIÓN 2: VISTA PRINCIPAL DEL MONITOR KDS
     // =========================================================
 
     /**
-     * Renderiza la vista principal del Kitchen Display System en pantalla completa.
+     * Renderiza la vista principal del Kitchen Display System en pantalla completa,
+     * filtrando estrictamente la sucursal y empresa del giro restaurantero.
      */
     public function index(Request $request): View
     {
         /** @var User $user */
         $user = $request->user();
 
-        /** @var Empresa $empresa */
-        $empresa = $user->empresa ?? Empresa::query()->firstOrFail();
+        // 1. Resolver la Empresa enfocada estrictamente a Alimentos/Restaurantes
+        $empresa = Empresa::query()
+            ->where('giro_comercial', 'restaurantes_alimentos')
+            ->orWhere('nombre', 'like', '%Bistro%')
+            ->orWhere('nombre', 'like', '%Restaurante%')
+            ->first()
+            ?? $user->empresa
+            ?? Empresa::query()->firstOrFail();
 
-        /** @var Sucursal|null $sucursal */
-        $sucursal = $user->sucursal
-            ?? $user->sucursales()->where('sucursales.activo', true)->first()
-            ?? Sucursal::query()->where('empresa_id', $empresa->id)->first();
+        // 2. Resolver la Sucursal activa correspondiente al restaurante
+        $sucursal = $user->sucursales()
+            ->with('empresa')
+            ->whereHas('empresa', function ($q) {
+                $q->where('giro_comercial', 'restaurantes_alimentos')
+                  ->orWhere('nombre', 'like', '%Bistro%')
+                  ->orWhere('nombre', 'like', '%Restaurante%');
+            })
+            ->where('sucursales.activo', true)
+            ->first()
+            ?? Sucursal::query()->where('empresa_id', $empresa->id)->where('activo', true)->first()
+            ?? Sucursal::query()->where('codigo', 'REST-01')->first()
+            ?? Sucursal::query()->first();
 
         $puedeVerTodas = $this->puedeVerTodasLasEstaciones($user);
         $estacionUrl = mb_strtolower($request->string('estacion')->trim()->toString());
@@ -102,7 +121,7 @@ class KdsController extends Controller
     }
 
     // =========================================================
-    // ENDPOINTS REACTIVOS (API JSON)
+    // SECCIÓN 3: ENDPOINTS REACTIVOS (API JSON)
     // =========================================================
 
     /**
@@ -118,8 +137,14 @@ class KdsController extends Controller
         $puedeVerTodas = $this->puedeVerTodasLasEstaciones($user);
         $estacionesFiltro = $this->resolverFiltroEstaciones($estacion, $puedeVerTodas);
 
+        // Resolver empresa de alimentos por defecto si el usuario no la trae asignada directamente
+        $empresaRestaurante = Empresa::query()
+            ->where('giro_comercial', 'restaurantes_alimentos')
+            ->first();
+        $empresaIdFiltro = $user->empresa_id ?? $empresaRestaurante?->id ?? 1;
+
         $query = Comanda::query()
-            ->where('empresa_id', $user->empresa_id ?? 1)
+            ->where('empresa_id', $empresaIdFiltro)
             ->when($sucursalId > 0, fn ($q) => $q->where('sucursal_id', $sucursalId))
             ->whereIn('estado', ['pendiente', 'en_preparacion'])
             ->with([
@@ -146,7 +171,7 @@ class KdsController extends Controller
     }
 
     /**
-     * Avanza el estado de un ítem individual o de toda la comanda.
+     * Avanza el estado de un ítem individual y notifica cambios por estación.
      */
     public function cambiarEstadoItem(Request $request, ComandaItem $item): JsonResponse
     {
@@ -172,6 +197,12 @@ class KdsController extends Controller
 
         return response()->json([
             'message' => 'Estado actualizado.',
+            'comanda_id' => $comanda->id,
+            'folio' => $comanda->folio,
+            'mesa' => $comanda->mesa_o_referencia,
+            'estacion' => $item->estacion_cocina,
+            'item_nombre' => $item->producto?->nombre ?? 'Platillo',
+            'estado_item' => $nuevoEstado,
             'comanda_completada' => $itemsPendientes === 0,
         ]);
     }
@@ -191,6 +222,9 @@ class KdsController extends Controller
         if ($estacionesFiltro !== null) {
             $itemsQuery->whereIn('estacion_cocina', $estacionesFiltro);
         }
+
+        // Obtenemos los ítems que van a cambiar a listo para la respuesta
+        $itemsAfectados = $itemsQuery->get();
         $itemsQuery->update(['estado' => 'listo']);
 
         $itemsPendientesTotales = $comanda->items()->where('estado', '!=', 'listo')->count();
@@ -206,7 +240,34 @@ class KdsController extends Controller
 
         return response()->json([
             'message' => 'Orden despachada en estación.',
+            'comanda_id' => $comanda->id,
+            'folio' => $comanda->folio,
+            'mesa' => $comanda->mesa_o_referencia,
+            'estacion' => $estacion !== '' ? $estacion : 'cocina',
             'comanda_completada' => $itemsPendientesTotales === 0,
         ]);
+    }
+
+    // Ejemplo en tu controlador del KDS / Comandero
+    public function alertasListas(Request $request): JsonResponse
+    {
+        // Supongamos que buscas los ítems marcados como listos recientemente
+        $itemsListos = ComandaItem::with('comanda', 'producto')
+            ->where('estado', 'listo')
+            ->where('updated_at', '>=', now()->subSeconds(10))
+            ->get();
+
+        $alertas = $itemsListos->map(function ($item) {
+            return [
+                'tipo' => 'despacho',
+                'id' => $item->id,
+                'estacion' => $item->estacion_cocina ?? 'cocina',
+                'mesa' => $item->comanda->mesa_o_referencia ?? 'Mesa 1',
+                'platillo' => $item->producto?->nombre ?? 'Platillo',
+                'timestamp' => $item->updated_at->timestamp,
+            ];
+        });
+
+        return response()->json($alertas);
     }
 }

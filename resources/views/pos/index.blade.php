@@ -1,4 +1,15 @@
 <x-app-layout>
+    {{-- ===================================================================== --}}
+    {{-- TÍTULO DE LA PESTAÑA DEL NAVEGADOR                                    --}}
+    {{-- ===================================================================== --}}
+    @section('title', 'Punto de Venta | ' . ($sucursal['nombre'] ?? 'La Fogata Bistro'))
+    <x-slot name="title">
+        Punto de Venta | {{ $sucursal['nombre'] ?? 'La Fogata Bistro' }}
+    </x-slot>
+
+    {{-- ===================================================================== --}}
+    {{-- CONTENEDOR RAÍZ DEL PUNTO DE VENTA (ALPINE.JS)                        --}}
+    {{-- ===================================================================== --}}
     <div x-data="posTerminal({
         sucursal: {{ Js::from($sucursal ?? ['id' => 1, 'nombre' => 'Sucursal Principal']) }},
         almacen: {{ Js::from($almacen ?? ['id' => 1, 'nombre' => 'Almacén General']) }},
@@ -11,14 +22,15 @@
             ventaStore: '{{ route('pos.ventas.store') }}',
             sincronizarOffline: '{{ route('pos.sincronizar.offline') }}',
             ultimasVentas: '{{ route('pos.ultimas-ventas') }}',
-            comandasAbiertas: '{{ url('/pos/restaurante/comandas-abiertas') }}'
+            comandasAbiertas: '{{ url('/pos/restaurante/comandas-abiertas') }}',
+            alertasPrecuenta: '{{ route('pos.restaurante.alertas-precuenta') }}'
         },
         csrfToken: '{{ csrf_token() }}'
     })" x-init="initPos()" class="min-h-screen bg-slate-950 text-slate-100 p-4 lg:p-6">
 
-        {{-- ========================================================================= --}}
-        {{-- SECCIÓN 1: ENCABEZADO SUPERIOR, CONECTIVIDAD Y ACCIONES DE CAJA            --}}
-        {{-- ========================================================================= --}}
+        {{-- ===================================================================== --}}
+        {{-- SECCIÓN 1: ENCABEZADO SUPERIOR, CONECTIVIDAD Y ACCIONES DE CAJA     --}}
+        {{-- ===================================================================== --}}
         <header class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div class="flex items-center gap-3">
                 <div class="p-2.5 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
@@ -42,8 +54,17 @@
                 </div>
             </div>
 
-            {{-- Controles Superiores --}}
+            {{-- Controles Superiores de Caja y Restaurante --}}
             <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+                {{-- Botón de prueba/estado de audio en caja --}}
+                <button type="button"
+                        @click="probarTimbrePrecuenta()"
+                        title="Activar y probar timbre de precuenta"
+                        class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-800 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                    <span>🔔</span>
+                    <span x-text="posAudioActivo ? 'Timbre OK' : 'Activar Audio'"></span>
+                </button>
+
                 <template x-if="offlineQueueCount > 0">
                     <button @click="sincronizarLoteOffline()" :disabled="!isOnline || isSyncing"
                             class="px-3 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-medium flex items-center gap-2 hover:bg-amber-500/30 transition">
@@ -108,9 +129,45 @@
             </div>
         </header>
 
-        {{-- ========================================================================= --}}
-        {{-- SECCIÓN 2: ALERTA DE CAJA CERRADA                                         --}}
-        {{-- ========================================================================= --}}
+        {{-- ===================================================================== --}}
+        {{-- BANNER DE ALERTAS DE PRECUENTA SOLICITADAS DESDE EL COMANDERO       --}}
+        {{-- ===================================================================== --}}
+        <template x-if="alertasPrecuentaPos.length > 0 || mesasConCuentaPedida.length > 0">
+            <div class="mt-3 p-3 rounded-xl bg-amber-500/15 border border-amber-400/50 flex flex-wrap items-center justify-between gap-2 shadow-lg">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-black uppercase tracking-wider text-amber-300 animate-pulse">
+                        🧾 Precuenta solicitada en comandero:
+                    </span>
+
+                    <template x-for="alerta in alertasPrecuentaPos" :key="alerta.id">
+                        <div class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-amber-400/50 text-xs font-mono font-bold text-white flex items-center gap-2">
+                            <button type="button"
+                                    @click="cargarMesaPorNombre(alerta.mesa)"
+                                    class="text-amber-300 hover:underline cursor-pointer"
+                                    x-text="alerta.mesa"></button>
+                            <span class="text-[10px] text-slate-400" x-text="alerta.hora"></span>
+                            <button type="button"
+                                    @click="descartarAlertaPrecuenta(alerta.id)"
+                                    class="text-rose-400 hover:text-rose-300 ml-1 cursor-pointer">&times;</button>
+                        </div>
+                    </template>
+
+                    <template x-for="m in mesasConCuentaPedida" :key="'mesa_pedida_' + m.mesa">
+                        <button type="button"
+                                @click="cargarMesaAlCarrito(m)"
+                                class="px-2.5 py-1 rounded-lg bg-cyan-950/90 border border-cyan-400/60 text-xs font-mono font-bold text-cyan-200 hover:bg-cyan-900 flex items-center gap-1.5 cursor-pointer">
+                            <span>🔔</span>
+                            <span x-text="m.mesa"></span>
+                            <span class="text-emerald-400" x-text="'$' + Number(m.total || 0).toFixed(2)"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        {{-- ===================================================================== --}}
+        {{-- SECCIÓN 2: ALERTA DE CAJA CERRADA                                  --}}
+        {{-- ===================================================================== --}}
         <template x-if="!turnoActivo">
             <div class="mt-8 p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center max-w-lg mx-auto">
                 <div class="w-12 h-12 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-3 border border-amber-500/20">
@@ -126,13 +183,13 @@
             </div>
         </template>
 
-        {{-- ========================================================================= --}}
-        {{-- SECCIÓN 3: TERMINAL OPERATIVA (CATÁLOGO / PLANO A IZQUIERDA, TICKET DER.) --}}
-        {{-- ========================================================================= --}}
+        {{-- ===================================================================== --}}
+        {{-- SECCIÓN 3: TERMINAL OPERATIVA (PLANO / CATÁLOGO A IZQUIERDA, TICKET)  --}}
+        {{-- ===================================================================== --}}
         <template x-if="turnoActivo">
             <div class="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-                {{-- Catálogo y Búsqueda / Plano de Mesas --}}
+                {{-- Columna Izquierda: Plano de Mesas o Catálogo --}}
                 <div class="lg:col-span-7 space-y-4">
                     @if(isset($esRestaurante) && $esRestaurante)
                         {{-- MODO RESTAURANTE: PLANO DE MESAS INTERACTIVO --}}
@@ -150,7 +207,7 @@
                             </button>
                         </div>
 
-                        {{-- Leyenda de Estados --}}
+                        {{-- Leyenda de Estados de Mesa --}}
                         <div class="flex items-center gap-3 text-[10px] text-slate-400">
                             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span> Libre</span>
                             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Ocupada</span>
@@ -250,10 +307,9 @@
                             </template>
                         </div>
                     @endif
-
                 </div>
 
-                {{-- Ticket y Carrito --}}
+                {{-- Columna Derecha: Ticket de Venta y Cobro --}}
                 <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
                     <div class="flex items-center justify-between pb-3 border-b border-slate-800">
                         <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -368,9 +424,9 @@
             </div>
         </template>
 
-        {{-- ========================================================================= --}}
-        {{-- SECCIÓN 4: MODAL DE MESAS ABIERTAS CON CONSUMO (RESTAURANTE)             --}}
-        {{-- ========================================================================= --}}
+        {{-- ===================================================================== --}}
+        {{-- SECCIÓN 4: MODAL DE MESAS ABIERTAS CON CONSUMO (RESTAURANTE)      --}}
+        {{-- ===================================================================== --}}
         <div x-show="modalMesasPos" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div @click.away="modalMesasPos = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[88vh] flex flex-col">
                 <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
@@ -452,9 +508,9 @@
             </div>
         </div>
 
-        {{-- ========================================================================= --}}
-        {{-- MODAL DE DIVISIÓN DE CUENTA (SPLIT BILL POR COMENSAL / PLATILLOS)          --}}
-        {{-- ========================================================================= --}}
+        {{-- ===================================================================== --}}
+        {{-- SECCIÓN 5: MODAL DE DIVISIÓN DE CUENTA                                --}}
+        {{-- ===================================================================== --}}
         <div x-show="modalDividir" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
             <div @click.away="modalDividir = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
                 <div class="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -516,7 +572,9 @@
             </div>
         </div>
 
-        {{-- Modales Auxiliares (Apertura, Cierre, Reimpresión, CFDI) --}}
+        {{-- ===================================================================== --}}
+        {{-- SECCIÓN 6: MODALES DE APERTURA Y CIERRE DE CAJA                       --}}
+        {{-- ===================================================================== --}}
         <div x-show="modalApertura" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
                 <h3 class="text-base font-bold text-white">Apertura de Turno de Caja</h3>
@@ -576,12 +634,62 @@
                 </div>
             </div>
         </div>
+        {{-- Modal de Reimpresión de Tickets --}}
+        <div x-show="modalReimpresion" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
+            <div @click.away="modalReimpresion = false" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl max-h-[85vh] flex flex-col">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span>🖨️ Reimprimir Ticket de Venta</span>
+                    </h3>
+                    <button type="button" @click="modalReimpresion = false" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1">
+                    <template x-if="cargandoVentas">
+                        <p class="text-center text-xs text-slate-400 py-8">Cargando últimas ventas...</p>
+                    </template>
+
+                    <template x-if="!cargandoVentas && ventasRecientes.length === 0">
+                        <p class="text-center text-xs text-slate-500 py-8">No hay ventas recientes registradas en esta sucursal.</p>
+                    </template>
+
+                    <template x-for="v in ventasRecientes" :key="v.id">
+                        <div class="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-3 text-xs">
+                            <div>
+                                <div class="font-bold text-white flex items-center gap-2">
+                                    <span class="font-mono text-indigo-400" x-text="v.folio"></span>
+                                    <span x-text="v.cliente_nombre || 'Público General'"></span>
+                                </div>
+                                <div class="text-[11px] text-slate-400 mt-0.5" x-text="formatearFecha(v.created_at)"></div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono font-bold text-emerald-400 text-sm" x-text="`$${Number(v.total || 0).toFixed(2)}`"></span>
+                                <button type="button"
+                                        @click="lanzarImpresion(v.id)"
+                                        class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition cursor-pointer">
+                                    Imprimir
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="pt-3 border-t border-slate-800 flex justify-end">
+                    <button type="button" @click="modalReimpresion = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-300">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    {{-- Script Reactivo Alpine.js --}}
+    {{-- ===================================================================== --}}
+    {{-- SECCIÓN 7: LÓGICA ALPINE.JS DEL POS, TIMBRE Y ALERTAS DE PRECUENTA  --}}
+    {{-- ===================================================================== --}}
     <script>
         function posTerminal(config) {
             return {
+                // Configuración de sucursal, almacén, turno y rutas
                 sucursal: config.sucursal || { id: 1, nombre: 'Sucursal Principal' },
                 almacen: config.almacen || { id: 1, nombre: 'Almacén General' },
                 turnoActivo: config.turnoInicial || null,
@@ -590,16 +698,19 @@
                 routes: config.routes,
                 csrf: config.csrfToken,
 
+                // Estado de conectividad y cola offline
                 isOnline: navigator.onLine,
                 isSyncing: false,
                 isProcessing: false,
                 offlineQueueCount: 0,
 
+                // Estado de apertura/cierre de caja
                 modalApertura: false,
                 modalCierre: false,
                 formApertura: { monto_inicial: 1000, observaciones: '' },
                 formCierre: { monto_real_efectivo: 0, observaciones: '' },
 
+                // Carrito, catálogo y cobro
                 searchQuery: '',
                 productos: [],
                 carrito: [],
@@ -607,6 +718,7 @@
                 formaPagoSat: '01',
                 pagoEfectivoRecibido: 0,
 
+                // Mesas y comandas de restaurante
                 promocionesVigentes: [],
                 modalMesasPos: false,
                 cargandoMesas: false,
@@ -617,6 +729,7 @@
                 itemsPagadosIds: [],
                 mesaSeleccionadaActiva: null,
 
+                // División de cuenta
                 modalidadPago: 'simple_efectivo',
                 modalDividir: false,
                 mesaDividiendo: null,
@@ -624,6 +737,7 @@
                 modoDivision: 'items',
                 numeroPartesIguales: 2,
 
+                // Reimpresión y facturación
                 modalReimpresion: false,
                 cargandoVentas: false,
                 ventasRecientes: [],
@@ -635,17 +749,155 @@
                 mensajeErrorFactura: false,
                 db: null,
 
+                // Audio y alertas de precuenta desde el comandero
+                posAudioCtx: null,
+                posAudioActivo: false,
+                precuentasVistas: new Set(),
+                alertasPrecuentaPos: [],
+
+                get hayCuentasPedidas() {
+                    return (this.mesasAbiertas || []).some(m => Boolean(m.cuenta_pedida)) || this.alertasPrecuentaPos.length > 0;
+                },
+
+                get mesasConCuentaPedida() {
+                    return (this.mesasAbiertas || []).filter(m => Boolean(m.cuenta_pedida));
+                },
+
+                // Inicialización general del POS, audio y escucha de precuentas
                 async initPos() {
+                    const tituloPos = `Punto de Venta | ${this.sucursal?.nombre || 'La Fogata Bistro'}`;
+                    document.title = tituloPos;
+                    setTimeout(() => { document.title = tituloPos; }, 100);
+
+                    window.addEventListener('pointerdown', () => this.desbloquearAudioPos(), { once: true });
                     window.addEventListener('online', () => { this.isOnline = true; this.sincronizarLoteOffline(); });
                     window.addEventListener('offline', () => { this.isOnline = false; });
+
                     try { await this.initIndexedDB(); } catch (err) {}
                     await this.cargarCatalogo();
                     await this.cargarPromocionesVigentes();
                     await this.actualizarContadorOffline();
+
                     if (this.routes.comandasAbiertas) {
                         this.consultarMesasAbiertas();
                         setInterval(() => this.consultarMesasAbiertas(), 5000);
                     }
+
+                    this.iniciarEscuchaPrecuentas();
+                },
+
+                normalizarMesa(nombre) {
+                    return String(nombre || '')
+                        .toLowerCase()
+                        .replace(/^mesa\s+/i, '')
+                        .trim();
+                },
+
+                // Desbloquea AudioContext tras interacción del usuario en caja
+                async desbloquearAudioPos() {
+                    try {
+                        if (!this.posAudioCtx) {
+                            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                            if (AudioCtx) {
+                                this.posAudioCtx = new AudioCtx();
+                            }
+                        }
+                        if (this.posAudioCtx && this.posAudioCtx.state === 'suspended') {
+                            await this.posAudioCtx.resume();
+                        }
+                        if (this.posAudioCtx && this.posAudioCtx.state === 'running') {
+                            this.posAudioActivo = true;
+                        }
+                    } catch (e) {
+                        console.log('Audio POS no disponible:', e);
+                    }
+                },
+
+                // Prueba manual del timbre de precuenta desde el encabezado
+                probarTimbrePrecuenta() {
+                    this.desbloquearAudioPos();
+                    this.reproducirTimbrePrecuenta();
+                },
+
+                // Reproduce doble tono de alerta de precuenta con Web Audio API
+                reproducirTimbrePrecuenta() {
+                    try {
+                        this.desbloquearAudioPos();
+                        if (!this.posAudioCtx || this.posAudioCtx.state !== 'running') return;
+
+                        const now = this.posAudioCtx.currentTime;
+                        const osc = this.posAudioCtx.createOscillator();
+                        const gain = this.posAudioCtx.createGain();
+
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(1046.5, now);
+                        osc.frequency.setValueAtTime(1318.5, now + 0.16);
+
+                        gain.gain.setValueAtTime(0.22, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+
+                        osc.connect(gain);
+                        gain.connect(this.posAudioCtx.destination);
+
+                        osc.start(now);
+                        osc.stop(now + 0.8);
+                    } catch (e) {
+                        console.log('Error al reproducir timbre de precuenta:', e);
+                    }
+                },
+
+                // Consulta periódica de solicitudes de precuenta enviadas por el comandero
+                iniciarEscuchaPrecuentas() {
+                    if (!this.routes.alertasPrecuenta) return;
+
+                    const revisar = async () => {
+                        if (!this.isOnline) return;
+                        try {
+                            const sucursalId = this.sucursal?.id || 1;
+                            const res = await fetch(`${this.routes.alertasPrecuenta}?sucursal_id=${sucursalId}`, {
+                                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+                            if (!res.ok) return;
+
+                            const data = await res.json();
+                            const alertas = Array.isArray(data) ? data : [];
+
+                            alertas.forEach(alerta => {
+                                if (!alerta?.id || this.precuentasVistas.has(alerta.id)) return;
+                                this.precuentasVistas.add(alerta.id);
+                                this.reproducirTimbrePrecuenta();
+                                this.alertasPrecuentaPos.unshift({
+                                    id: alerta.id,
+                                    mesa: alerta.mesa || 'Mesa',
+                                    hora: alerta.hora || new Date().toLocaleTimeString()
+                                });
+                                this.consultarMesasAbiertas();
+                            });
+                        } catch (e) {
+                            console.error('Error consultando precuentas en POS:', e);
+                        }
+                    };
+
+                    revisar();
+                    setInterval(revisar, 3000);
+                },
+
+                // Carga el consumo de la mesa al hacer clic en una alerta de precuenta
+                cargarMesaPorNombre(nombreMesa) {
+                    const target = this.normalizarMesa(nombreMesa);
+                    const mesaData = (this.mesasAbiertas || []).find(
+                        m => this.normalizarMesa(m.mesa) === target
+                    );
+                    if (mesaData) {
+                        this.cargarMesaAlCarrito(mesaData);
+                    } else {
+                        this.cliente.nombre = nombreMesa;
+                        this.consultarMesasAbiertas();
+                    }
+                },
+
+                descartarAlertaPrecuenta(alertaId) {
+                    this.alertasPrecuentaPos = this.alertasPrecuentaPos.filter(a => a.id !== alertaId);
                 },
 
                 async cargarPromocionesVigentes() {
@@ -661,12 +913,14 @@
                 },
 
                 obtenerDatosComandaMesa(mesa) {
-                    if (!this.mesasAbiertas || !Array.isArray(this.mesasAbiertas)) return null;
-                    return this.mesasAbiertas.find(m => m.mesa === mesa.numero_o_nombre || m.mesa === `Mesa ${mesa.numero_o_nombre}`);
+                    if (!this.mesasAbiertas || !Array.isArray(this.mesasAbiertas) || !mesa) return null;
+                    const target = this.normalizarMesa(mesa.numero_o_nombre || mesa.nombre || mesa.numero);
+                    return this.mesasAbiertas.find(m => this.normalizarMesa(m.mesa) === target) || null;
                 },
 
                 mesaTieneConsumo(mesa) {
-                    return this.obtenerDatosComandaMesa(mesa) !== undefined && this.obtenerDatosComandaMesa(mesa) !== null;
+                    const data = this.obtenerDatosComandaMesa(mesa);
+                    return data !== undefined && data !== null;
                 },
 
                 mesaTieneCuentaPedida(mesa) {
@@ -720,7 +974,7 @@
                     this.origenComandaMesa = `${mesaData.mesa} - Folios: ${mesaData.folio}`;
                     this.comandaIdsCobrando = mesaData.comanda_ids || [];
                     this.cliente.nombre = `${mesaData.mesa}`;
-                    this.carrito = mesaData.items.map(it => ({
+                    this.carrito = (mesaData.items || []).map(it => ({
                         producto_id: it.producto_id,
                         sku: it.sku || 'CMD',
                         nombre: it.nombre,
@@ -904,8 +1158,9 @@
                         });
                         const data = await res.json();
                         if (res.ok) {
-                            window.open(`/pos/tickets/${data.venta_id || uuidVenta}`, '_blank');
+                            window.open(`/pos/ticket/${data.venta_id || uuidVenta}`, '_blank');
                             this.vaciarCarrito();
+                            this.consultarMesasAbiertas();
                             this.isProcessing = false;
                             return;
                         }
@@ -948,11 +1203,15 @@
                 async cargarVentasRecientes() {
                     this.cargandoVentas = true;
                     try {
-                        const res = await fetch(this.routes.ultimasVentas, { headers: { 'Accept': 'application/json' } });
+                        const sucursalId = this.sucursal?.id || 1;
+                        const turnoId = this.turnoActivo?.id || 0;
+                        const res = await fetch(`${this.routes.ultimasVentas}?sucursal_id=${sucursalId}&caja_turno_id=${turnoId}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
                         if (res.ok) this.ventasRecientes = await res.json();
                     } catch (e) {} finally { this.cargandoVentas = false; }
                 },
-                lanzarImpresion(id) { window.open(`/pos/tickets/${id}`, '_blank'); },
+                lanzarImpresion(id) { window.open(`/pos/ticket/${id}`, '_blank'); },
 
                 abrirModalFacturacion() { this.modalFacturacion = true; this.cargarVentasParaFacturar(); },
                 async cargarVentasParaFacturar() {
