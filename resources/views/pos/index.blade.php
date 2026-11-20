@@ -395,36 +395,191 @@
                         </div>
                     </div>
 
-                    {{-- Método de Pago y Botón de Cobro --}}
+                    {{-- ================================================================= --}}
+                    {{-- MÉTODOS DE PAGO (SIMPLE, MIXTO EFECTIVO+TARJETA/TRANSF Y 2 TARJETAS) --}}
+                    {{-- ================================================================= --}}
                     <div class="pt-2 space-y-3">
+                        {{-- Botones de pago simple --}}
                         <div class="grid grid-cols-3 gap-2">
-                            <button type="button" @click="formaPagoSat = '01'"
-                                    :class="formaPagoSat === '01' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
-                                    class="py-2 text-xs font-semibold rounded-lg border transition">Efectivo</button>
-                            <button type="button" @click="formaPagoSat = '04'"
-                                    :class="formaPagoSat === '04' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
-                                    class="py-2 text-xs font-semibold rounded-lg border transition">Tarjeta</button>
-                            <button type="button" @click="formaPagoSat = '03'"
-                                    :class="formaPagoSat === '03' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
-                                    class="py-2 text-xs font-semibold rounded-lg border transition">Transferencia</button>
+                            <button type="button"
+                                    @click="activarPagoSimple('01')"
+                                    :class="modoCobroPos === 'simple' && formaPagoSat === '01' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
+                                    class="py-2 text-xs font-semibold rounded-lg border transition cursor-pointer">
+                                Efectivo
+                            </button>
+                            <button type="button"
+                                    @click="activarPagoSimple('04')"
+                                    :class="modoCobroPos === 'simple' && (formaPagoSat === '04' || formaPagoSat === '28') ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
+                                    class="py-2 text-xs font-semibold rounded-lg border transition cursor-pointer">
+                                Tarjeta
+                            </button>
+                            <button type="button"
+                                    @click="activarPagoSimple('03')"
+                                    :class="modoCobroPos === 'simple' && formaPagoSat === '03' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-950 text-slate-400 border-slate-800'"
+                                    class="py-2 text-xs font-semibold rounded-lg border transition cursor-pointer">
+                                Transferencia
+                            </button>
                         </div>
 
-                        <template x-if="formaPagoSat === '01'">
+                        {{-- Botones para Pago Mixto y Pago con Dos Tarjetas --}}
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button"
+                                    @click="activarPagoMixto()"
+                                    :class="modoCobroPos === 'mixto' ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-950 text-amber-300/90 border-slate-800 hover:border-amber-500/40'"
+                                    class="py-2 text-xs font-bold rounded-lg border transition cursor-pointer">
+                                🔀 Pago Mixto
+                            </button>
+                            <button type="button"
+                                    @click="activarDosTarjetas()"
+                                    :class="modoCobroPos === 'dos_tarjetas' ? 'bg-cyan-600 text-white border-cyan-500' : 'bg-slate-950 text-cyan-300/90 border-slate-800 hover:border-cyan-500/40'"
+                                    class="py-2 text-xs font-bold rounded-lg border transition cursor-pointer">
+                                💳💳 2 Tarjetas
+                            </button>
+                        </div>
+
+                        {{-- Campos para Pago Simple en Efectivo --}}
+                        <template x-if="modoCobroPos === 'simple' && formaPagoSat === '01'">
                             <div class="grid grid-cols-2 gap-2 text-xs">
                                 <div>
                                     <label class="text-slate-400 block mb-1">Monto Recibido</label>
                                     <input type="number" step="0.50" x-model.number="pagoEfectivoRecibido"
-                                           class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-sm focus:outline-none">
+                                           class="w-full !bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-sm focus:outline-none">
                                 </div>
                                 <div>
                                     <label class="text-slate-400 block mb-1">Cambio a Devolver</label>
-                                    <div class="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-emerald-400 font-mono text-sm font-bold"
+                                    <div class="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-emerald-400 font-mono text-sm font-bold"
                                          x-text="`$${Math.max(0, (Number(pagoEfectivoRecibido) || 0) - totales.total).toFixed(2)}`"></div>
                                 </div>
                             </div>
                         </template>
 
-                        <button @click="procesarVenta()" :disabled="carrito.length === 0 || isProcessing"
+                        {{-- Campos para Pago Simple con Tarjeta (Débito / Crédito) --}}
+                        <template x-if="modoCobroPos === 'simple' && (formaPagoSat === '04' || formaPagoSat === '28')">
+                            <div class="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2 text-xs">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Tipo de Tarjeta</label>
+                                        <select x-model="formaPagoSat"
+                                                class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white text-xs focus:outline-none">
+                                            <option value="04">04 - Tarjeta de Crédito</option>
+                                            <option value="28">28 - Tarjeta de Débito</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Referencia / Últimos 4</label>
+                                        <input type="text" x-model="referenciaPago1" maxlength="40"
+                                               placeholder="Opcional"
+                                               class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-xs focus:outline-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        {{-- Campos para Pago Mixto: Efectivo + Tarjeta (Débito/Crédito) o Transferencia --}}
+                        <template x-if="modoCobroPos === 'mixto'">
+                            <div class="p-3 bg-slate-950/90 border border-amber-500/30 rounded-xl space-y-2.5 text-xs">
+                                <div class="flex items-center justify-between text-[11px] text-amber-300 font-bold">
+                                    <span>🔀 Desglose Pago Mixto</span>
+                                    <span class="font-mono" x-text="`Faltante: $${Math.max(0, totales.total - ((Number(montoMixtoEfectivo) || 0) + (Number(montoMixtoSecundario) || 0))).toFixed(2)}`"></span>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Monto en Efectivo ($)</label>
+                                        <input type="number" step="0.50" min="0"
+                                               x-model.number="montoMixtoEfectivo"
+                                               @input="ajustarMontoMixtoDesdeEfectivo()"
+                                               class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-xs focus:outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Segundo Medio</label>
+                                        <select x-model="medioMixtoSecundario"
+                                                class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white text-xs focus:outline-none">
+                                            <option value="04">Tarjeta de Crédito (04)</option>
+                                            <option value="28">Tarjeta de Débito (28)</option>
+                                            <option value="03">Transferencia (03)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Monto Tarjeta / Transf. ($)</label>
+                                        <input type="number" step="0.50" min="0"
+                                               x-model.number="montoMixtoSecundario"
+                                               class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-xs focus:outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Referencia (Opcional)</label>
+                                        <input type="text" x-model="referenciaPago1" maxlength="40"
+                                               placeholder="Auth / Folio"
+                                               class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-xs focus:outline-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        {{-- Campos para Pago con Dos Tarjetas (Débito / Crédito) --}}
+                        <template x-if="modoCobroPos === 'dos_tarjetas'">
+                            <div class="p-3 bg-slate-950/90 border border-cyan-500/30 rounded-xl space-y-2.5 text-xs">
+                                <div class="flex items-center justify-between text-[11px] text-cyan-300 font-bold">
+                                    <span>💳💳 Cobro con Dos Tarjetas</span>
+                                    <span class="font-mono" x-text="`Restante: $${Math.max(0, totales.total - ((Number(montoTarjeta1) || 0) + (Number(montoTarjeta2) || 0))).toFixed(2)}`"></span>
+                                </div>
+
+                                {{-- Tarjeta 1 --}}
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Tarjeta 1</label>
+                                        <select x-model="tipoTarjeta1"
+                                                class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 !text-white text-xs focus:outline-none">
+                                            <option value="04">Crédito (04)</option>
+                                            <option value="28">Débito (28)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Monto T1 ($)</label>
+                                        <input type="number" step="0.50" min="0"
+                                               x-model.number="montoTarjeta1"
+                                               @input="ajustarTarjeta2DesdeTarjeta1()"
+                                               class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-xs focus:outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Ref. T1</label>
+                                        <input type="text" x-model="referenciaPago1" maxlength="40"
+                                               placeholder="Opcional"
+                                               class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 !text-white font-mono text-xs focus:outline-none">
+                                    </div>
+                                </div>
+
+                                {{-- Tarjeta 2 --}}
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Tarjeta 2</label>
+                                        <select x-model="tipoTarjeta2"
+                                                class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 !text-white text-xs focus:outline-none">
+                                            <option value="28">Débito (28)</option>
+                                            <option value="04">Crédito (04)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Monto T2 ($)</label>
+                                        <input type="number" step="0.50" min="0"
+                                               x-model.number="montoTarjeta2"
+                                               class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 !text-white font-mono text-xs focus:outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="text-slate-400 block mb-1">Ref. T2</label>
+                                        <input type="text" x-model="referenciaPago2" maxlength="40"
+                                               placeholder="Opcional"
+                                               class="w-full !bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 !text-white font-mono text-xs focus:outline-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        {{-- Botón principal de cobro e impresión de ticket --}}
+                        <button @click="procesarVenta()" :disabled="carrito.length === 0 || isProcessing || !puedeCobrarConPagos"
                                 class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl text-sm shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 cursor-pointer">
                             <span x-show="!isProcessing">Cobrar e Imprimir Ticket</span>
                             <span x-show="isProcessing">Procesando y liberando mesa...</span>
@@ -1269,6 +1424,20 @@
                 homologandoCliente: false,
 
                 // =====================================================================
+                // ESTADOS DE COBRO SIMPLE, MIXTO Y DOS TARJETAS
+                // =====================================================================
+                modoCobroPos: 'simple', // 'simple' | 'mixto' | 'dos_tarjetas'
+                montoMixtoEfectivo: 0,
+                medioMixtoSecundario: '04', // '04' Crédito, '28' Débito, '03' Transferencia
+                montoMixtoSecundario: 0,
+                tipoTarjeta1: '04',
+                montoTarjeta1: 0,
+                tipoTarjeta2: '28',
+                montoTarjeta2: 0,
+                referenciaPago1: '',
+                referenciaPago2: '',
+
+                // =====================================================================
                 // PROPIEDADES COMPUTADAS (GETTERS)
                 // =====================================================================
                 // Indica si existe alguna precuenta solicitada pendiente de atención
@@ -1322,6 +1491,224 @@
                     const subtotal = totalConIva / 1.16;
                     const iva = totalConIva - subtotal;
                     return { subtotal, iva, total: totalConIva };
+                },
+
+                // Valida si los montos capturados en el modo de cobro activo cubren el total del ticket
+                get puedeCobrarConPagos() {
+                    const total = Number(this.totales.total.toFixed(2));
+                    if (total <= 0) return false;
+
+                    if (this.modoCobroPos === 'simple') {
+                        if (this.formaPagoSat === '01') {
+                            return (Number(this.pagoEfectivoRecibido) || 0) >= total;
+                        }
+                        return true;
+                    }
+
+                    if (this.modoCobroPos === 'mixto') {
+                        const ef = Number(this.montoMixtoEfectivo) || 0;
+                        const sec = Number(this.montoMixtoSecundario) || 0;
+                        return (ef + sec) >= (total - 0.01);
+                    }
+
+                    if (this.modoCobroPos === 'dos_tarjetas') {
+                        const t1 = Number(this.montoTarjeta1) || 0;
+                        const t2 = Number(this.montoTarjeta2) || 0;
+                        return t1 > 0 && t2 > 0 && ((t1 + t2) >= (total - 0.01));
+                    }
+
+                    return true;
+                },
+
+                // Cambia a pago simple (Efectivo '01', Tarjeta '04'/'28' o Transferencia '03')
+                activarPagoSimple(formaSat) {
+                    this.modoCobroPos = 'simple';
+                    this.formaPagoSat = formaSat;
+                    this.referenciaPago1 = '';
+                    this.pagoEfectivoRecibido = Number(this.totales.total.toFixed(2));
+                },
+
+                // Inicializa pago mixto dividiendo de inicio la mitad en efectivo y el resto en segundo medio
+                activarPagoMixto() {
+                    const total = Number(this.totales.total.toFixed(2));
+                    const mitad = Number((total / 2).toFixed(2));
+                    this.modoCobroPos = 'mixto';
+                    this.montoMixtoEfectivo = mitad;
+                    this.montoMixtoSecundario = Number(Math.max(0, total - mitad).toFixed(2));
+                    this.referenciaPago1 = '';
+                },
+
+                // Calcula automáticamente el segundo monto del pago mixto al editar el efectivo
+                ajustarMontoMixtoDesdeEfectivo() {
+                    const total = Number(this.totales.total.toFixed(2));
+                    const ef = Math.max(0, Number(this.montoMixtoEfectivo) || 0);
+                    this.montoMixtoSecundario = Number(Math.max(0, total - ef).toFixed(2));
+                },
+
+                // Inicializa cobro con dos tarjetas repartiendo el total inicial entre ambas
+                activarDosTarjetas() {
+                    const total = Number(this.totales.total.toFixed(2));
+                    const mitad = Number((total / 2).toFixed(2));
+                    this.modoCobroPos = 'dos_tarjetas';
+                    this.montoTarjeta1 = mitad;
+                    this.montoTarjeta2 = Number(Math.max(0, total - mitad).toFixed(2));
+                    this.referenciaPago1 = '';
+                    this.referenciaPago2 = '';
+                },
+
+                // Calcula automáticamente el monto de la tarjeta 2 al editar el de la tarjeta 1
+                ajustarTarjeta2DesdeTarjeta1() {
+                    const total = Number(this.totales.total.toFixed(2));
+                    const t1 = Math.max(0, Number(this.montoTarjeta1) || 0);
+                    this.montoTarjeta2 = Number(Math.max(0, total - t1).toFixed(2));
+                },
+
+                // Construye el arreglo de pagos según el modo seleccionado (simple, mixto o dos tarjetas) y procesa la venta
+                async procesarVenta() {
+                    if (this.carrito.length === 0 || !this.puedeCobrarConPagos) return;
+                    this.isProcessing = true;
+                    const uuidVenta = this.generarUUID();
+                    const totalVenta = Number((parseFloat(this.totales.total) || 0).toFixed(2));
+
+                    let pagosPayload = [];
+                    let formaPrincipalSat = this.formaPagoSat || '01';
+
+                    if (this.modoCobroPos === 'simple') {
+                        // Pago único: Efectivo ('01'), Tarjeta ('04' / '28') o Transferencia ('03')
+                        const recibido = this.formaPagoSat === '01'
+                            ? Math.max(totalVenta, parseFloat(this.pagoEfectivoRecibido) || 0)
+                            : totalVenta;
+
+                        pagosPayload = [{
+                            forma_pago_sat: formaPrincipalSat,
+                            monto: totalVenta,
+                            monto_recibido: Number(recibido.toFixed(2)),
+                            cambio_devuelto: this.formaPagoSat === '01'
+                                ? Math.max(0, Number((recibido - totalVenta).toFixed(2)))
+                                : 0,
+                            referencia_bancaria: formaPrincipalSat !== '01'
+                                ? (String(this.referenciaPago1 || '').trim() || null)
+                                : null
+                        }];
+                    } else if (this.modoCobroPos === 'mixto') {
+                        // Pago mixto: Efectivo ('01') + segundo medio ('04' Crédito, '28' Débito o '03' Transferencia)
+                        const ef = Math.max(0, parseFloat(this.montoMixtoEfectivo) || 0);
+                        const sec = Math.max(0, parseFloat(this.montoMixtoSecundario) || 0);
+                        const medioSec = this.medioMixtoSecundario || '04';
+                        formaPrincipalSat = ef >= sec ? '01' : medioSec;
+
+                        // Si el segundo medio cubre todo el total, el monto en efectivo es 0 y el segundo medio toma el total
+                        const montoSecFinal = Number(Math.min(totalVenta, sec).toFixed(2));
+                        const montoEfFinal = Number(Math.max(0, totalVenta - montoSecFinal).toFixed(2));
+                        const cambioMixto = Math.max(0, Number(((ef + sec) - totalVenta).toFixed(2)));
+
+                        if (montoEfFinal > 0 || ef > 0) {
+                            pagosPayload.push({
+                                forma_pago_sat: '01',
+                                monto: montoEfFinal,
+                                monto_recibido: Number(ef.toFixed(2)),
+                                cambio_devuelto: cambioMixto,
+                                referencia_bancaria: null
+                            });
+                        }
+                        if (montoSecFinal > 0) {
+                            pagosPayload.push({
+                                forma_pago_sat: medioSec,
+                                monto: montoSecFinal,
+                                monto_recibido: montoSecFinal,
+                                cambio_devuelto: 0,
+                                referencia_bancaria: String(this.referenciaPago1 || '').trim() || null
+                            });
+                        }
+                    } else if (this.modoCobroPos === 'dos_tarjetas') {
+                        // Pago con dos tarjetas (Crédito '04' y/o Débito '28')
+                        const t1 = Math.max(0, parseFloat(this.montoTarjeta1) || 0);
+                        const t2 = Math.max(0, parseFloat(this.montoTarjeta2) || 0);
+                        const tipo1 = this.tipoTarjeta1 || '04';
+                        const tipo2 = this.tipoTarjeta2 || '28';
+                        formaPrincipalSat = tipo1;
+
+                        if (t1 > 0) {
+                            pagosPayload.push({
+                                forma_pago_sat: tipo1,
+                                monto: Number(t1.toFixed(2)),
+                                monto_recibido: Number(t1.toFixed(2)),
+                                cambio_devuelto: 0,
+                                referencia_bancaria: String(this.referenciaPago1 || '').trim() || null
+                            });
+                        }
+                        if (t2 > 0) {
+                            pagosPayload.push({
+                                forma_pago_sat: tipo2,
+                                monto: Number(t2.toFixed(2)),
+                                monto_recibido: Number(t2.toFixed(2)),
+                                cambio_devuelto: 0,
+                                referencia_bancaria: String(this.referenciaPago2 || '').trim() || null
+                            });
+                        }
+                    }
+
+                    // Filtrar partidas con monto > 0 para evitar registros vacíos en venta_pagos
+                    pagosPayload = pagosPayload.filter(p => Number(p.monto) > 0);
+
+                    // Respaldo de seguridad por si el arreglo quedara vacío
+                    if (pagosPayload.length === 0) {
+                        pagosPayload = [{
+                            forma_pago_sat: formaPrincipalSat || '01',
+                            monto: totalVenta,
+                            monto_recibido: totalVenta,
+                            cambio_devuelto: 0,
+                            referencia_bancaria: null
+                        }];
+                    }
+
+                    const payloadVenta = {
+                        uuid: uuidVenta,
+                        sucursal_id: this.sucursal?.id || 1,
+                        almacen_id: this.almacen?.id || 1,
+                        caja_turno_id: this.turnoActivo?.id || null,
+                        cliente_nombre: this.cliente.nombre,
+                        cliente_rfc: this.cliente.rfc,
+                        forma_pago_sat: formaPrincipalSat,
+                        comanda_ids: this.comandaIdsCobrando || [],
+                        es_subcuenta: this.esSubcuentaCobrando || false,
+                        comanda_item_ids_pagados: this.itemsPagadosIds || [],
+                        notas: this.origenComandaMesa ? `Comanda liquidada: ${this.origenComandaMesa}` : null,
+                        lineas: this.carrito.map(item => ({
+                            producto_id: item.producto_id,
+                            cantidad: item.cantidad,
+                            precio_unitario: item.precio_unitario,
+                            tasa_iva: item.tasa_iva
+                        })),
+                        pagos: pagosPayload
+                    };
+
+                    try {
+                        const res = await fetch(this.routes.ventaStore, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': this.csrf,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify(payloadVenta)
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            window.open(`/pos/ticket/${data.venta_id || uuidVenta}`, '_blank');
+                            this.vaciarCarrito();
+                            this.modoCobroPos = 'simple';
+                            this.formaPagoSat = '01';
+                            this.consultarMesasAbiertas();
+                            this.isProcessing = false;
+                            return;
+                        }
+                        alert(data.message || 'Error al procesar cobro.');
+                    } catch (e) {
+                        alert('Error de conexión con el servidor.');
+                    } finally {
+                        this.isProcessing = false;
+                    }
                 },
 
                 // =====================================================================
@@ -1724,62 +2111,6 @@
                         const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
                         return v.toString(16);
                     });
-                },
-
-                // Registra la venta en backend, abre el ticket térmico y actualiza mesas
-                async procesarVenta() {
-                    if (this.carrito.length === 0) return;
-                    this.isProcessing = true;
-                    const uuidVenta = this.generarUUID();
-                    const totalVenta = Number(this.totales.total.toFixed(2));
-                    const recibido = Math.max(totalVenta, Number(this.pagoEfectivoRecibido) || 0);
-
-                    const payloadVenta = {
-                        uuid: uuidVenta,
-                        sucursal_id: this.sucursal?.id || 1,
-                        almacen_id: this.almacen?.id || 1,
-                        caja_turno_id: this.turnoActivo?.id || null,
-                        cliente_nombre: this.cliente.nombre,
-                        cliente_rfc: this.cliente.rfc,
-                        forma_pago_sat: this.formaPagoSat,
-                        comanda_ids: this.comandaIdsCobrando || [],
-                        es_subcuenta: this.esSubcuentaCobrando || false,
-                        comanda_item_ids_pagados: this.itemsPagadosIds || [],
-                        notas: this.origenComandaMesa ? `Comanda liquidada: ${this.origenComandaMesa}` : null,
-                        lineas: this.carrito.map(item => ({
-                            producto_id: item.producto_id,
-                            cantidad: item.cantidad,
-                            precio_unitario: item.precio_unitario,
-                            tasa_iva: item.tasa_iva
-                        })),
-                        pagos: [{
-                            forma_pago_sat: this.formaPagoSat,
-                            monto: totalVenta,
-                            monto_recibido: recibido,
-                            cambio_devuelto: Math.max(0, recibido - totalVenta)
-                        }]
-                    };
-
-                    try {
-                        const res = await fetch(this.routes.ventaStore, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' },
-                            body: JSON.stringify(payloadVenta)
-                        });
-                        const data = await res.json();
-                        if (res.ok) {
-                            window.open(`/pos/ticket/${data.venta_id || uuidVenta}`, '_blank');
-                            this.vaciarCarrito();
-                            this.consultarMesasAbiertas();
-                            this.isProcessing = false;
-                            return;
-                        }
-                        alert(data.message || 'Error al procesar cobro.');
-                    } catch (e) {
-                        alert('Error de conexión con el servidor.');
-                    } finally {
-                        this.isProcessing = false;
-                    }
                 },
 
                 // =====================================================================

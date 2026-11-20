@@ -18,6 +18,11 @@ use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RuntimeException;
 
+/**
+ * Servicio de dominio para registrar ventas en el Punto de Venta (POS).
+ * Valida existencias (directas o de recetas), descuenta inventario, asienta en Kardex,
+ * registra uno o múltiples pagos (simple, mixto o dos tarjetas) y actualiza el turno de caja.
+ */
 class RegistrarVentaService
 {
     /**
@@ -114,7 +119,7 @@ class RegistrarVentaService
 
             $detallesParaCrear = [];
 
-            // 3. Procesamiento de Líneas de Venta
+            // 3. Procesamiento de Líneas de Venta y validación de inventario
             foreach ($datos['lineas'] as $linea) {
                 /** @var Producto $producto */
                 $producto = Producto::query()
@@ -129,7 +134,7 @@ class RegistrarVentaService
 
                 $origen = $datos['origen_registro'] ?? 'online';
 
-                // Si es un producto con receta, se valida el stock de los insumos
+                // Si es un producto con receta, se valida el stock de los insumos considerando merma
                 if ($producto->es_receta && $producto->receta !== null && $producto->receta->ingredientes->isNotEmpty()) {
                     $costoUnitarioPromedio = 0.0;
 
@@ -183,7 +188,7 @@ class RegistrarVentaService
                     }
                 }
 
-                // El precio de mostrador ya incluye el IVA
+                // Desglose de importes asumiendo que precio_unitario de mostrador incluye IVA
                 $precioConIva = (float) $linea['precio_unitario'];
                 $descuentoUnitario = (float) ($linea['descuento_unitario'] ?? 0.0);
                 $tasaIva = isset($linea['tasa_iva']) ? (float) $linea['tasa_iva'] : 0.1600;
@@ -228,8 +233,7 @@ class RegistrarVentaService
                 ];
             }
 
-            // 4. Encabezado de Venta
-            // Generar token único para el portal público de autofacturación
+            // 4. Encabezado de Venta y token para portal de autofacturación
             $tokenAutofactura = Str::lower(Str::random(32));
 
             /** @var Venta $venta */
@@ -266,7 +270,7 @@ class RegistrarVentaService
                 'notas' => $datos['notas'] ?? null,
             ]);
 
-            // 5. Persistencia de Partidas, Descuento y Kardex
+            // 5. Persistencia de Partidas, Descuento de Inventario y Kardex
             foreach ($detallesParaCrear as $detalleItem) {
                 /** @var Producto $prodModel */
                 $prodModel = $detalleItem['producto_model'];
@@ -281,7 +285,7 @@ class RegistrarVentaService
 
                 $venta->detalles()->create($detalleItem);
 
-                // Descuento en inventario y registro en Kardex
+                // Descontar insumos de receta o stock directo del producto
                 if ($prodModel->es_receta && $prodModel->receta !== null && $prodModel->receta->ingredientes->isNotEmpty()) {
                     foreach ($prodModel->receta->ingredientes as $ingrediente) {
                         $factorMerma = bcadd('1', bcdiv((string) $ingrediente->porcentaje_merma, '100', 4), 4);
@@ -318,7 +322,7 @@ class RegistrarVentaService
                         ]);
                     }
 
-                    // Bitácora inmutable de Kardex
+                    // Registrar salida en bitácora inmutable de Kardex
                     MovimientoInventario::query()->create([
                         'empresa_id' => $empresa->id,
                         'almacen_id' => $almacen->id,
@@ -339,10 +343,20 @@ class RegistrarVentaService
                 }
             }
 
-            // 6. Registro de Pagos e Incrementos de Caja
-            foreach ($datos['pagos'] as $pagoItem) {
+            // 6. Registro de Pagos (uno o varios en venta_pagos) e incrementos en turno de caja
+            $pagosRecibidos = ! empty($datos['pagos']) && is_array($datos['pagos'])
+                ? $datos['pagos']
+                : [[
+                    'forma_pago_sat' => $datos['forma_pago_sat'] ?? '01',
+                    'monto' => round($totalVenta, 2),
+                    'monto_recibido' => round($totalVenta, 2),
+                    'cambio_devuelto' => 0.0,
+                    'referencia_bancaria' => null,
+                ]];
+
+            foreach ($pagosRecibidos as $pagoItem) {
                 $montoPago = (float) $pagoItem['monto'];
-                $formaPago = $pagoItem['forma_pago_sat'];
+                $formaPago = (string) $pagoItem['forma_pago_sat'];
 
                 VentaPago::query()->create([
                     'uuid' => $pagoItem['uuid'] ?? (string) Str::uuid(),
@@ -378,6 +392,9 @@ class RegistrarVentaService
         });
     }
 
+    /**
+     * Descuenta stock de un insumo perteneciente a la receta de un producto vendido.
+     */
     protected function descontarStockInsumo(
         int $empresaId,
         int $almacenId,
@@ -431,6 +448,9 @@ class RegistrarVentaService
         ]);
     }
 
+    /**
+     * Genera el siguiente folio consecutivo de venta para la sucursal y fecha actual.
+     */
     protected function generarFolio(Sucursal $sucursal): string
     {
         $fecha = Carbon::now()->format('Ymd');

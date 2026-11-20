@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="es" class="dark">
 <head>
+    {{-- ===================================================================== --}}
+    {{-- SECCIÓN 1: METADATOS, ESTILOS Y NOTIFICACIONES FLOTANTES KDS          --}}
+    {{-- ===================================================================== --}}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -59,14 +62,22 @@
 <body class="bg-[#0b0f19] text-slate-100 h-screen overflow-hidden font-sans select-none touch-action-manipulation"
       x-data="comanderoApp">
 
-    {{-- NOTIFICACIONES FLOTANTES KDS (FUERA DE CONTENEDORES CON OVERFLOW-HIDDEN) --}}
+    {{-- NOTIFICACIONES FLOTANTES KDS Y AVISOS DE SISTEMA DENTRO DE LA PÁGINA --}}
     <div class="kds-toast-container">
         <template x-for="notif in notificacionesKds" :key="notif.id">
-            <div class="kds-toast-card" :class="notif.fading ? 'is-fading' : ''">
-                <div class="p-2 bg-emerald-500/15 text-emerald-300 rounded-xl border border-emerald-500/30 text-lg shrink-0">🔔</div>
+            <div class="kds-toast-card"
+                 :class="[
+                     notif.fading ? 'is-fading' : '',
+                     notif.tipo === 'error' ? '!border-rose-500/70' : (notif.tipo === 'aviso' ? '!border-amber-400/70' : '!border-emerald-400/65')
+                 ]">
+                <div class="p-2 rounded-xl border text-lg shrink-0"
+                     :class="notif.tipo === 'error' ? 'bg-rose-500/15 text-rose-300 border-rose-500/30' : (notif.tipo === 'aviso' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30')"
+                     x-text="notif.icono || '🔔'"></div>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between gap-2">
-                        <h4 class="text-xs font-bold text-emerald-300 uppercase tracking-wider truncate" x-text="notif.titulo"></h4>
+                        <h4 class="text-xs font-bold uppercase tracking-wider truncate"
+                            :class="notif.tipo === 'error' ? 'text-rose-300' : (notif.tipo === 'aviso' ? 'text-amber-300' : 'text-emerald-300')"
+                            x-text="notif.titulo"></h4>
                         <span class="text-[10px] font-mono text-slate-400 shrink-0" x-text="notif.hora"></span>
                     </div>
                     <p class="text-xs text-slate-200 mt-0.5 leading-snug break-words" x-text="notif.mensaje"></p>
@@ -77,7 +88,9 @@
 
     <div class="h-screen flex flex-col p-3 lg:p-4 overflow-hidden relative">
 
-        {{-- ENCABEZADO --}}
+        {{-- ================================================================= --}}
+        {{-- SECCIÓN 2: ENCABEZADO DEL COMANDERO                               --}}
+        {{-- ================================================================= --}}
         <header class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800/80 shrink-0">
             <div class="flex items-center gap-3">
                 <div class="p-2.5 bg-indigo-600/10 text-indigo-400 rounded-xl border border-indigo-500/20 text-xl flex items-center justify-center">📱</div>
@@ -99,7 +112,9 @@
             </div>
         </header>
 
-        {{-- CONTENEDOR 2 COLUMNAS --}}
+        {{-- ================================================================= --}}
+        {{-- SECCIÓN 3: CONTENEDOR DE 2 COLUMNAS (MENÚ Y ORDEN DE MESA)        --}}
+        {{-- ================================================================= --}}
         <main class="flex-1 grid gap-4 min-h-0 overflow-hidden pb-1" style="grid-template-columns: 1fr 370px;">
 
             {{-- MENÚ IZQUIERDO --}}
@@ -177,7 +192,7 @@
                     <h2 class="text-xs font-bold uppercase text-white tracking-wider flex items-center gap-2"><span>📋</span> ORDEN: <span class="text-indigo-400 font-mono ml-1" x-text="mesaActual"></span></h2>
                     <div class="flex items-center gap-2">
                         <button type="button" @click="cargarConsumoMesa()" class="text-[10px] text-indigo-300 hover:text-indigo-200 transition" title="Actualizar consumo de la mesa">🔄</button>
-                        <button type="button" @click="vaciarOrden()" class="text-[11px] text-rose-400 hover:text-rose-300 transition">Vaciar</button>
+                        <button type="button" @click="solicitarConfirmacionVaciarOrden()" class="text-[11px] text-rose-400 hover:text-rose-300 transition">Vaciar</button>
                     </div>
                 </div>
 
@@ -257,14 +272,48 @@
                         <span class="font-mono font-black text-emerald-400 text-lg" x-text="'$' + (totalOrden + totalConsumoMesa).toFixed(2)"></span>
                     </div>
                     <div class="space-y-1.5">
-                        <button @click="pedirCuenta()" class="w-full py-2 bg-slate-800/80 text-amber-400 border border-slate-700 font-bold text-xs rounded-xl">🧾 Pedir Cuenta</button>
-                        <button @click="enviarOrdenACocina()" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl text-xs">🚀 Enviar a Cocina</button>
+                        <button type="button" @click="abrirModalPedirCuenta()" class="w-full py-2 bg-slate-800/80 hover:bg-slate-800 text-amber-400 border border-slate-700 font-bold text-xs rounded-xl transition cursor-pointer">🧾 Pedir Cuenta</button>
+                        <button type="button" @click="enviarOrdenACocina()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition cursor-pointer">🚀 Enviar a Cocina</button>
                     </div>
                 </div>
             </div>
         </main>
 
-        {{-- MODAL EXTRAS --}}
+        {{-- ================================================================= --}}
+        {{-- SECCIÓN 4: MODAL DE CONFIRMACIÓN INTEGRADO EN PÁGINA              --}}
+        {{-- ================================================================= --}}
+        <div x-show="modalConfirmacion.abierto" x-cloak
+             class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div @click.away="cerrarModalConfirmacion()"
+                 class="bg-[#111827] border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+                <div class="flex items-start justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-xl" x-text="modalConfirmacion.icono || '🧾'"></span>
+                        <h3 class="text-sm font-bold text-white" x-text="modalConfirmacion.titulo"></h3>
+                    </div>
+                    <button type="button" @click="cerrarModalConfirmacion()" class="text-slate-400 hover:text-white text-lg leading-none cursor-pointer">&times;</button>
+                </div>
+
+                <p class="text-xs text-slate-300 leading-relaxed" x-text="modalConfirmacion.mensaje"></p>
+
+                <div class="flex items-center justify-end gap-2 pt-2">
+                    <button type="button" @click="cerrarModalConfirmacion()"
+                            class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer">
+                        Cancelar
+                    </button>
+                    <button type="button" @click="confirmarAccionModal()"
+                            :disabled="modalConfirmacion.procesando"
+                            class="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition cursor-pointer">
+                        <span x-show="!modalConfirmacion.procesando" x-text="modalConfirmacion.textoConfirmar || 'Confirmar'"></span>
+                        <span x-show="modalConfirmacion.procesando">Procesando...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- ================================================================= --}}
+        {{-- SECCIÓN 5: MODAL EXTRAS Y MODIFICADORES                            --}}
+        {{-- ================================================================= --}}
         <div x-show="modalExtras" x-cloak class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div @click.away="modalExtras = false" class="bg-[#111827] border border-slate-700 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col max-h-[85vh]">
                 <div class="p-4 border-b border-slate-800 flex justify-between items-start">
@@ -320,7 +369,9 @@
             </div>
         </div>
 
-        {{-- MODAL MESAS --}}
+        {{-- ================================================================= --}}
+        {{-- SECCIÓN 6: MODAL SELECCIÓN DE MESA                                --}}
+        {{-- ================================================================= --}}
         <div x-show="modalMesa" x-cloak class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div @click.away="modalMesa = false" class="bg-[#111827] border border-slate-700 rounded-2xl max-w-md w-full p-5 flex flex-col gap-4 max-h-[85vh] overflow-y-auto hide-scrollbar">
                 <div class="flex justify-between items-center pb-2 border-b border-slate-800">
@@ -342,7 +393,9 @@
 
     </div>
 
-    {{-- SCRIPT ALPINE.JS GLOBAL --}}
+    {{-- ===================================================================== --}}
+    {{-- SECCIÓN 7: LÓGICA ALPINE.JS DEL COMANDERO                             --}}
+    {{-- ===================================================================== --}}
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('comanderoApp', () => ({
@@ -371,6 +424,17 @@
                 notificacionesKds: [],
                 alertasVistas: new Set(),
                 audioCtx: null,
+
+                // Estado del modal de confirmación integrado dentro de la página
+                modalConfirmacion: {
+                    abierto: false,
+                    procesando: false,
+                    icono: '🧾',
+                    titulo: '',
+                    mensaje: '',
+                    textoConfirmar: 'Confirmar',
+                    accion: null
+                },
 
                 get totalOrden() {
                     return this.orden.reduce((sum, item) => sum + this.calcularSubtotalItem(item), 0);
@@ -503,6 +567,32 @@
                     }
                 },
 
+                // Muestra una notificación visual dentro de la página sin usar alert() del navegador
+                mostrarToastSistema(titulo, mensaje, tipo = 'exito', icono = '✅') {
+                    const notifId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                    const nuevaNotif = {
+                        id: notifId,
+                        titulo,
+                        mensaje,
+                        tipo,
+                        icono,
+                        hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                        fading: false
+                    };
+
+                    this.notificacionesKds = [...this.notificacionesKds, nuevaNotif];
+
+                    setTimeout(() => {
+                        this.notificacionesKds = this.notificacionesKds.map(n =>
+                            n.id === notifId ? { ...n, fading: true } : n
+                        );
+                    }, 4500);
+
+                    setTimeout(() => {
+                        this.notificacionesKds = this.notificacionesKds.filter(n => n.id !== notifId);
+                    }, 6100);
+                },
+
                 agregarNotificacionKds(alerta) {
                     const idUnico = `${alerta.tipo || 'kds'}_${alerta.id ?? Math.random()}_${alerta.timestamp ?? Date.now()}`;
                     if (this.alertasVistas.has(idUnico)) return;
@@ -519,6 +609,8 @@
                         id: notifId,
                         titulo: `¡Despacho en ${estacion}!`,
                         mensaje: `${mesa} — ${platillo}`,
+                        tipo: 'kds',
+                        icono: '🔔',
                         hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
                         fading: false
                     };
@@ -623,19 +715,82 @@
                 incrementar(idx) { this.orden[idx].cantidad += 1; },
                 decrementar(idx) { if (this.orden[idx].cantidad > 1) this.orden[idx].cantidad -= 1; },
                 eliminar(idx) { this.orden.splice(idx, 1); },
-                vaciarOrden() { if (confirm('¿Vaciar orden?')) this.orden = []; },
 
-                async pedirCuenta() {
-                    if (!confirm(`¿Solicitar cuenta para ${this.mesaActual}?`)) return;
+                // Abre el modal dentro de la página para confirmar o ejecutar una acción
+                abrirModalConfirmacion({ icono = '🧾', titulo, mensaje, textoConfirmar = 'Confirmar', accion }) {
+                    this.modalConfirmacion = {
+                        abierto: true,
+                        procesando: false,
+                        icono,
+                        titulo,
+                        mensaje,
+                        textoConfirmar,
+                        accion
+                    };
+                },
+
+                cerrarModalConfirmacion() {
+                    if (this.modalConfirmacion.procesando) return;
+                    this.modalConfirmacion.abierto = false;
+                    this.modalConfirmacion.accion = null;
+                },
+
+                async confirmarAccionModal() {
+                    if (typeof this.modalConfirmacion.accion !== 'function') {
+                        this.cerrarModalConfirmacion();
+                        return;
+                    }
+                    this.modalConfirmacion.procesando = true;
+                    try {
+                        await this.modalConfirmacion.accion();
+                        this.modalConfirmacion.abierto = false;
+                        this.modalConfirmacion.accion = null;
+                    } finally {
+                        this.modalConfirmacion.procesando = false;
+                    }
+                },
+
+                solicitarConfirmacionVaciarOrden() {
+                    if (this.orden.length === 0) return;
+                    this.abrirModalConfirmacion({
+                        icono: '🗑️',
+                        titulo: 'Vaciar orden actual',
+                        mensaje: `¿Deseas quitar los platillos por enviar de ${this.mesaActual}?`,
+                        textoConfirmar: 'Vaciar orden',
+                        accion: () => {
+                            this.orden = [];
+                            this.mostrarToastSistema('Orden vaciada', `Se limpiaron los ítems pendientes de ${this.mesaActual}.`, 'aviso', '🗑️');
+                        }
+                    });
+                },
+
+                abrirModalPedirCuenta() {
+                    this.abrirModalConfirmacion({
+                        icono: '🧾',
+                        titulo: 'Solicitar cuenta a caja',
+                        mensaje: `¿Solicitar cuenta para ${this.mesaActual}?`,
+                        textoConfirmar: 'Solicitar cuenta',
+                        accion: async () => {
+                            await this.ejecutarPedirCuenta();
+                        }
+                    });
+                },
+
+                async ejecutarPedirCuenta() {
                     try {
                         const res = await fetch(this.routes.pedirCuenta, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.routes.csrf, 'Accept': 'application/json' },
                             body: JSON.stringify({ mesa: this.mesaActual, sucursal_id: this.sucursalId })
                         });
-                        if (res.ok) alert('Cuenta solicitada a caja exitosamente.');
+                        if (res.ok) {
+                            this.mostrarToastSistema('Cuenta solicitada', `Se envió la solicitud de cuenta de ${this.mesaActual} a caja.`, 'exito', '🧾');
+                        } else {
+                            this.mostrarToastSistema('Aviso', 'No se pudo enviar la solicitud de cuenta.', 'error', '⚠️');
+                        }
                     } catch (e) {
                         console.error('Error al pedir cuenta', e);
+                        this.mostrarToastSistema('Error de conexión', 'No hubo comunicación con el servidor.', 'error', '⚠️');
                     }
                 },
 
@@ -656,8 +811,9 @@
                         if (res.ok) {
                             this.orden = [];
                             await this.cargarConsumoMesa();
+                            this.mostrarToastSistema('Orden enviada', `Comanda enviada a cocina/barra para ${this.mesaActual}.`, 'exito', '🚀');
                         } else {
-                            alert('Error en servidor.');
+                            this.mostrarToastSistema('Error en servidor', 'No se pudo enviar la orden a cocina.', 'error', '⚠️');
                         }
                     } finally { this.enviando = false; }
                 }

@@ -172,12 +172,27 @@
     </table>
 
     {{-- ========================================================================= --}}
-    {{-- SECCIÓN 7: DESGLOSE DE FORMAS DE PAGO Y CAMBIO ENTREGADO                  --}}
+    {{-- SECCIÓN 7: DESGLOSE DE FORMAS DE PAGO (SIMPLE, MIXTO O 2 TARJETAS)      --}}
     {{-- ========================================================================= --}}
-    <div>
-        @foreach($venta->pagos as $pago)
+    @php
+        $pagosColeccion = $venta->pagos ?? collect();
+        $esPagoMultiple = $pagosColeccion->count() > 1;
+        $pagosEfectivo = $pagosColeccion->where('forma_pago_sat', '01');
+        $tieneEfectivo = $pagosEfectivo->isNotEmpty() || (string) $venta->forma_pago_sat === '01';
+        $totalRecibidoEfectivo = (float) $pagosEfectivo->sum('monto_recibido');
+        $totalCambioEntregado = (float) $pagosColeccion->sum('cambio_devuelto');
+    @endphp
+
+    <div style="font-size: 11px; margin-top: 2px;">
+        {{-- Título del bloque según sea un solo pago o varios (mixto / dos tarjetas) --}}
+        <div class="bold" style="margin-bottom: 2px;">
+            {{ $esPagoMultiple ? 'DESGLOSE DE PAGOS:' : 'FORMA DE PAGO:' }}
+        </div>
+
+        @forelse($pagosColeccion as $indice => $pago)
             @php
-                $etiquetaPago = match($pago->forma_pago_sat) {
+                // Traducir clave SAT a etiqueta legible para el ticket
+                $etiquetaPago = match((string) $pago->forma_pago_sat) {
                     '01' => 'Efectivo',
                     '04' => 'Tarjeta Crédito',
                     '28' => 'Tarjeta Débito',
@@ -185,14 +200,52 @@
                     default => 'Otro (' . $pago->forma_pago_sat . ')',
                 };
             @endphp
-            <div>Pago: {{ $etiquetaPago }} (${{ number_format((float) $pago->monto, 2) }})</div>
-            @if ($pago->forma_pago_sat == '01')
-                <div>Monto Recibido: ${{ number_format((float) $pago->monto_recibido, 2) }}</div>
-                <div>Cambio: ${{ number_format((float) $pago->cambio_devuelto, 2) }}</div>
-            @elseif (! empty($pago->referencia_bancaria))
-                <div>Ref.: {{ $pago->referencia_bancaria }}</div>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1px;">
+                <span>
+                    @if($esPagoMultiple)
+                        {{ $indice + 1 }}.
+                    @endif
+                    {{ $etiquetaPago }}
+                </span>
+                <span class="bold">${{ number_format((float) $pago->monto, 2) }}</span>
+            </div>
+
+            {{-- Mostrar referencia bancaria cuando exista en pagos con tarjeta o transferencia --}}
+            @if(! empty($pago->referencia_bancaria))
+                <div style="font-size: 10px; padding-left: {{ $esPagoMultiple ? '10px' : '4px' }};">
+                    Ref.: {{ $pago->referencia_bancaria }}
+                </div>
             @endif
-        @endforeach
+        @empty
+            @php
+                $etiquetaRespaldo = match((string) ($venta->forma_pago_sat ?? '01')) {
+                    '01' => 'Efectivo',
+                    '04' => 'Tarjeta Crédito',
+                    '28' => 'Tarjeta Débito',
+                    '03' => 'Transferencia',
+                    default => 'Efectivo',
+                };
+            @endphp
+            <div style="display: flex; justify-content: space-between;">
+                <span>{{ $etiquetaRespaldo }}</span>
+                <span class="bold">${{ number_format($totalCobradoFinal, 2) }}</span>
+            </div>
+        @endforelse
+
+        {{-- Resumen de recibido y cambio cuando intervino efectivo --}}
+        @if($tieneEfectivo)
+            <div style="border-top: 1px dotted #000; margin-top: 4px; padding-top: 3px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Monto Recibido:</span>
+                    <span>${{ number_format($totalRecibidoEfectivo > 0 ? $totalRecibidoEfectivo : $totalCobradoFinal, 2) }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;" class="bold">
+                    <span>Cambio:</span>
+                    <span>${{ number_format($totalCambioEntregado, 2) }}</span>
+                </div>
+            </div>
+        @endif
     </div>
 
     <div class="divider"></div>
