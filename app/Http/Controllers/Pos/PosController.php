@@ -1239,18 +1239,26 @@ class PosController extends Controller
     }
 
     /**
-     * Renderiza el ticket térmico imprimible tanto para Corte Parcial (X) como Corte Final (Z).
+     * Genera la vista de impresión térmica (80mm) para el Corte X (arqueo parcial)
+     * o Corte Z (cierre final de turno).
      */
-    public function imprimirTicketCorte(Request $request, CajaTurno $turno): View
+    public function imprimirTicketCorte(Request $request, CajaTurno $turno)
     {
-        $tipoCorte = strtoupper($request->query('tipo', $turno->estado === 'cerrado' ? 'Z' : 'X'));
+        $tipoCorte = strtoupper((string) $request->query('tipo', 'X')) === 'Z' ? 'Z' : 'X';
         $desglose = $this->calcularDesgloseTurno($turno);
 
-        return view('pos.corte_ticket', [
-            'turno' => $turno->load(['sucursal.empresa', 'user']),
-            'tipoCorte' => $tipoCorte,
-            'desglose' => $desglose,
-        ]);
+        // Si es Corte X y se enviaron montos de conteo desde el modal de denominaciones, anexarlos al desglose
+        if ($tipoCorte === 'X' && $request->has('contado')) {
+            $efectivoContadoX = round((float) $request->query('contado', 0), 2);
+            $diferenciaX = $request->has('diferencia')
+                ? round((float) $request->query('diferencia', 0), 2)
+                : round($efectivoContadoX - (float) ($desglose['efectivo_esperado'] ?? 0), 2);
+
+            $desglose['efectivo_contado'] = $efectivoContadoX;
+            $desglose['diferencia'] = $diferenciaX;
+        }
+
+        return view('pos.corte_ticket', compact('turno', 'tipoCorte', 'desglose'));
     }
 
     /**

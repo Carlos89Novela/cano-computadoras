@@ -116,6 +116,14 @@
                             Facturación CFDI
                         </button>
 
+                        {{-- Abre el modal de Corte X (arqueo por denominaciones sin cerrar turno) --}}
+                        <button type="button"
+                                @click="abrirModalCorteX()"
+                                class="px-3 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                            <span>🧮</span>
+                            <span>Corte X</span>
+                        </button>
+
                         {{-- Abre el modal de corte Z y cierre de turno --}}
                         <button @click="modalCierre = true" class="px-4 py-2 bg-rose-600/20 border border-rose-500/30 hover:bg-rose-600/30 text-rose-300 rounded-lg text-sm font-medium transition">
                             Cerrar Turno #<span x-text="turnoActivo.id"></span>
@@ -738,8 +746,109 @@
         </div>
 
         {{-- ===================================================================== --}}
-        {{-- SECCIÓN 6: MODALES DE CAJA, REIMPRESIÓN Y FACTURACIÓN CFDI 4.0      --}}
+        {{-- SECCIÓN 6: MODALES DE CAJA (CORTE X / Z), REIMPRESIÓN Y CFDI 4.0   --}}
         {{-- ===================================================================== --}}
+
+        {{-- 6.0 Modal de Corte X (Conteo de Monedas y Billetes por Denominación) --}}
+        <div x-show="modalCorteX" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
+            <div @click.away="modalCorteX = false"
+                 class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span>🧮 Corte X — Arqueo por Denominaciones</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-400">
+                            Turno #<span x-text="turnoActivo?.id || ''"></span> • El turno permanece abierto
+                        </p>
+                    </div>
+                    <button type="button" @click="modalCorteX = false" class="text-slate-400 hover:text-white text-lg font-bold cursor-pointer">&times;</button>
+                </div>
+
+                {{-- Resumen de referencia del turno y cálculo automático --}}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                        <span class="text-slate-400 block text-[11px]">Efectivo Esperado</span>
+                        <span class="font-mono font-bold text-indigo-300 text-sm"
+                              x-text="`$${Number(turnoActivo?.monto_esperado_efectivo || 0).toFixed(2)}`"></span>
+                    </div>
+                    <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                        <span class="text-slate-400 block text-[11px]">Total Contado</span>
+                        <span class="font-mono font-black text-emerald-400 text-sm"
+                              x-text="`$${totalContadoCorteX.toFixed(2)}`"></span>
+                    </div>
+                    <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                        <span class="text-slate-400 block text-[11px]">Diferencia</span>
+                        <span class="font-mono font-bold text-sm"
+                              :class="diferenciaCorteX === 0 ? 'text-slate-200' : (diferenciaCorteX > 0 ? 'text-emerald-400' : 'text-rose-400')"
+                              x-text="`${diferenciaCorteX >= 0 ? '+' : ''}$${diferenciaCorteX.toFixed(2)}`"></span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    {{-- Columna Monedas --}}
+                    <div class="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="font-bold text-amber-300 uppercase tracking-wider text-[11px]">🪙 Monedas</span>
+                            <span class="font-mono font-bold text-amber-300" x-text="`$${subtotalMonedasCorteX.toFixed(2)}`"></span>
+                        </div>
+
+                        <template x-for="mon in denominacionesMonedas" :key="'mon_' + mon.valor">
+                            <div class="grid grid-cols-12 items-center gap-2">
+                                <span class="col-span-4 font-mono font-bold text-slate-200" x-text="mon.etiqueta"></span>
+                                <input type="number" min="0" step="1"
+                                       x-model.number="conteoDenominaciones[mon.valor]"
+                                       placeholder="0"
+                                       class="col-span-4 !bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 !text-white font-mono text-xs text-right focus:outline-none focus:border-amber-500">
+                                <span class="col-span-4 font-mono text-right text-slate-300"
+                                      x-text="`$${((Number(conteoDenominaciones[mon.valor]) || 0) * mon.valor).toFixed(2)}`"></span>
+                            </div>
+                        </template>
+                    </div>
+
+                    {{-- Columna Billetes --}}
+                    <div class="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="font-bold text-emerald-300 uppercase tracking-wider text-[11px]">💵 Billetes</span>
+                            <span class="font-mono font-bold text-emerald-300" x-text="`$${subtotalBilletesCorteX.toFixed(2)}`"></span>
+                        </div>
+
+                        <template x-for="bil in denominacionesBilletes" :key="'bil_' + bil.valor">
+                            <div class="grid grid-cols-12 items-center gap-2">
+                                <span class="col-span-4 font-mono font-bold text-slate-200" x-text="bil.etiqueta"></span>
+                                <input type="number" min="0" step="1"
+                                       x-model.number="conteoDenominaciones[bil.valor]"
+                                       placeholder="0"
+                                       class="col-span-4 !bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 !text-white font-mono text-xs text-right focus:outline-none focus:border-emerald-500">
+                                <span class="col-span-4 font-mono text-right text-slate-300"
+                                      x-text="`$${((Number(conteoDenominaciones[bil.valor]) || 0) * bil.valor).toFixed(2)}`"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 pt-3 border-t border-slate-800 flex-wrap">
+                    <button type="button"
+                            @click="limpiarConteoCorteX()"
+                            class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer">
+                        Limpiar Conteo
+                    </button>
+
+                    <div class="flex items-center gap-2">
+                        <button type="button"
+                                @click="modalCorteX = false"
+                                class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer">
+                            Cerrar
+                        </button>
+                        <button type="button"
+                                @click="imprimirCorteXConConteo()"
+                                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/20 transition cursor-pointer">
+                            🖨️ Imprimir Corte X
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         {{-- 6.1 Modal de Apertura de Turno --}}
         <div x-show="modalApertura" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
@@ -1305,9 +1414,9 @@
     {{-- ===================================================================== --}}
     <script>
         /**
-         * Componente principal de Alpine.js para el Punto de Venta (POS).
-         * Gestiona turno de caja, plano de mesas, catálogo, cobro, precuentas,
-         * reimpresión de tickets, gestión de clientes y facturación electrónica CFDI 4.0.
+- Componente principal de Alpine.js para el Punto de Venta (POS).
+- Gestiona turno de caja, plano de mesas, catálogo, cobro, precuentas,
+- corte X por denominaciones, corte Z, reimpresión y facturación CFDI 4.0.
          */
         function posTerminal(config) {
             return {
@@ -1332,12 +1441,43 @@
                 db: null,
 
                 // =====================================================================
-                // MODALES Y FORMULARIOS DE APERTURA / CIERRE DE CAJA
+                // MODALES Y FORMULARIOS DE APERTURA / CORTE X / CIERRE (CORTE Z)
                 // =====================================================================
                 modalApertura: false,
                 modalCierre: false,
+                modalCorteX: false,
                 formApertura: { monto_inicial: 1000, observaciones: '' },
                 formCierre: { monto_real_efectivo: 0, observaciones: '' },
+
+                // Denominaciones de monedas y billetes para arqueo parcial en Corte X
+                denominacionesMonedas: [
+                    { valor: 0.5, etiqueta: '$0.50' },
+                    { valor: 1, etiqueta: '$1.00' },
+                    { valor: 2, etiqueta: '$2.00' },
+                    { valor: 5, etiqueta: '$5.00' },
+                    { valor: 10, etiqueta: '$10.00' }
+                ],
+                denominacionesBilletes: [
+                    { valor: 20, etiqueta: '$20' },
+                    { valor: 50, etiqueta: '$50' },
+                    { valor: 100, etiqueta: '$100' },
+                    { valor: 200, etiqueta: '$200' },
+                    { valor: 500, etiqueta: '$500' },
+                    { valor: 1000, etiqueta: '$1,000' }
+                ],
+                conteoDenominaciones: {
+                    0.5: 0,
+                    1: 0,
+                    2: 0,
+                    5: 0,
+                    10: 0,
+                    20: 0,
+                    50: 0,
+                    100: 0,
+                    200: 0,
+                    500: 0,
+                    1000: 0
+                },
 
                 // =====================================================================
                 // CATÁLOGO, CARRITO DE VENTA Y MÉTODOS DE PAGO
@@ -1440,6 +1580,33 @@
                 // =====================================================================
                 // PROPIEDADES COMPUTADAS (GETTERS)
                 // =====================================================================
+                // Subtotal calculado de monedas en Corte X
+                get subtotalMonedasCorteX() {
+                    return this.denominacionesMonedas.reduce((sum, m) => {
+                        const cant = Math.max(0, Number(this.conteoDenominaciones[m.valor]) || 0);
+                        return sum + (cant * m.valor);
+                    }, 0);
+                },
+
+                // Subtotal calculado de billetes en Corte X
+                get subtotalBilletesCorteX() {
+                    return this.denominacionesBilletes.reduce((sum, b) => {
+                        const cant = Math.max(0, Number(this.conteoDenominaciones[b.valor]) || 0);
+                        return sum + (cant * b.valor);
+                    }, 0);
+                },
+
+                // Total general contado en Corte X (monedas + billetes)
+                get totalContadoCorteX() {
+                    return Number((this.subtotalMonedasCorteX + this.subtotalBilletesCorteX).toFixed(2));
+                },
+
+                // Diferencia entre total contado en Corte X y efectivo esperado del turno
+                get diferenciaCorteX() {
+                    const esperado = Number(this.turnoActivo?.monto_esperado_efectivo || 0);
+                    return Number((this.totalContadoCorteX - esperado).toFixed(2));
+                },
+
                 // Indica si existe alguna precuenta solicitada pendiente de atención
                 get hayCuentasPedidas() {
                     return (this.mesasAbiertas || []).some(m => Boolean(m.cuenta_pedida)) || this.alertasPrecuentaPos.length > 0;
@@ -1520,6 +1687,47 @@
                     return true;
                 },
 
+                // =====================================================================
+                // MÉTODOS DE CORTE X POR DENOMINACIONES
+                // =====================================================================
+                // Abre el modal de Corte X para realizar arqueo por denominaciones
+                abrirModalCorteX() {
+                    this.modalCorteX = true;
+                },
+
+                // Reinicia todas las cantidades de monedas y billetes a 0
+                limpiarConteoCorteX() {
+                    Object.keys(this.conteoDenominaciones).forEach(k => {
+                        this.conteoDenominaciones[k] = 0;
+                    });
+                },
+
+                // Abre el ticket de impresión del Corte X enviando efectivo contado, diferencia y denominaciones
+                imprimirCorteXConConteo() {
+                    if (!this.turnoActivo?.id) return;
+
+                    // Reunir únicamente las denominaciones (monedas y billetes) con cantidad mayor a 0
+                    const detalleDenominaciones = {};
+                    [...this.denominacionesMonedas, ...this.denominacionesBilletes].forEach(d => {
+                        const cant = Math.max(0, Number(this.conteoDenominaciones[d.valor]) || 0);
+                        if (cant > 0) {
+                            detalleDenominaciones[String(d.valor)] = cant;
+                        }
+                    });
+
+                    const params = new URLSearchParams({
+                        tipo: 'X',
+                        contado: this.totalContadoCorteX.toFixed(2),
+                        diferencia: this.diferenciaCorteX.toFixed(2),
+                        denominaciones: JSON.stringify(detalleDenominaciones)
+                    });
+
+                    window.open(`/pos/caja/${this.turnoActivo.id}/imprimir-corte?${params.toString()}`, '_blank');
+                },
+
+                // =====================================================================
+                // MÉTODOS DE COBRO SIMPLE, MIXTO Y DOS TARJETAS
+                // =====================================================================
                 // Cambia a pago simple (Efectivo '01', Tarjeta '04'/'28' o Transferencia '03')
                 activarPagoSimple(formaSat) {
                     this.modoCobroPos = 'simple';
@@ -1597,7 +1805,6 @@
                         const medioSec = this.medioMixtoSecundario || '04';
                         formaPrincipalSat = ef >= sec ? '01' : medioSec;
 
-                        // Si el segundo medio cubre todo el total, el monto en efectivo es 0 y el segundo medio toma el total
                         const montoSecFinal = Number(Math.min(totalVenta, sec).toFixed(2));
                         const montoEfFinal = Number(Math.max(0, totalVenta - montoSecFinal).toFixed(2));
                         const cambioMixto = Math.max(0, Number(((ef + sec) - totalVenta).toFixed(2)));
@@ -1699,6 +1906,12 @@
                             this.vaciarCarrito();
                             this.modoCobroPos = 'simple';
                             this.formaPagoSat = '01';
+                            this.montoMixtoEfectivo = 0;
+                            this.montoMixtoSecundario = 0;
+                            this.montoTarjeta1 = 0;
+                            this.montoTarjeta2 = 0;
+                            this.referenciaPago1 = '';
+                            this.referenciaPago2 = '';
                             this.consultarMesasAbiertas();
                             this.isProcessing = false;
                             return;
@@ -1714,7 +1927,6 @@
                 // =====================================================================
                 // INICIALIZACIÓN Y SOPORTE OFFLINE
                 // =====================================================================
-                // Inicializa título de pestaña, listeners de red/audio, catálogo y polling
                 async initPos() {
                     const tituloPos = `Punto de Venta | ${this.sucursal?.nombre || 'La Fogata Bistro'}`;
                     document.title = tituloPos;
@@ -1747,17 +1959,14 @@
                     this.iniciarEscuchaPrecuentas();
                 },
 
-                // Inicialización base de IndexedDB para respaldo local
                 async initIndexedDB() {
                     return Promise.resolve();
                 },
 
-                // Actualiza contador de ventas pendientes en cola offline
                 async actualizarContadorOffline() {
                     this.offlineQueueCount = 0;
                 },
 
-                // Sincroniza lote de ventas pendientes cuando vuelve la conexión
                 async sincronizarLoteOffline() {
                     this.isSyncing = false;
                 },
@@ -1765,7 +1974,6 @@
                 // =====================================================================
                 // AUDIO Y ALERTAS DE PRECUENTA
                 // =====================================================================
-                // Normaliza nombres de mesa ("Mesa 1" -> "1") para emparejar alertas y comandas
                 normalizarMesa(nombre) {
                     return String(nombre || '')
                         .toLowerCase()
@@ -1773,7 +1981,6 @@
                         .trim();
                 },
 
-                // Desbloquea Web Audio API tras la primera interacción del usuario
                 async desbloquearAudioPos() {
                     try {
                         if (!this.posAudioCtx) {
@@ -1793,13 +2000,11 @@
                     }
                 },
 
-                // Activa y reproduce manualmente el timbre de precuenta
                 probarTimbrePrecuenta() {
                     this.desbloquearAudioPos();
                     this.reproducirTimbrePrecuenta();
                 },
 
-                // Emite doble tono sintetizado para alertar precuentas solicitadas
                 reproducirTimbrePrecuenta() {
                     try {
                         this.desbloquearAudioPos();
@@ -1826,7 +2031,6 @@
                     }
                 },
 
-                // Consulta cada 3 segundos nuevas alertas de precuenta enviadas desde el comandero
                 iniciarEscuchaPrecuentas() {
                     if (!this.routes.alertasPrecuenta) return;
 
@@ -1862,7 +2066,6 @@
                     setInterval(revisar, 3000);
                 },
 
-                // Carga al ticket el consumo de la mesa indicada en la alerta de precuenta
                 cargarMesaPorNombre(nombreMesa) {
                     const target = this.normalizarMesa(nombreMesa);
                     const mesaData = (this.mesasAbiertas || []).find(
@@ -1876,7 +2079,6 @@
                     }
                 },
 
-                // Elimina una alerta de precuenta del banner superior
                 descartarAlertaPrecuenta(alertaId) {
                     this.alertasPrecuentaPos = this.alertasPrecuentaPos.filter(a => a.id !== alertaId);
                 },
@@ -1884,7 +2086,6 @@
                 // =====================================================================
                 // PLANO DE MESAS, COMANDAS Y DIVISIÓN DE CUENTA
                 // =====================================================================
-                // Carga promociones vigentes desde el módulo de marketing
                 async cargarPromocionesVigentes() {
                     try {
                         const res = await fetch('/marketing/promociones/vigentes-api', { headers: { 'Accept': 'application/json' } });
@@ -1892,32 +2093,27 @@
                     } catch (e) {}
                 },
 
-                // Busca la comanda abierta asociada a una mesa del plano
                 obtenerDatosComandaMesa(mesa) {
                     if (!this.mesasAbiertas || !Array.isArray(this.mesasAbiertas) || !mesa) return null;
                     const target = this.normalizarMesa(mesa.numero_o_nombre || mesa.nombre || mesa.numero);
                     return this.mesasAbiertas.find(m => this.normalizarMesa(m.mesa) === target) || null;
                 },
 
-                // Verifica si la mesa tiene consumo activo
                 mesaTieneConsumo(mesa) {
                     const data = this.obtenerDatosComandaMesa(mesa);
                     return data !== undefined && data !== null;
                 },
 
-                // Verifica si la mesa tiene cuenta solicitada
                 mesaTieneCuentaPedida(mesa) {
                     const data = this.obtenerDatosComandaMesa(mesa);
                     return data && Boolean(data.cuenta_pedida);
                 },
 
-                // Obtiene el importe total acumulado de la mesa
                 obtenerTotalConsumoMesa(mesa) {
                     const data = this.obtenerDatosComandaMesa(mesa);
                     return data ? (Number(data.total) || 0) : 0;
                 },
 
-                // Devuelve las clases visuales de la mesa según forma y estado
                 obtenerEstiloMesaPlano(mesa) {
                     const esPedida = this.mesaTieneCuentaPedida(mesa);
                     const tieneConsumo = this.mesaTieneConsumo(mesa);
@@ -1928,7 +2124,6 @@
                     return `${base} bg-slate-900 border-slate-800 text-slate-400 opacity-80`;
                 },
 
-                // Selecciona una mesa en el plano: carga su comanda o prepara el ticket con su nombre
                 seleccionarMesaPlano(mesa) {
                     this.mesaSeleccionadaActiva = mesa;
                     const comandaData = this.obtenerDatosComandaMesa(mesa);
@@ -1940,7 +2135,6 @@
                     }
                 },
 
-                // Consulta comandas abiertas en el servidor
                 async consultarMesasAbiertas() {
                     if (!this.routes.comandasAbiertas || !this.isOnline) return;
                     try {
@@ -1952,13 +2146,11 @@
                     } catch (e) {}
                 },
 
-                // Abre el modal de mesas abiertas y refresca su listado
                 abrirModalMesasRestaurante() {
                     this.modalMesasPos = true;
                     this.consultarMesasAbiertas();
                 },
 
-                // Carga todos los platillos de una comanda abierta al ticket de cobro
                 cargarMesaAlCarrito(mesaData) {
                     this.origenComandaMesa = `${mesaData.mesa} - Folios: ${mesaData.folio}`;
                     this.comandaIdsCobrando = mesaData.comanda_ids || [];
@@ -1976,7 +2168,6 @@
                     this.modalMesasPos = false;
                 },
 
-                // Abre el modal para dividir una cuenta por platillos o partes iguales
                 abrirModalDividirCuenta(mesaData) {
                     this.mesaDividiendo = mesaData;
                     this.partidasDivision = (mesaData.items || []).map(it => ({ ...it, seleccionado: true }));
@@ -1984,7 +2175,6 @@
                     this.modalDividir = true;
                 },
 
-                // Calcula el importe de la subcuenta según el modo de división elegido
                 calcularTotalSubcuenta() {
                     if (this.modoDivision === 'partes_iguales') {
                         const total = Number(this.mesaDividiendo?.total || 0);
@@ -1996,7 +2186,6 @@
                         .reduce((sum, i) => sum + ((Number(i.cantidad) || 0) * (Number(i.precio_unitario) || 0)), 0);
                 },
 
-                // Traslada la subcuenta calculada al carrito del POS para cobrarla
                 cargarSubcuentaAlPOS() {
                     const totalSub = this.calcularTotalSubcuenta();
                     if (totalSub <= 0) return;
@@ -2034,9 +2223,8 @@
                 },
 
                 // =====================================================================
-                // OPERACIONES DE CARRITO, CATÁLOGO Y COBRO
+                // OPERACIONES DE CARRITO Y CATÁLOGO
                 // =====================================================================
-                // Agrega un producto al carrito o incrementa su cantidad si ya existe
                 agregarAlCarrito(producto) {
                     const existente = this.carrito.find(item => item.producto_id === producto.id);
                     if (existente) {
@@ -2055,26 +2243,22 @@
                     this.pagoEfectivoRecibido = Number(this.totales.total.toFixed(2));
                 },
 
-                // Incrementa en 1 la cantidad de una partida del carrito
                 incrementarCantidad(index) {
                     this.carrito[index].cantidad += 1;
                     this.pagoEfectivoRecibido = Number(this.totales.total.toFixed(2));
                 },
 
-                // Decrementa en 1 la cantidad o elimina la partida si llega a 0
                 decrementarCantidad(index) {
                     if (this.carrito[index].cantidad > 1) this.carrito[index].cantidad -= 1;
                     else this.removerDelCarrito(index);
                     this.pagoEfectivoRecibido = Number(this.totales.total.toFixed(2));
                 },
 
-                // Elimina una partida específica del carrito
                 removerDelCarrito(index) {
                     this.carrito.splice(index, 1);
                     this.pagoEfectivoRecibido = Number(this.totales.total.toFixed(2));
                 },
 
-                // Limpia el carrito y restablece el cliente a Público General
                 vaciarCarrito() {
                     this.carrito = [];
                     this.origenComandaMesa = '';
@@ -2084,7 +2268,6 @@
                     this.cliente = { nombre: 'Público General', rfc: 'XAXX010101000' };
                 },
 
-                // Consulta el catálogo de productos disponibles en el almacén activo
                 async cargarCatalogo() {
                     const almacenId = this.almacen?.id || 1;
                     try {
@@ -2096,7 +2279,6 @@
                     } catch (e) {}
                 },
 
-                // Agrega el primer resultado al presionar Enter (lectura de código de barras / SKU)
                 buscarYAgregarDirecto() {
                     const filtrados = this.productosFiltrados;
                     if (filtrados.length > 0) {
@@ -2105,7 +2287,6 @@
                     }
                 },
 
-                // Genera un UUID v4 para identificar la venta de forma única
                 generarUUID() {
                     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
                         const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -2116,7 +2297,6 @@
                 // =====================================================================
                 // APERTURA Y CIERRE DE TURNO (CORTE Z)
                 // =====================================================================
-                // Abre un nuevo turno de caja con fondo inicial
                 async abrirTurnoCaja() {
                     const res = await fetch(this.routes.aperturaCaja, {
                         method: 'POST',
@@ -2136,7 +2316,6 @@
                     }
                 },
 
-                // Cierra el turno activo, imprime el Corte Z y limpia el turno en sesión
                 async cerrarTurnoCaja() {
                     if (!this.turnoActivo) return;
                     const turnoCerradoId = this.turnoActivo.id;
@@ -2162,13 +2341,11 @@
                 // =====================================================================
                 // REIMPRESIÓN DE TICKETS Y FACTURACIÓN CFDI 4.0
                 // =====================================================================
-                // Abre el modal de reimpresión y consulta ventas recientes filtradas
                 abrirModalReimpresion() {
                     this.modalReimpresion = true;
                     this.cargarVentasRecientes();
                 },
 
-                // Carga ventas recientes según sucursal, turno y rol del usuario
                 async cargarVentasRecientes() {
                     this.cargandoVentas = true;
                     try {
@@ -2183,12 +2360,10 @@
                     }
                 },
 
-                // Abre el ticket térmico de la venta seleccionada en una nueva pestaña
                 lanzarImpresion(id) {
                     window.open(`/pos/ticket/${id}`, '_blank');
                 },
 
-                // Abre el modal de facturación CFDI y carga las ventas elegibles
                 abrirModalFacturacion() {
                     this.mensajeFactura = '';
                     this.mensajeErrorFactura = false;
@@ -2196,7 +2371,6 @@
                     this.cargarVentasParaFacturar();
                 },
 
-                // Consulta el listado de ventas recientes para gestionar su CFDI
                 async cargarVentasParaFacturar() {
                     this.cargandoFacturacion = true;
                     try {
@@ -2211,7 +2385,6 @@
                     }
                 },
 
-                // Abre el modal de alta de cliente fiscal directamente desde Facturación
                 abrirAltaClienteDesdeTicket(venta) {
                     this.ventaParaCliente = venta;
                     this.origenAltaDesdeBuscador = false;
@@ -2232,7 +2405,6 @@
                     this.modalAltaClienteCfdi = true;
                 },
 
-                // Abre el buscador de clientes ya registrados para el ticket seleccionado
                 abrirBuscarClienteDesdeTicket(venta) {
                     this.ventaParaCliente = venta;
                     this.mensajeFactura = '';
@@ -2244,22 +2416,17 @@
                     this.buscarClientesExistentes();
                 },
 
-                // Carga los datos más recientes de un cliente existente desde el buscador para verlo o editarlo
                 verOEditarClienteExistente(cli) {
-                    // Salir si no se recibió un cliente válido
                     if (!cli) return;
 
-                    // Buscar el registro actualizado por ID dentro de la lista en memoria para evitar datos desfasados
                     const registroActual = cli.id
                         ? ((this.clientesEncontradosCfdi || []).find(item => Number(item.id) === Number(cli.id)) || cli)
                         : cli;
 
-                    // Limpiar mensajes previos de facturación y marcar que el flujo viene del buscador
                     this.mensajeFactura = '';
                     this.mensajeErrorFactura = false;
                     this.origenAltaDesdeBuscador = true;
 
-                    // Cargar los campos del formulario con respaldo a nombres alternativos si aplica
                     this.formClienteCfdi = {
                         id: registroActual.id || null,
                         nombre: registroActual.nombre || '',
@@ -2272,12 +2439,10 @@
                         telefono_whatsapp: registroActual.telefono_whatsapp || registroActual.telefono || ''
                     };
 
-                    // Cerrar el buscador y abrir el modal de alta/edición
                     this.modalBuscarClienteCfdi = false;
                     this.modalAltaClienteCfdi = true;
                 },
 
-                // Regresa desde el buscador de clientes hacia el modal principal de Facturación
                 regresarAFacturacionDesdeBuscador() {
                     this.mensajeFactura = '';
                     this.mensajeErrorFactura = false;
@@ -2285,7 +2450,6 @@
                     this.modalFacturacion = true;
                 },
 
-                // Regresa desde alta/edición hacia el buscador si venía de ahí, o a Facturación
                 regresarDesdeAltaEdicionCliente() {
                     this.mensajeFactura = '';
                     this.mensajeErrorFactura = false;
@@ -2298,7 +2462,6 @@
                     }
                 },
 
-                // Regresa desde el modal de homologación hacia el buscador de clientes
                 regresarABuscadorDesdeHomologar() {
                     this.mensajeFactura = '';
                     this.mensajeErrorFactura = false;
@@ -2306,8 +2469,6 @@
                     this.modalBuscarClienteCfdi = true;
                 },
 
-                // Busca clientes registrados por nombre, RFC o teléfono y normaliza sus campos
-                // Busca clientes registrados por nombre, RFC o teléfono evitando caché del navegador
                 async buscarClientesExistentes() {
                     this.cargandoClientesCfdi = true;
                     try {
@@ -2328,7 +2489,6 @@
                                 ? raw
                                 : (Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw?.clientes) ? raw.clientes : []));
 
-                            // Normalizar propiedades para reflejar exactamente lo almacenado en BD
                             this.clientesEncontradosCfdi = lista.map(item => ({
                                 id: item.id,
                                 nombre: item.nombre || item.razon_social || item.nombre_completo || 'Sin nombre',
@@ -2350,7 +2510,6 @@
                     }
                 },
 
-                // Persiste en base de datos el nombre y RFC fiscal asignado a la venta
                 async persistirClienteEnVenta(ventaId, nombre, rfc) {
                     const res = await fetch(`/pos/ventas/${ventaId}/asignar-cliente`, {
                         method: 'POST',
@@ -2375,7 +2534,6 @@
                     return data;
                 },
 
-                // Asigna un cliente ya existente al ticket y habilita Timbrar CFDI si tiene RFC válido
                 async seleccionarClienteExistente(cli) {
                     if (!this.ventaParaCliente || !cli) return;
                     const rfcLimpio = String(cli.rfc || '').trim().toUpperCase();
@@ -2402,17 +2560,14 @@
                     }
                 },
 
-                // Guarda o actualiza el cliente fiscal y sincroniza de inmediato el estado en memoria y en BD
                 async guardarClienteCfdi() {
                     const nombre = (this.formClienteCfdi.nombre || '').trim();
                     const rfc = (this.formClienteCfdi.rfc || '').trim().toUpperCase();
 
-                    // Normalizar "626_PM" a la clave oficial del SAT "626" antes de enviar al backend
                     const regimenFiscalEnviar = this.formClienteCfdi.regimen_fiscal === '626_PM'
                         ? '626'
                         : (this.formClienteCfdi.regimen_fiscal || '616');
 
-                    // Validar que exista nombre y un RFC fiscal válido distinto a genéricos
                     if (!nombre || !rfc || rfc === 'XAXX010101000' || /^X+$/.test(rfc)) {
                         this.mensajeFactura = 'Ingresa un nombre/razón social y un RFC fiscal válido (distinto a XAXX010101000 o XXXXX).';
                         this.mensajeErrorFactura = true;
@@ -2447,7 +2602,6 @@
                         const data = await res.json().catch(() => ({}));
 
                         if (res.ok) {
-                            // Tomar el registro devuelto por el servidor o los valores enviados
                             const cliServer = data.cliente || {};
                             const clienteActualizado = {
                                 id: cliServer.id || this.formClienteCfdi.id || null,
@@ -2461,7 +2615,6 @@
                                 telefono_whatsapp: cliServer.telefono_whatsapp ?? (this.formClienteCfdi.telefono_whatsapp || '')
                             };
 
-                            // Actualizar la lista local de clientes al instante para que Ver/Editar lea lo nuevo
                             if (clienteActualizado.id) {
                                 const idx = (this.clientesEncontradosCfdi || []).findIndex(c => c.id === clienteActualizado.id);
                                 if (idx !== -1) {
@@ -2478,7 +2631,6 @@
                             this.mensajeErrorFactura = false;
                             this.modalAltaClienteCfdi = false;
 
-                            // Regresar al buscador y refrescar desde el servidor si venía de ahí
                             if (this.origenAltaDesdeBuscador) {
                                 this.modalBuscarClienteCfdi = true;
                                 await this.buscarClientesExistentes();
@@ -2500,7 +2652,6 @@
                     }
                 },
 
-                // Elimina un cliente registrado únicamente si no tiene factura vinculada
                 async eliminarClienteExistente(cli) {
                     if (!cli || !cli.id || this.eliminandoClienteId) return;
 
@@ -2547,7 +2698,6 @@
                     }
                 },
 
-                // Abre el modal para homologar el cliente seleccionado hacia otro cliente destino
                 abrirModalHomologarCliente(cli) {
                     if (!cli) return;
                     this.mensajeFactura = '';
@@ -2558,7 +2708,6 @@
                     this.modalHomologarCliente = true;
                 },
 
-                // Envía la homologación al backend y muestra el resultado en el modal o en el buscador
                 async confirmarHomologacionCliente() {
                     if (!this.clienteOrigenHomologar || !this.clienteDestinoHomologarId || this.homologandoCliente) return;
 
@@ -2589,7 +2738,6 @@
                             await this.buscarClientesExistentes();
                             await this.cargarVentasParaFacturar();
                         } else {
-                            // Mostrar error de validación o regla fiscal dentro del modal sin cerrarlo
                             const detalleError = data.errors
                                 ? Object.values(data.errors).flat().join(' ')
                                 : (data.message || 'No se pudo homologar el cliente.');
@@ -2604,7 +2752,6 @@
                     }
                 },
 
-                // Verifica si la venta facturada pertenece al mes y año calendario actual
                 esFacturaDelMesActual(venta) {
                     const fechaStr = venta?.facturado_at || venta?.created_at;
                     if (!fechaStr) return false;
@@ -2614,7 +2761,6 @@
                     return fecha.getFullYear() === ahora.getFullYear() && fecha.getMonth() === ahora.getMonth();
                 },
 
-                // Regenera el CFDI de una venta facturada únicamente dentro del mes actual
                 async regenerarFacturaVenta(venta) {
                     if (!venta || this.regenerandoId) return;
 
@@ -2656,7 +2802,6 @@
                     }
                 },
 
-                // Solicita el timbrado CFDI 4.0 de la venta seleccionada
                 async timbrarVenta(venta) {
                     if (!venta || this.timbrandoId) return;
                     this.timbrandoId = venta.id;
@@ -2690,7 +2835,6 @@
                     }
                 },
 
-                // Solicita el envío de la factura timbrada por correo electrónico
                 async enviarFacturaCorreo(venta) {
                     if (!venta || this.enviandoCorreoId) return;
                     this.enviandoCorreoId = venta.id;
@@ -2722,7 +2866,6 @@
                     }
                 },
 
-                // Formatea fechas ISO/SQL a formato local legible
                 formatearFecha(f) {
                     return f ? new Date(f).toLocaleString() : '';
                 }
