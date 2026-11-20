@@ -850,26 +850,105 @@
             </div>
         </div>
 
-        {{-- 6.1 Modal de Apertura de Turno --}}
+        {{-- ===================================================================== --}}
+        {{-- 6.1 MODAL DE APERTURA DE TURNO (CON CONTEO POR DENOMINACIÓN)          --}}
+        {{-- ===================================================================== --}}
         <div x-show="modalApertura" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
-                <h3 class="text-base font-bold text-white">Apertura de Turno de Caja</h3>
-                <div>
-                    <label class="text-xs text-slate-300 block mb-1 font-medium">Fondo Inicial en Efectivo ($)</label>
-                    <input type="number" step="10" x-model.number="formApertura.monto_inicial"
-                           style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
-                           class="w-full rounded-xl px-3 py-2 font-mono text-base focus:outline-none">
+            <div @click.away="modalApertura = false"
+                class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div>
+                        <h3 class="text-base font-bold text-white">Apertura de Turno de Caja</h3>
+                        <p class="text-[11px] text-slate-400">Captura el fondo inicial directo o cuenta monedas y billetes (no imprime ticket)</p>
+                    </div>
+                    <button type="button" @click="modalApertura = false" class="text-slate-400 hover:text-white text-lg font-bold cursor-pointer">&times;</button>
                 </div>
+
+                {{-- Fondo Inicial en Efectivo (se actualiza automáticamente al contar denominaciones) --}}
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs text-slate-300 font-medium">Fondo Inicial en Efectivo ($)</label>
+                        <button type="button"
+                                @click="mostrarConteoApertura = !mostrarConteoApertura"
+                                class="text-[11px] font-bold text-amber-300 hover:text-amber-200 cursor-pointer">
+                            <span x-text="mostrarConteoApertura ? '▲ Ocultar Denominaciones' : '🧮 Contar Monedas y Billetes'"></span>
+                        </button>
+                    </div>
+                    <input type="number" step="0.50" min="0"
+                        x-model.number="formApertura.monto_inicial"
+                        style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
+                        class="w-full rounded-xl px-3 py-2 font-mono text-base focus:outline-none">
+                </div>
+
+                {{-- Desglose opcional de monedas y billetes para calcular el fondo inicial automáticamente --}}
+                <div x-show="mostrarConteoApertura" x-cloak class="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-3 text-xs">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span class="font-bold text-emerald-300">Total Contado en Denominaciones:</span>
+                        <span class="font-mono font-black text-emerald-400 text-sm" x-text="`$${totalContadoApertura.toFixed(2)}`"></span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {{-- Monedas --}}
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-[11px] font-bold text-amber-300">
+                                <span>🪙 Monedas</span>
+                                <span class="font-mono" x-text="`$${subtotalMonedasApertura.toFixed(2)}`"></span>
+                            </div>
+                            <template x-for="mon in denominacionesMonedas" :key="'ap_mon_' + mon.valor">
+                                <div class="grid grid-cols-12 items-center gap-1.5">
+                                    <span class="col-span-4 font-mono text-slate-300" x-text="mon.etiqueta"></span>
+                                    <input type="number" min="0" step="1"
+                                        x-model.number="conteoApertura[mon.valor]"
+                                        @input="sincronizarFondoApertura()"
+                                        placeholder="0"
+                                        class="col-span-4 !bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 !text-white font-mono text-xs text-right focus:outline-none focus:border-amber-500">
+                                    <span class="col-span-4 font-mono text-right text-slate-400"
+                                        x-text="`$${((Number(conteoApertura[mon.valor]) || 0) * mon.valor).toFixed(2)}`"></span>
+                                </div>
+                            </template>
+                        </div>
+
+                        {{-- Billetes --}}
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-[11px] font-bold text-emerald-300">
+                                <span>💵 Billetes</span>
+                                <span class="font-mono" x-text="`$${subtotalBilletesApertura.toFixed(2)}`"></span>
+                            </div>
+                            <template x-for="bil in denominacionesBilletes" :key="'ap_bil_' + bil.valor">
+                                <div class="grid grid-cols-12 items-center gap-1.5">
+                                    <span class="col-span-4 font-mono text-slate-300" x-text="bil.etiqueta"></span>
+                                    <input type="number" min="0" step="1"
+                                        x-model.number="conteoApertura[bil.valor]"
+                                        @input="sincronizarFondoApertura()"
+                                        placeholder="0"
+                                        class="col-span-4 !bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 !text-white font-mono text-xs text-right focus:outline-none focus:border-emerald-500">
+                                    <span class="col-span-4 font-mono text-right text-slate-400"
+                                        x-text="`$${((Number(conteoApertura[bil.valor]) || 0) * bil.valor).toFixed(2)}`"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end pt-1">
+                        <button type="button"
+                                @click="limpiarConteoApertura()"
+                                class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-semibold cursor-pointer">
+                            Limpiar Denominaciones
+                        </button>
+                    </div>
+                </div>
+
                 <div>
                     <label class="text-xs text-slate-300 block mb-1 font-medium">Observaciones</label>
                     <textarea x-model="formApertura.observaciones" rows="2"
-                              placeholder="Notas opcionales de apertura..."
-                              style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
-                              class="w-full rounded-xl px-3 py-2 text-xs focus:outline-none"></textarea>
+                            placeholder="Notas opcionales de apertura..."
+                            style="background-color: #020617 !important; color: #ffffff !important; border-color: #334155 !important;"
+                            class="w-full rounded-xl px-3 py-2 text-xs focus:outline-none"></textarea>
                 </div>
+
                 <div class="flex gap-2 pt-2">
-                    <button type="button" @click="modalApertura = false" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition">Cancelar</button>
-                    <button type="button" @click="abrirTurnoCaja()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/30 transition">Abrir Caja</button>
+                    <button type="button" @click="modalApertura = false" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer">Cancelar</button>
+                    <button type="button" @click="abrirTurnoCaja()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/30 transition cursor-pointer">Abrir Caja</button>
                 </div>
             </div>
         </div>
@@ -1416,7 +1495,8 @@
         /**
 - Componente principal de Alpine.js para el Punto de Venta (POS).
 - Gestiona turno de caja, plano de mesas, catálogo, cobro, precuentas,
-- corte X por denominaciones, corte Z, reimpresión y facturación CFDI 4.0.
+- apertura con conteo por denominaciones (sin imprimir), corte X por denominaciones,
+- corte Z, reimpresión y facturación CFDI 4.0.
          */
         function posTerminal(config) {
             return {
@@ -1449,7 +1529,23 @@
                 formApertura: { monto_inicial: 1000, observaciones: '' },
                 formCierre: { monto_real_efectivo: 0, observaciones: '' },
 
-                // Denominaciones de monedas y billetes para arqueo parcial en Corte X
+                // Control de desglose de denominaciones en la apertura de turno (sin imprimir)
+                mostrarConteoApertura: false,
+                conteoApertura: {
+                    0.5: 0,
+                    1: 0,
+                    2: 0,
+                    5: 0,
+                    10: 0,
+                    20: 0,
+                    50: 0,
+                    100: 0,
+                    200: 0,
+                    500: 0,
+                    1000: 0
+                },
+
+                // Denominaciones de monedas y billetes compartidas para apertura y Corte X
                 denominacionesMonedas: [
                     { valor: 0.5, etiqueta: '$0.50' },
                     { valor: 1, etiqueta: '$1.00' },
@@ -1580,6 +1676,27 @@
                 // =====================================================================
                 // PROPIEDADES COMPUTADAS (GETTERS)
                 // =====================================================================
+                // Subtotal calculado de monedas en Apertura de Turno
+                get subtotalMonedasApertura() {
+                    return this.denominacionesMonedas.reduce((sum, m) => {
+                        const cant = Math.max(0, Number(this.conteoApertura[m.valor]) || 0);
+                        return sum + (cant * m.valor);
+                    }, 0);
+                },
+
+                // Subtotal calculado de billetes en Apertura de Turno
+                get subtotalBilletesApertura() {
+                    return this.denominacionesBilletes.reduce((sum, b) => {
+                        const cant = Math.max(0, Number(this.conteoApertura[b.valor]) || 0);
+                        return sum + (cant * b.valor);
+                    }, 0);
+                },
+
+                // Total contado por denominación al abrir turno
+                get totalContadoApertura() {
+                    return Number((this.subtotalMonedasApertura + this.subtotalBilletesApertura).toFixed(2));
+                },
+
                 // Subtotal calculado de monedas en Corte X
                 get subtotalMonedasCorteX() {
                     return this.denominacionesMonedas.reduce((sum, m) => {
@@ -1688,14 +1805,27 @@
                 },
 
                 // =====================================================================
-                // MÉTODOS DE CORTE X POR DENOMINACIONES
+                // MÉTODOS DE APERTURA POR DENOMINACIÓN Y CORTE X
                 // =====================================================================
+                // Sincroniza automáticamente el fondo inicial de apertura con el total contado
+                sincronizarFondoApertura() {
+                    this.formApertura.monto_inicial = this.totalContadoApertura;
+                },
+
+                // Reinicia el conteo de denominaciones de apertura y deja el fondo inicial en 0
+                limpiarConteoApertura() {
+                    Object.keys(this.conteoApertura).forEach(k => {
+                        this.conteoApertura[k] = 0;
+                    });
+                    this.formApertura.monto_inicial = 0;
+                },
+
                 // Abre el modal de Corte X para realizar arqueo por denominaciones
                 abrirModalCorteX() {
                     this.modalCorteX = true;
                 },
 
-                // Reinicia todas las cantidades de monedas y billetes a 0
+                // Reinicia todas las cantidades de monedas y billetes del Corte X a 0
                 limpiarConteoCorteX() {
                     Object.keys(this.conteoDenominaciones).forEach(k => {
                         this.conteoDenominaciones[k] = 0;
@@ -2295,27 +2425,32 @@
                 },
 
                 // =====================================================================
-                // APERTURA Y CIERRE DE TURNO (CORTE Z)
+                // APERTURA Y CIERRE DE TURNO (SIN IMPRIMIR EN APERTURA / CORTE Z)
                 // =====================================================================
+                // Abre un nuevo turno de caja con el fondo inicial capturado (sin abrir ventana de impresión)
                 async abrirTurnoCaja() {
                     const res = await fetch(this.routes.aperturaCaja, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' },
                         body: JSON.stringify({
                             sucursal_id: this.sucursal?.id || 1,
-                            monto_inicial: this.formApertura.monto_inicial,
+                            monto_inicial: Number(this.formApertura.monto_inicial) || 0,
                             observaciones: this.formApertura.observaciones
                         })
                     });
                     const data = await res.json();
                     if (res.ok) {
                         this.turnoActivo = data.turno;
+                        this.limpiarConteoApertura();
+                        this.mostrarConteoApertura = false;
+                        this.formApertura.observaciones = '';
                         this.modalApertura = false;
                     } else {
                         alert(data.message || 'Error abriendo caja');
                     }
                 },
 
+                // Cierra el turno activo, imprime el Corte Z y limpia el turno en sesión
                 async cerrarTurnoCaja() {
                     if (!this.turnoActivo) return;
                     const turnoCerradoId = this.turnoActivo.id;

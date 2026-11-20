@@ -37,13 +37,13 @@ use Illuminate\View\View;
 use Throwable;
 
 /**
- * Controlador principal del Punto de Venta (POS).
- * Gestiona el plano/consumo de mesas, cobros, cortes de caja y alertas de precuenta.
+- Controlador principal del Punto de Venta (POS).
+- Gestiona el plano/consumo de mesas, cobros, cortes de caja y alertas de precuenta.
  */
 class PosController extends Controller
 {
     /**
-     * Inyección de dependencias del servicio de registro de ventas.
+- Inyección de dependencias del servicio de registro de ventas.
      */
     public function __construct(
         protected RegistrarVentaService $ventaService
@@ -54,7 +54,7 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Carga la terminal principal del POS resolviendo empresa, sucursal, almacén y turno.
+- Carga la terminal principal del POS resolviendo empresa, sucursal, almacén y turno.
      */
     public function index(Request $request): View
     {
@@ -146,7 +146,7 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Entrega el catálogo reactivo de productos con existencias físicas en el almacén.
+- Entrega el catálogo reactivo de productos con existencias físicas en el almacén.
      */
     public function catalogo(Request $request): JsonResponse
     {
@@ -185,8 +185,8 @@ class PosController extends Controller
     }
 
     /**
-     * Busca clientes registrados para el modal CFDI y lealtad en el POS,
-     * incluyendo sus datos fiscales SAT (CP, régimen, uso CFDI) y correo.
+- Busca clientes registrados para el modal CFDI y lealtad en el POS,
+- incluyendo sus datos fiscales SAT (CP, régimen, uso CFDI) y correo.
      */
     public function buscarClientesLealtad(Request $request): JsonResponse
     {
@@ -226,7 +226,8 @@ class PosController extends Controller
     }
 
     /**
-     * Abre un nuevo turno de caja con fondo inicial en efectivo.
+- Abre un nuevo turno de caja con fondo inicial en efectivo y asigna el
+- consecutivo diario por sucursal (reiniciando a 1 cada día).
      */
     public function aperturaCaja(Request $request): JsonResponse
     {
@@ -256,11 +257,29 @@ class PosController extends Controller
             ], 422);
         }
 
-        $turno = CajaTurno::query()->create([
+        $ahora = now();
+        $fechaHoy = $ahora->toDateString();
+
+        // Calcular el número de turno del día por sucursal para reiniciar en 1 cada día
+        $queryHoy = CajaTurno::query()
+            ->where('sucursal_id', $validated['sucursal_id'])
+            ->whereDate('apertura_at', $fechaHoy);
+
+        if (Schema::hasColumn('caja_turnos', 'numero_turno_dia')) {
+            $ultimoTurnoHoy = (clone $queryHoy)
+                ->orderByDesc('numero_turno_dia')
+                ->orderByDesc('id')
+                ->first();
+            $numeroTurnoDia = ((int) ($ultimoTurnoHoy?->numero_turno_dia ?? 0)) + 1;
+        } else {
+            $numeroTurnoDia = ((int) (clone $queryHoy)->count()) + 1;
+        }
+
+        $datosTurno = [
             'empresa_id' => $empresaId,
             'sucursal_id' => $validated['sucursal_id'],
             'user_id' => $user->id,
-            'apertura_at' => now(),
+            'apertura_at' => $ahora,
             'monto_inicial' => $validated['monto_inicial'],
             'total_ventas_efectivo' => 0.00,
             'total_ventas_tarjeta' => 0.00,
@@ -270,7 +289,13 @@ class PosController extends Controller
             'monto_esperado_efectivo' => $validated['monto_inicial'],
             'estado' => 'abierto',
             'observaciones_apertura' => $validated['observaciones'] ?? null,
-        ]);
+        ];
+
+        if (Schema::hasColumn('caja_turnos', 'numero_turno_dia')) {
+            $datosTurno['numero_turno_dia'] = $numeroTurnoDia;
+        }
+
+        $turno = CajaTurno::query()->create($datosTurno);
 
         return response()->json([
             'message' => 'Caja abierta con éxito.',
@@ -279,7 +304,7 @@ class PosController extends Controller
     }
 
     /**
-     * Cierra el turno de caja activo calculando la diferencia de efectivo.
+- Cierra el turno de caja activo calculando la diferencia de efectivo.
      */
     public function cierreCaja(Request $request): JsonResponse
     {
@@ -329,7 +354,7 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Procesa la venta directa en línea, aplicando descuentos, monedero y liberando mesas.
+- Procesa la venta directa en línea, aplicando descuentos, monedero y liberando mesas.
      */
     public function storeVenta(Request $request): JsonResponse
     {
@@ -589,7 +614,7 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Sincroniza ventas realizadas sin conexión (Offline-First).
+- Sincroniza ventas realizadas sin conexión (Offline-First).
      */
     public function sincronizarOffline(Request $request): JsonResponse
     {
@@ -638,7 +663,7 @@ class PosController extends Controller
     }
 
     /**
-     * Obtiene de forma segura el ID de la empresa del usuario autenticado.
+- Obtiene de forma segura el ID de la empresa del usuario autenticado.
      */
     private function resolveEmpresaId(User $user): int
     {
@@ -656,7 +681,7 @@ class PosController extends Controller
     }
 
     /**
-     * Renderiza el ticket térmico de una venta.
+- Renderiza el ticket térmico de una venta.
      */
     public function ticket(Request $request, Venta $venta): View
     {
@@ -690,9 +715,9 @@ class PosController extends Controller
     }
 
     /**
-     * Retorna los tickets recientes filtrados automáticamente según el rol del usuario:
-     * - Administrador, Gerente, Subgerente o Supervisor: todos los tickets del día en la sucursal.
-     * - Empleado / Cajero normal: únicamente los tickets del turno de caja abierto actual.
+- Retorna los tickets recientes filtrados automáticamente según el rol del usuario:
+- - Administrador, Gerente, Subgerente o Supervisor: todos los tickets del día en la sucursal.
+- - Empleado / Cajero normal: únicamente los tickets del turno de caja abierto actual.
      */
     public function ultimasVentas(Request $request): JsonResponse
     {
@@ -770,7 +795,7 @@ class PosController extends Controller
     }
 
     /**
-     * Asigna los datos fiscales de un cliente a una venta específica para permitir su timbrado.
+- Asigna los datos fiscales de un cliente a una venta específica para permitir su timbrado.
      */
     public function asignarClienteVenta(Request $request, Venta $venta): JsonResponse
     {
@@ -802,19 +827,19 @@ class PosController extends Controller
         ];
 
         // Copiar campos fiscales adicionales a la venta si existen en la tabla ventas
-        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_id') && $clienteCatalogo) {
+        if (Schema::hasColumn('ventas', 'cliente_id') && $clienteCatalogo) {
             $datosUpdate['cliente_id'] = $clienteCatalogo->id;
         }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_email')) {
+        if (Schema::hasColumn('ventas', 'cliente_email')) {
             $datosUpdate['cliente_email'] = $validated['cliente_email'] ?? ($clienteCatalogo->email ?? null);
         }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_codigo_postal') && ! empty($clienteCatalogo?->codigo_postal)) {
+        if (Schema::hasColumn('ventas', 'cliente_codigo_postal') && ! empty($clienteCatalogo?->codigo_postal)) {
             $datosUpdate['cliente_codigo_postal'] = $clienteCatalogo->codigo_postal;
         }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_regimen_fiscal') && ! empty($clienteCatalogo?->regimen_fiscal)) {
+        if (Schema::hasColumn('ventas', 'cliente_regimen_fiscal') && ! empty($clienteCatalogo?->regimen_fiscal)) {
             $datosUpdate['cliente_regimen_fiscal'] = $clienteCatalogo->regimen_fiscal;
         }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'uso_cfdi_sat') && ! empty($clienteCatalogo?->uso_cfdi)) {
+        if (Schema::hasColumn('ventas', 'uso_cfdi_sat') && ! empty($clienteCatalogo?->uso_cfdi)) {
             $datosUpdate['uso_cfdi_sat'] = $clienteCatalogo->uso_cfdi;
         }
 
@@ -827,7 +852,7 @@ class PosController extends Controller
     }
 
     /**
-     * Elimina un cliente únicamente si no tiene facturas vinculadas.
+- Elimina un cliente únicamente si no tiene facturas vinculadas.
      */
     public function eliminarClienteLealtad(Cliente $cliente): JsonResponse
     {
@@ -847,7 +872,7 @@ class PosController extends Controller
             return response()->json([
                 'message' => 'Cliente eliminado correctamente.',
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return response()->json([
                 'message' => 'No se pudo eliminar el cliente por registros relacionados en el sistema.',
             ], 422);
@@ -855,8 +880,8 @@ class PosController extends Controller
     }
 
     /**
-     * Homologa (fusiona) un cliente origen duplicado o inactivo hacia un cliente destino,
-     * reasignando sus ventas y eliminando el registro origen si no tiene facturas vinculadas.
+- Homologa (fusiona) un cliente origen duplicado o inactivo hacia un cliente destino,
+- reasignando sus ventas y eliminando el registro origen si no tiene facturas vinculadas.
      */
     public function homologarClienteLealtad(Request $request, Cliente $cliente): JsonResponse
     {
@@ -888,9 +913,9 @@ class PosController extends Controller
             ], 422);
         }
 
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($cliente, $clienteDestino): JsonResponse {
+        return DB::transaction(function () use ($cliente, $clienteDestino): JsonResponse {
             // Reasignar ventas vinculadas por cliente_id hacia el cliente destino
-            if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_id')) {
+            if (Schema::hasColumn('ventas', 'cliente_id')) {
                 Venta::query()
                     ->where('cliente_id', $cliente->id)
                     ->update([
@@ -932,17 +957,17 @@ class PosController extends Controller
     }
 
     /**
-     * Determina si el cliente tiene al menos una venta facturada vinculada.
+- Determina si el cliente tiene al menos una venta facturada vinculada.
      */
     protected function clienteTieneFacturaVinculada(Cliente $cliente): bool
     {
         return Venta::query()
             ->where(function ($q) use ($cliente): void {
-                if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_id')) {
+                if (Schema::hasColumn('ventas', 'cliente_id')) {
                     $q->where('cliente_id', $cliente->id);
                 }
                 if (! empty($cliente->rfc)) {
-                    $method = \Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_id') ? 'orWhere' : 'where';
+                    $method = Schema::hasColumn('ventas', 'cliente_id') ? 'orWhere' : 'where';
                     $q->{$method}(function ($sub) use ($cliente): void {
                         $sub->whereRaw('UPPER(TRIM(cliente_rfc)) = ?', [strtoupper(trim((string) $cliente->rfc))])
                             ->where('cliente_nombre', $cliente->nombre);
@@ -957,7 +982,7 @@ class PosController extends Controller
     }
 
     /**
-     * Reimprime un ticket por su UUID o ID.
+- Reimprime un ticket por su UUID o ID.
      */
     public function reimprimirTicket(string $uuid): View
     {
@@ -979,7 +1004,7 @@ class PosController extends Controller
     }
 
     /**
-     * Procesa una devolución de mercancía con reingreso al almacén.
+- Procesa una devolución de mercancía con reingreso al almacén.
      */
     public function devolucion(Request $request, ProcesarDevolucionPosService $service): JsonResponse
     {
@@ -1025,7 +1050,7 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Devuelve las alertas recientes de precuenta enviadas desde el comandero.
+- Devuelve las alertas recientes de precuenta enviadas desde el comandero.
      */
     public function alertasPrecuenta(Request $request): JsonResponse
     {
@@ -1043,7 +1068,7 @@ class PosController extends Controller
     }
 
     /**
-     * Lista todas las mesas con comandas activas y saldos pendientes.
+- Lista todas las mesas con comandas activas y saldos pendientes.
      */
     public function comandasAbiertasRestaurante(Request $request): JsonResponse
     {
@@ -1131,7 +1156,7 @@ class PosController extends Controller
     }
 
     /**
-     * Imprime la Precuenta Térmica consolidando el consumo activo y evaluando promociones.
+- Imprime la Precuenta Térmica consolidando el consumo activo y evaluando promociones.
      */
     public function imprimirPrecuentaMesa(Request $request, string $mesa): View
     {
@@ -1198,7 +1223,7 @@ class PosController extends Controller
     // =========================================================================
 
     /**
-     * Devuelve el resumen financiero en tiempo real del turno abierto (Corte Parcial / X).
+- Devuelve el resumen financiero en tiempo real del turno abierto (Corte Parcial / X).
      */
     public function resumenCorteParcial(Request $request, CajaTurno $turno): JsonResponse
     {
@@ -1208,7 +1233,7 @@ class PosController extends Controller
     }
 
     /**
-     * Registra un retiro parcial de efectivo o ingreso extraordinario en el turno abierto.
+- Registra un retiro parcial de efectivo o ingreso extraordinario en el turno abierto.
      */
     public function registrarMovimientoCaja(Request $request, RegistrarMovimientoCajaService $service): JsonResponse
     {
@@ -1239,8 +1264,8 @@ class PosController extends Controller
     }
 
     /**
-     * Genera la vista de impresión térmica (80mm) para el Corte X (arqueo parcial)
-     * o Corte Z (cierre final de turno).
+- Genera la vista de impresión térmica (80mm) para el Corte X (arqueo parcial)
+- o Corte Z (cierre final de turno).
      */
     public function imprimirTicketCorte(Request $request, CajaTurno $turno)
     {
@@ -1262,9 +1287,9 @@ class PosController extends Controller
     }
 
     /**
-     * Calcula totales por forma de pago, movimientos, promociones y productos vendidos.
+- Calcula totales por forma de pago, movimientos, promociones y productos vendidos.
      *
-     * @return array<string, mixed>
+- @return array<string, mixed>
      */
     private function calcularDesgloseTurno(CajaTurno $turno): array
     {
