@@ -56,7 +56,7 @@
 
             {{-- Controles Superiores de Caja y Restaurante --}}
             <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
-                {{-- Botón de prueba/estado de audio en caja --}}
+                {{-- Botón para activar y probar el timbre sonoro de precuenta en caja --}}
                 <button type="button"
                         @click="probarTimbrePrecuenta()"
                         title="Activar y probar timbre de precuenta"
@@ -65,6 +65,7 @@
                     <span x-text="posAudioActivo ? 'Timbre OK' : 'Activar Audio'"></span>
                 </button>
 
+                {{-- Indicador de ventas pendientes por sincronizar en modo offline --}}
                 <template x-if="offlineQueueCount > 0">
                     <button @click="sincronizarLoteOffline()" :disabled="!isOnline || isSyncing"
                             class="px-3 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-medium flex items-center gap-2 hover:bg-amber-500/30 transition">
@@ -75,12 +76,14 @@
                     </button>
                 </template>
 
+                {{-- Botón para abrir turno cuando la caja está cerrada --}}
                 <template x-if="!turnoActivo">
                     <button @click="modalApertura = true" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold shadow transition">
                         + Abrir Turno de Caja
                     </button>
                 </template>
 
+                {{-- Acciones operativas disponibles con turno de caja abierto --}}
                 <template x-if="turnoActivo">
                     <div class="flex items-center gap-2 flex-wrap">
                         <button type="button"
@@ -139,6 +142,7 @@
                         🧾 Precuenta solicitada en comandero:
                     </span>
 
+                    {{-- Alertas recibidas en caché desde el comandero --}}
                     <template x-for="alerta in alertasPrecuentaPos" :key="alerta.id">
                         <div class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-amber-400/50 text-xs font-mono font-bold text-white flex items-center gap-2">
                             <button type="button"
@@ -152,6 +156,7 @@
                         </div>
                     </template>
 
+                    {{-- Mesas activas marcadas con cuenta pedida en comandas --}}
                     <template x-for="m in mesasConCuentaPedida" :key="'mesa_pedida_' + m.mesa">
                         <button type="button"
                                 @click="cargarMesaAlCarrito(m)"
@@ -189,10 +194,10 @@
         <template x-if="turnoActivo">
             <div class="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-                {{-- Columna Izquierda: Plano de Mesas o Catálogo --}}
+                {{-- Columna Izquierda: Plano de Mesas (Restaurante) o Catálogo (Comercio/Taller) --}}
                 <div class="lg:col-span-7 space-y-4">
                     @if(isset($esRestaurante) && $esRestaurante)
-                        {{-- MODO RESTAURANTE: PLANO DE MESAS INTERACTIVO --}}
+                        {{-- Selector de Áreas y Actualización Manual --}}
                         <div class="flex items-center justify-between gap-2 bg-slate-900 border border-slate-800 p-2.5 rounded-xl">
                             <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                                 <template x-for="area in (areasMesas || [])" :key="area.id">
@@ -207,14 +212,14 @@
                             </button>
                         </div>
 
-                        {{-- Leyenda de Estados de Mesa --}}
+                        {{-- Leyenda de Estados de Mesa en el Plano --}}
                         <div class="flex items-center gap-3 text-[10px] text-slate-400">
                             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span> Libre</span>
                             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Ocupada</span>
                             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span> Precuenta Pedida</span>
                         </div>
 
-                        {{-- Lienzo Gráfico 2D de Piso --}}
+                        {{-- Lienzo Gráfico 2D de Mesas --}}
                         <div class="relative w-full h-[580px] bg-slate-950 border-2 border-slate-800/80 rounded-2xl overflow-hidden shadow-inner p-2 select-none"
                              style="background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 24px 24px;">
 
@@ -225,7 +230,6 @@
                                 </div>
                             </template>
 
-                            {{-- Renderizado de Mesas Físicas --}}
                             <template x-for="mesa in mesasAreaActual" :key="mesa.id">
                                 <div @click="seleccionarMesaPlano(mesa)"
                                      :style="`left: ${mesa.posicion_x}%; top: ${mesa.posicion_y}%;`"
@@ -254,7 +258,7 @@
                             </template>
                         </div>
 
-                        {{-- Barra de Acciones para la Mesa Seleccionada --}}
+                        {{-- Barra Inferior para la Mesa Seleccionada --}}
                         <div x-show="mesaSeleccionadaActiva" x-cloak
                              class="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition">
                             <div class="flex items-center gap-2">
@@ -278,7 +282,7 @@
                         </div>
 
                     @else
-                        {{-- MODO COMERCIO / TALLER: CATÁLOGO Y BUSCADOR POR CÓDIGO --}}
+                        {{-- Buscador y Catálogo para Comercio / Taller --}}
                         <div class="relative">
                             <input type="text" x-model="searchQuery" @keydown.enter.prevent="buscarYAgregarDirecto()"
                                    placeholder="Escanear código de barras o buscar por nombre / SKU..."
@@ -309,7 +313,7 @@
                     @endif
                 </div>
 
-                {{-- Columna Derecha: Ticket de Venta y Cobro --}}
+                {{-- Columna Derecha: Ticket de Venta y Panel de Cobro --}}
                 <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
                     <div class="flex items-center justify-between pb-3 border-b border-slate-800">
                         <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -359,6 +363,7 @@
                         </template>
                     </div>
 
+                    {{-- Desglose de Importes e Impuestos --}}
                     <div class="pt-3 border-t border-slate-800 space-y-1.5 text-xs text-slate-400">
                         <template x-if="descuentoPromociones > 0">
                             <div class="flex justify-between text-indigo-300 font-semibold">
@@ -386,6 +391,7 @@
                         </div>
                     </div>
 
+                    {{-- Método de Pago y Botón de Cobro --}}
                     <div class="pt-2 space-y-3">
                         <div class="grid grid-cols-3 gap-2">
                             <button type="button" @click="formaPagoSat = '01'"
@@ -573,8 +579,9 @@
         </div>
 
         {{-- ===================================================================== --}}
-        {{-- SECCIÓN 6: MODALES DE APERTURA Y CIERRE DE CAJA                       --}}
+        {{-- SECCIÓN 6: MODALES DE CAJA, REIMPRESIÓN Y FACTURACIÓN CFDI 4.0      --}}
         {{-- ===================================================================== --}}
+        {{-- Modal de Apertura de Turno --}}
         <div x-show="modalApertura" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
                 <h3 class="text-base font-bold text-white">Apertura de Turno de Caja</h3>
@@ -598,6 +605,7 @@
             </div>
         </div>
 
+        {{-- Modal de Corte Z y Cierre de Turno --}}
         <div x-show="modalCierre" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
                 <h3 class="text-base font-bold text-white">Corte Final (Z) y Cierre de Turno</h3>
@@ -634,7 +642,8 @@
                 </div>
             </div>
         </div>
-        {{-- Modal de Reimpresión de Tickets --}}
+
+        {{-- Modal de Reimpresión de Tickets (Filtrado por Rol / Turno) --}}
         <div x-show="modalReimpresion" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
             <div @click.away="modalReimpresion = false" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl max-h-[85vh] flex flex-col">
                 <div class="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -681,15 +690,181 @@
                 </div>
             </div>
         </div>
+
+        {{-- Modal de Facturación Electrónica SAT (CFDI 4.0) --}}
+        <div x-show="modalFacturacion" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
+            <div @click.away="modalFacturacion = false" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[88vh] flex flex-col">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span>📄 Facturación Electrónica SAT (CFDI 4.0)</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Asigna cliente fiscal si el ticket usa RFC genérico, timbra CFDI o descarga XML y PDF.</p>
+                    </div>
+                    <button type="button" @click="modalFacturacion = false" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+
+                {{-- Mensaje de estado o confirmación de facturación / alta de cliente --}}
+                <template x-if="mensajeFactura">
+                    <div class="p-3 rounded-xl text-xs font-semibold border"
+                         :class="mensajeErrorFactura ? 'bg-rose-500/15 border-rose-500/40 text-rose-300' : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'"
+                         x-text="mensajeFactura"></div>
+                </template>
+
+                {{-- Listado de tickets recientes --}}
+                <div class="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                    <template x-if="cargandoFacturacion">
+                        <p class="text-center text-xs text-slate-400 py-8">Cargando tickets disponibles...</p>
+                    </template>
+
+                    <template x-if="!cargandoFacturacion && ventasFacturables.length === 0">
+                        <p class="text-center text-xs text-slate-500 py-8">No hay tickets recientes disponibles para facturar.</p>
+                    </template>
+
+                    <template x-for="v in ventasFacturables" :key="'cfdi_' + v.id">
+                        <div class="p-3.5 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-mono font-bold text-indigo-400" x-text="v.folio"></span>
+                                    <span class="font-semibold text-white" x-text="v.cliente_nombre || 'Público General'"></span>
+                                    <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300"
+                                          x-text="v.cliente_rfc || 'XAXX010101000'"></span>
+                                </div>
+                                <div class="text-[11px] text-slate-400 flex items-center gap-2">
+                                    <span x-text="formatearFecha(v.created_at)"></span>
+                                    <span>•</span>
+                                    <span class="font-mono font-bold text-emerald-400" x-text="`$${Number(v.total || 0).toFixed(2)}`"></span>
+                                </div>
+                                <template x-if="v.estado_facturacion === 'facturada' && v.uuid_fiscal">
+                                    <div class="text-[10px] font-mono text-emerald-400 truncate">
+                                        UUID: <span x-text="v.uuid_fiscal"></span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="flex items-center gap-2 shrink-0">
+                                <template x-if="v.estado_facturacion !== 'facturada'">
+                                    <div class="flex items-center gap-2">
+                                        {{-- Si el RFC está vacío o es genérico, mostrar botón para dar de alta al cliente primero --}}
+                                        <template x-if="!v.cliente_rfc || v.cliente_rfc === 'XAXX010101000'">
+                                            <button type="button"
+                                                    @click="abrirAltaClienteDesdeTicket(v)"
+                                                    class="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition cursor-pointer">
+                                                + Alta Cliente
+                                            </button>
+                                        </template>
+
+                                        {{-- Si ya tiene un RFC distinto a XAXX010101000, habilitar timbrado directo --}}
+                                        <template x-if="v.cliente_rfc && v.cliente_rfc !== 'XAXX010101000'">
+                                            <button type="button"
+                                                    @click="timbrarVenta(v)"
+                                                    :disabled="timbrandoId === v.id"
+                                                    class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-lg transition cursor-pointer">
+                                                <span x-show="timbrandoId !== v.id">Timbrar CFDI</span>
+                                                <span x-show="timbrandoId === v.id">Timbrando...</span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <template x-if="v.estado_facturacion === 'facturada'">
+                                    <div class="flex items-center gap-2">
+                                        <a :href="`/operacion/facturacion/ventas/${v.id}/descargar-xml`"
+                                           target="_blank"
+                                           class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-lg transition">
+                                            XML
+                                        </a>
+                                        <a :href="`/operacion/facturacion/ventas/${v.id}/descargar-pdf`"
+                                           target="_blank"
+                                           class="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-semibold rounded-lg transition">
+                                            PDF
+                                        </a>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+                    <a href="{{ route('facturacion.global.index') }}"
+                       class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold">
+                        Ir a Facturación Global →
+                    </a>
+                    <button type="button" @click="modalFacturacion = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-300">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- Modal Rápido de Alta de Cliente Fiscal para Facturación --}}
+        <div x-show="modalAltaClienteCfdi" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4" x-cloak>
+            <div @click.away="modalAltaClienteCfdi = false" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div>
+                        <h3 class="text-base font-bold text-white">Alta de Cliente Fiscal</h3>
+                        <p class="text-[11px] text-slate-400">
+                            Ticket: <span class="font-mono text-indigo-400" x-text="ventaParaCliente?.folio || ''"></span>
+                        </p>
+                    </div>
+                    <button type="button" @click="modalAltaClienteCfdi = false" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <label class="text-slate-300 block mb-1 font-medium">Nombre o Razón Social *</label>
+                        <input type="text" x-model="formClienteCfdi.nombre"
+                               placeholder="Ej. Juan Pérez / Comercializadora SA"
+                               class="w-full !bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 !text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="text-slate-300 block mb-1 font-medium">RFC *</label>
+                            <input type="text" x-model="formClienteCfdi.rfc" maxlength="13"
+                                   placeholder="XAXX010101000"
+                                   class="w-full !bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 !text-white uppercase font-mono focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="text-slate-300 block mb-1 font-medium">Código Postal</label>
+                            <input type="text" x-model="formClienteCfdi.codigo_postal" maxlength="5"
+                                   placeholder="83000"
+                                   class="w-full !bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 !text-white font-mono focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-slate-300 block mb-1 font-medium">Teléfono / WhatsApp</label>
+                        <input type="text" x-model="formClienteCfdi.telefono_whatsapp"
+                               placeholder="Opcional"
+                               class="w-full !bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 !text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2 border-t border-slate-800">
+                    <button type="button" @click="modalAltaClienteCfdi = false"
+                            class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">
+                        Cancelar
+                    </button>
+                    <button type="button" @click="guardarClienteCfdi()"
+                            :disabled="guardandoClienteCfdi"
+                            class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition cursor-pointer">
+                        <span x-show="!guardandoClienteCfdi">Guardar y Habilitar Timbrado</span>
+                        <span x-show="guardandoClienteCfdi">Guardando...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- ===================================================================== --}}
-    {{-- SECCIÓN 7: LÓGICA ALPINE.JS DEL POS, TIMBRE Y ALERTAS DE PRECUENTA  --}}
+    {{-- SECCIÓN 7: LÓGICA ALPINE.JS DEL POS, TIMBRE, PRECUENTAS Y CFDI      --}}
     {{-- ===================================================================== --}}
     <script>
         function posTerminal(config) {
             return {
-                // Configuración de sucursal, almacén, turno y rutas
+                // Configuración de contexto operativo y rutas
                 sucursal: config.sucursal || { id: 1, nombre: 'Sucursal Principal' },
                 almacen: config.almacen || { id: 1, nombre: 'Almacén General' },
                 turnoActivo: config.turnoInicial || null,
@@ -698,19 +873,19 @@
                 routes: config.routes,
                 csrf: config.csrfToken,
 
-                // Estado de conectividad y cola offline
+                // Conectividad y estado de procesos
                 isOnline: navigator.onLine,
                 isSyncing: false,
                 isProcessing: false,
                 offlineQueueCount: 0,
 
-                // Estado de apertura/cierre de caja
+                // Modales y formularios de caja
                 modalApertura: false,
                 modalCierre: false,
                 formApertura: { monto_inicial: 1000, observaciones: '' },
                 formCierre: { monto_real_efectivo: 0, observaciones: '' },
 
-                // Carrito, catálogo y cobro
+                // Carrito de compras y cobro
                 searchQuery: '',
                 productos: [],
                 carrito: [],
@@ -718,7 +893,7 @@
                 formaPagoSat: '01',
                 pagoEfectivoRecibido: 0,
 
-                // Mesas y comandas de restaurante
+                // Estado de mesas y comandas de restaurante
                 promocionesVigentes: [],
                 modalMesasPos: false,
                 cargandoMesas: false,
@@ -729,7 +904,7 @@
                 itemsPagadosIds: [],
                 mesaSeleccionadaActiva: null,
 
-                // División de cuenta
+                // Estado de división de cuentas (Split Bill)
                 modalidadPago: 'simple_efectivo',
                 modalDividir: false,
                 mesaDividiendo: null,
@@ -737,7 +912,7 @@
                 modoDivision: 'items',
                 numeroPartesIguales: 2,
 
-                // Reimpresión y facturación
+                // Estado de reimpresión de tickets y facturación CFDI
                 modalReimpresion: false,
                 cargandoVentas: false,
                 ventasRecientes: [],
@@ -755,6 +930,17 @@
                 precuentasVistas: new Set(),
                 alertasPrecuentaPos: [],
 
+                // Sub-modal de alta rápida de cliente fiscal
+                modalAltaClienteCfdi: false,
+                guardandoClienteCfdi: false,
+                ventaParaCliente: null,
+                formClienteCfdi: {
+                    nombre: '',
+                    rfc: '',
+                    codigo_postal: '',
+                    telefono_whatsapp: ''
+                },
+
                 get hayCuentasPedidas() {
                     return (this.mesasAbiertas || []).some(m => Boolean(m.cuenta_pedida)) || this.alertasPrecuentaPos.length > 0;
                 },
@@ -763,7 +949,7 @@
                     return (this.mesasAbiertas || []).filter(m => Boolean(m.cuenta_pedida));
                 },
 
-                // Inicialización general del POS, audio y escucha de precuentas
+                // Inicializa título, audio, catálogo, mesas abiertas y escucha de precuentas
                 async initPos() {
                     const tituloPos = `Punto de Venta | ${this.sucursal?.nombre || 'La Fogata Bistro'}`;
                     document.title = tituloPos;
@@ -786,6 +972,7 @@
                     this.iniciarEscuchaPrecuentas();
                 },
 
+                // Normaliza nombres de mesa ("Mesa 1" <-> "1") para comparaciones consistentes
                 normalizarMesa(nombre) {
                     return String(nombre || '')
                         .toLowerCase()
@@ -793,7 +980,7 @@
                         .trim();
                 },
 
-                // Desbloquea AudioContext tras interacción del usuario en caja
+                // Desbloquea AudioContext del navegador tras interacción del usuario
                 async desbloquearAudioPos() {
                     try {
                         if (!this.posAudioCtx) {
@@ -819,7 +1006,7 @@
                     this.reproducirTimbrePrecuenta();
                 },
 
-                // Reproduce doble tono de alerta de precuenta con Web Audio API
+                // Reproduce doble tono de alerta de precuenta mediante Web Audio API
                 reproducirTimbrePrecuenta() {
                     try {
                         this.desbloquearAudioPos();
@@ -846,7 +1033,7 @@
                     }
                 },
 
-                // Consulta periódica de solicitudes de precuenta enviadas por el comandero
+                // Consulta periódicamente alertas de precuenta enviadas desde el comandero
                 iniciarEscuchaPrecuentas() {
                     if (!this.routes.alertasPrecuenta) return;
 
@@ -882,7 +1069,7 @@
                     setInterval(revisar, 3000);
                 },
 
-                // Carga el consumo de la mesa al hacer clic en una alerta de precuenta
+                // Carga el consumo de una mesa al hacer clic en una alerta de precuenta
                 cargarMesaPorNombre(nombreMesa) {
                     const target = this.normalizarMesa(nombreMesa);
                     const mesaData = (this.mesasAbiertas || []).find(
@@ -1117,6 +1304,7 @@
                     });
                 },
 
+                // Envía el cobro al servidor, abre el ticket térmico y refresca mesas abiertas
                 async procesarVenta() {
                     if (this.carrito.length === 0) return;
                     this.isProcessing = true;
@@ -1199,6 +1387,7 @@
                     } else alert(data.message || 'Error cerrando caja');
                 },
 
+                // Consulta tickets recientes filtrados por rol / turno en backend
                 abrirModalReimpresion() { this.modalReimpresion = true; this.cargarVentasRecientes(); },
                 async cargarVentasRecientes() {
                     this.cargandoVentas = true;
@@ -1213,15 +1402,125 @@
                 },
                 lanzarImpresion(id) { window.open(`/pos/ticket/${id}`, '_blank'); },
 
-                abrirModalFacturacion() { this.modalFacturacion = true; this.cargarVentasParaFacturar(); },
+                // Abre el modal de facturación CFDI y carga los tickets recientes
+                abrirModalFacturacion() {
+                    this.mensajeFactura = '';
+                    this.mensajeErrorFactura = false;
+                    this.modalFacturacion = true;
+                    this.cargarVentasParaFacturar();
+                },
+
                 async cargarVentasParaFacturar() {
                     this.cargandoFacturacion = true;
                     try {
-                        const res = await fetch(this.routes.ultimasVentas, { headers: { 'Accept': 'application/json' } });
+                        const sucursalId = this.sucursal?.id || 1;
+                        const turnoId = this.turnoActivo?.id || 0;
+                        const res = await fetch(`${this.routes.ultimasVentas}?sucursal_id=${sucursalId}&caja_turno_id=${turnoId}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
                         if (res.ok) this.ventasFacturables = await res.json();
-                    } catch (e) {} finally { this.cargandoFacturacion = false; }
+                    } catch (e) {} finally {
+                        this.cargandoFacturacion = false;
+                    }
                 },
-                formatearFecha(f) { return f ? new Date(f).toLocaleString() : ''; }
+
+                // Abre el sub-modal para registrar un cliente fiscal cuando el ticket usa RFC genérico
+                abrirAltaClienteDesdeTicket(venta) {
+                    this.ventaParaCliente = venta;
+                    this.formClienteCfdi = {
+                        nombre: venta.cliente_nombre && venta.cliente_nombre !== 'Público General' ? venta.cliente_nombre : '',
+                        rfc: venta.cliente_rfc && venta.cliente_rfc !== 'XAXX010101000' ? venta.cliente_rfc : '',
+                        codigo_postal: '',
+                        telefono_whatsapp: ''
+                    };
+                    this.modalAltaClienteCfdi = true;
+                },
+
+                // Guarda el cliente fiscal y habilita el botón "Timbrar CFDI" en el ticket
+                async guardarClienteCfdi() {
+                    const nombre = (this.formClienteCfdi.nombre || '').trim();
+                    const rfc = (this.formClienteCfdi.rfc || '').trim().toUpperCase();
+
+                    if (!nombre || !rfc || rfc === 'XAXX010101000') {
+                        this.mensajeFactura = 'Ingresa un nombre/razón social y un RFC válido distinto a XAXX010101000.';
+                        this.mensajeErrorFactura = true;
+                        this.modalAltaClienteCfdi = false;
+                        return;
+                    }
+
+                    this.guardandoClienteCfdi = true;
+                    try {
+                        const res = await fetch('/marketing/promociones/clientes', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': this.csrf,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                nombre: nombre,
+                                rfc: rfc,
+                                codigo_postal: this.formClienteCfdi.codigo_postal || null,
+                                telefono_whatsapp: this.formClienteCfdi.telefono_whatsapp || null
+                            })
+                        });
+
+                        if (res.ok && this.ventaParaCliente) {
+                            this.ventaParaCliente.cliente_nombre = nombre;
+                            this.ventaParaCliente.cliente_rfc = rfc;
+                            this.mensajeFactura = `Cliente "${nombre}" (${rfc}) dado de alta. Ya puedes timbrar el ticket.`;
+                            this.mensajeErrorFactura = false;
+                        } else {
+                            const errData = await res.json().catch(() => ({}));
+                            this.mensajeFactura = errData.message || 'No se pudo guardar el cliente.';
+                            this.mensajeErrorFactura = true;
+                        }
+                    } catch (e) {
+                        this.mensajeFactura = 'Error de conexión al guardar el cliente.';
+                        this.mensajeErrorFactura = true;
+                    } finally {
+                        this.guardandoClienteCfdi = false;
+                        this.modalAltaClienteCfdi = false;
+                    }
+                },
+
+                // Solicita el timbrado CFDI 4.0 de una venta ya con cliente/RFC asignado
+                async timbrarVenta(venta) {
+                    if (!venta || this.timbrandoId) return;
+                    this.timbrandoId = venta.id;
+                    this.mensajeFactura = '';
+                    this.mensajeErrorFactura = false;
+
+                    try {
+                        const res = await fetch(`/operacion/facturacion/ventas/${venta.id}/timbrar`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': this.csrf,
+                                'Accept': 'application/json'
+                            }
+                        });
+                        const data = await res.json();
+
+                        if (res.ok) {
+                            this.mensajeFactura = data.message || `Factura timbrada (${data.uuid}).`;
+                            this.mensajeErrorFactura = false;
+                            await this.cargarVentasParaFacturar();
+                        } else {
+                            this.mensajeFactura = data.message || 'No se pudo timbrar la venta.';
+                            this.mensajeErrorFactura = true;
+                        }
+                    } catch (e) {
+                        this.mensajeFactura = 'Error de conexión al intentar timbrar.';
+                        this.mensajeErrorFactura = true;
+                    } finally {
+                        this.timbrandoId = null;
+                    }
+                },
+
+                formatearFecha(f) {
+                    return f ? new Date(f).toLocaleString() : '';
+                }
             };
         }
     </script>
