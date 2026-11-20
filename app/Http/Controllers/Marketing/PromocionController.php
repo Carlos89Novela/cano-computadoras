@@ -19,8 +19,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
+/**
+ * Controlador del módulo de Marketing, Lealtad y Clientes Fiscales.
+ * Gestiona promociones/combos, ajustes de monedero y alta/edición de clientes
+ * consumidos tanto desde el panel de marketing como desde el modal CFDI del POS.
+ */
 class PromocionController extends Controller
 {
     // =========================================================
@@ -36,12 +42,14 @@ class PromocionController extends Controller
         $user = $request->user();
         $empresa = $this->resolveEmpresa($user);
 
+        // Consultar promociones activas/inactivas de la empresa con sus ítems relacionados
         $promociones = Promocion::query()
             ->where('empresa_id', $empresa->id)
             ->with(['items.producto', 'items.categoria'])
             ->latest('id')
             ->get();
 
+        // Consultar categorías comerciales excluyendo insumos operativos de cocina/barra/materia prima
         $categorias = CategoriaProducto::query()
             ->where('empresa_id', $empresa->id)
             ->where('activo', true)
@@ -51,6 +59,7 @@ class PromocionController extends Controller
 
         $categoriaIdsValidas = $categorias->pluck('id')->all();
 
+        // Consultar productos activos no extras dentro de las categorías válidas
         $productos = Producto::query()
             ->where('empresa_id', $empresa->id)
             ->where('activo', true)
@@ -59,6 +68,7 @@ class PromocionController extends Controller
             ->orderBy('nombre')
             ->get(['id', 'sku', 'nombre', 'precio_base']);
 
+        // Consultar clientes registrados ordenados por puntos acumulados
         $clientesLealtad = Cliente::query()
             ->where('empresa_id', $empresa->id)
             ->orderByDesc('puntos_acumulados')
@@ -109,6 +119,7 @@ class PromocionController extends Controller
         ]);
 
         DB::transaction(function () use ($validated, $empresa): void {
+            // Crear la promoción principal
             $promo = Promocion::query()->create([
                 'empresa_id' => $empresa->id,
                 'nombre' => $validated['nombre'],
@@ -128,6 +139,7 @@ class PromocionController extends Controller
                 'activo' => true,
             ]);
 
+            // Vincular productos participantes si fueron seleccionados
             if (! empty($validated['producto_ids'])) {
                 foreach ($validated['producto_ids'] as $prodId) {
                     PromocionItem::query()->create([
@@ -139,6 +151,7 @@ class PromocionController extends Controller
                 }
             }
 
+            // Vincular categoría participante si fue seleccionada
             if (! empty($validated['categoria_id'])) {
                 PromocionItem::query()->create([
                     'promocion_id' => $promo->id,
@@ -157,7 +170,7 @@ class PromocionController extends Controller
     // =========================================================
 
     /**
-     * Actualiza una promoción o combo existente.
+     * Actualiza una promoción o combo existente y reemplaza sus ítems participantes.
      */
     public function update(Request $request, Promocion $promocion): RedirectResponse
     {
@@ -179,6 +192,7 @@ class PromocionController extends Controller
             'solo_clientes_destacados' => ['nullable', 'boolean'],
         ]);
 
+        // Si se marcan los 7 días de la semana, se guarda null para aplicar todos los días
         $diasLimpios = ! empty($validated['dias_semana']) ? array_values(array_unique(array_map('intval', $validated['dias_semana']))) : null;
         if (is_array($diasLimpios) && count($diasLimpios) >= 7) {
             $diasLimpios = null;
@@ -200,6 +214,7 @@ class PromocionController extends Controller
             'solo_clientes_destacados' => $request->boolean('solo_clientes_destacados'),
         ]);
 
+        // Reconstruir ítems participantes de la promoción
         $promocion->items()->delete();
 
         $productoIds = array_filter(array_map('intval', $validated['producto_ids'] ?? []));
@@ -228,6 +243,9 @@ class PromocionController extends Controller
     // OPERACIONES RÁPIDAS (TOGGLE Y ELIMINACIÓN)
     // =========================================================
 
+    /**
+     * Activa o desactiva una promoción.
+     */
     public function toggleEstado(Promocion $promocion): RedirectResponse
     {
         $promocion->update(['activo' => ! $promocion->activo]);
@@ -235,6 +253,9 @@ class PromocionController extends Controller
         return back()->with('success', 'Estado de la promoción actualizado.');
     }
 
+    /**
+     * Elimina una promoción de la base de datos.
+     */
     public function destroy(Promocion $promocion): RedirectResponse
     {
         $promocion->delete();
@@ -246,6 +267,10 @@ class PromocionController extends Controller
     // PROGRAMA DE LEALTAD Y MONEDERO DE CLIENTES
     // =========================================================
 
+    /**
+     * Actualiza el nivel de lealtad, saldo de monedero o puntos de un cliente
+     * y registra el movimiento en el historial cuando aplica.
+     */
     public function actualizarLealtadCliente(Request $request, Cliente $cliente): RedirectResponse
     {
         $validated = $request->validate([
@@ -281,6 +306,111 @@ class PromocionController extends Controller
     }
 
     // =========================================================
+    // ALTA / EDICIÓN DE CLIENTE FISCAL Y DE LEALTAD (MARKETING / POS CFDI)
+    // =========================================================
+
+    /**
+     * Crea o actualiza un cliente fiscal / de lealtad evitando duplicados por ID o por RFC,
+     * y persiste sus datos de contacto y catálogos SAT.
+     */
+    public function storeCliente(Request $request): JsonResponse|RedirectResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        $empresa = $user ? $this->resolveEmpresa($user) : null;
+
+        // Validar datos generales y fiscales recibidos desde Marketing o desde el POS
+        $validated = $request->validate([
+            'id' => ['nullable', 'integer', 'exists:clientes,id'],
+            'nombre' => ['required', 'string', 'max:150'],
+            'rfc' => ['nullable', 'string', 'max:13'],
+            'nivel_lealtad' => ['nullable', 'string', 'in:regular,frecuente,destacado'],
+            'regimen_fiscal' => ['nullable', 'string', 'max:10'],
+            'uso_cfdi' => ['nullable', 'string', 'max:10'],
+            'codigo_postal' => ['nullable', 'string', 'max:10'],
+            'email' => ['nullable', 'email', 'max:150'],
+            'telefono_whatsapp' => ['nullable', 'string', 'max:30'],
+            'saldo_monedero' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        // Normalizar RFC en mayúsculas y limpiar cadenas de texto
+        $rfcNormalizado = ! empty($validated['rfc']) ? strtoupper(trim((string) $validated['rfc'])) : null;
+
+        $atributos = [
+            'nombre' => trim((string) $validated['nombre']),
+            'rfc' => $rfcNormalizado,
+            'nivel_lealtad' => $validated['nivel_lealtad'] ?? 'regular',
+            'codigo_postal' => isset($validated['codigo_postal']) && trim((string) $validated['codigo_postal']) !== ''
+                ? trim((string) $validated['codigo_postal'])
+                : null,
+            'telefono_whatsapp' => isset($validated['telefono_whatsapp']) && trim((string) $validated['telefono_whatsapp']) !== ''
+                ? trim((string) $validated['telefono_whatsapp'])
+                : null,
+        ];
+
+        // Asignar empresa_id en registros nuevos si la columna existe
+        if ($empresa && Schema::hasColumn('clientes', 'empresa_id')) {
+            $atributos['empresa_id'] = $empresa->id;
+        }
+
+        // Asignar correo y datos fiscales SAT si existen las columnas en la tabla clientes
+        if (Schema::hasColumn('clientes', 'email')) {
+            $atributos['email'] = isset($validated['email']) && trim((string) $validated['email']) !== ''
+                ? trim((string) $validated['email'])
+                : null;
+        }
+        if (Schema::hasColumn('clientes', 'regimen_fiscal')) {
+            $atributos['regimen_fiscal'] = $validated['regimen_fiscal'] ?? '616';
+        }
+        if (Schema::hasColumn('clientes', 'uso_cfdi')) {
+            $atributos['uso_cfdi'] = $validated['uso_cfdi'] ?? 'G03';
+        }
+        if (isset($validated['saldo_monedero']) && Schema::hasColumn('clientes', 'saldo_monedero')) {
+            $atributos['saldo_monedero'] = $validated['saldo_monedero'];
+        }
+
+        // 1. Si viene 'id' (desde el botón "Ver / Editar"), actualizar directamente ese registro
+        if (! empty($validated['id'])) {
+            $cliente = Cliente::query()->findOrFail((int) $validated['id']);
+            // Conservar su empresa_id original si ya tenía uno asignado
+            if (Schema::hasColumn('clientes', 'empresa_id') && ! empty($cliente->empresa_id)) {
+                unset($atributos['empresa_id']);
+            }
+            $cliente->update($atributos);
+        }
+        // 2. Si no viene 'id' pero sí un RFC fiscal distinto a genérico, actualizar si ya existe o crear
+        elseif ($rfcNormalizado && ! in_array($rfcNormalizado, ['XAXX010101000', 'XEXX010101000'], true)) {
+            $clienteExistente = Cliente::query()
+                ->whereRaw('UPPER(TRIM(rfc)) = ?', [$rfcNormalizado])
+                ->first();
+
+            if ($clienteExistente) {
+                if (Schema::hasColumn('clientes', 'empresa_id') && ! empty($clienteExistente->empresa_id)) {
+                    unset($atributos['empresa_id']);
+                }
+                $clienteExistente->update($atributos);
+                $cliente = $clienteExistente;
+            } else {
+                $cliente = Cliente::query()->create($atributos);
+            }
+        }
+        // 3. Caso sin RFC o público general: crear nuevo registro
+        else {
+            $cliente = Cliente::query()->create($atributos);
+        }
+
+        // Responder JSON si la petición viene desde fetch() en el POS
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return response()->json([
+                'message' => 'Cliente actualizado correctamente sin duplicados.',
+                'cliente' => $cliente->fresh(),
+            ]);
+        }
+
+        return back()->with('success', 'Cliente guardado correctamente.');
+    }
+
+    // =========================================================
     // ENDPOINTS API / JSON
     // =========================================================
 
@@ -308,6 +438,9 @@ class PromocionController extends Controller
     // MÉTODOS AUXILIARES PRIVADOS
     // =========================================================
 
+    /**
+     * Resuelve la empresa activa asociada al usuario o sucursal.
+     */
     private function resolveEmpresa(User $user): Empresa
     {
         /** @var Sucursal|null $sucursalActiva */
@@ -318,39 +451,5 @@ class PromocionController extends Controller
             ?? $empresaSucursal
             ?? $user->empresa
             ?? Empresa::query()->where('activo', true)->firstOrFail();
-    }
-
-    /**
-     * Registra un nuevo cliente en el programa de lealtad / monedero.
-     */
-    public function storeCliente(Request $request): RedirectResponse
-    {
-        /** @var User $user */
-        $user = $request->user();
-        $empresa = $this->resolveEmpresa($user);
-
-        $validated = $request->validate([
-            'nombre' => ['required', 'string', 'max:180'],
-            'rfc' => ['nullable', 'string', 'max:13'],
-            'correo' => ['nullable', 'email', 'max:150'],
-            'telefono_whatsapp' => ['nullable', 'string', 'max:20'],
-            'nivel_lealtad' => ['required', 'in:regular,frecuente,destacado'],
-            'saldo_monedero' => ['nullable', 'numeric', 'min:0'],
-            'puntos_acumulados' => ['nullable', 'integer', 'min:0'],
-        ]);
-
-        Cliente::query()->create([
-            'empresa_id' => $empresa->id,
-            'nombre' => $validated['nombre'],
-            'rfc' => ! empty($validated['rfc']) ? strtoupper(trim($validated['rfc'])) : null,
-            'correo' => $validated['correo'] ?? null,
-            'telefono_whatsapp' => $validated['telefono_whatsapp'] ?? null,
-            'nivel_lealtad' => $validated['nivel_lealtad'],
-            'saldo_monedero' => (float) ($validated['saldo_monedero'] ?? 0),
-            'puntos_acumulados' => (int) ($validated['puntos_acumulados'] ?? 0),
-            'activo' => true,
-        ]);
-
-        return back()->with('success', 'Cliente registrado en el programa de lealtad.');
     }
 }

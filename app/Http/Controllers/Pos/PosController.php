@@ -185,25 +185,42 @@ class PosController extends Controller
     }
 
     /**
-     * Busca clientes registrados para aplicar promociones VIP, puntos o monedero en POS.
+     * Busca clientes registrados para el modal CFDI y lealtad en el POS,
+     * incluyendo sus datos fiscales SAT (CP, régimen, uso CFDI) y correo.
      */
     public function buscarClientesLealtad(Request $request): JsonResponse
     {
+        // Obtener término de búsqueda y empresa activa
         $q = trim((string) $request->query('q', ''));
         $empresaId = Empresa::query()->where('id', 3)->value('id') ?? 3;
 
         $clientes = Cliente::query()
             ->where('empresa_id', $empresaId)
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($sub) use ($q) {
+            ->when($q !== '', function ($query) use ($q): void {
+                // Filtrar por nombre, teléfono/WhatsApp, RFC o correo electrónico
+                $query->where(function ($sub) use ($q): void {
                     $sub->where('nombre', 'like', "%{$q}%")
                         ->orWhere('telefono_whatsapp', 'like', "%{$q}%")
-                        ->orWhere('rfc', 'like', "%{$q}%");
+                        ->orWhere('rfc', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
                 });
             })
-            ->orderByDesc('puntos_acumulados')
-            ->limit(15)
-            ->get(['id', 'nombre', 'rfc', 'telefono_whatsapp', 'nivel_lealtad', 'puntos_acumulados', 'saldo_monedero']);
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get([
+                'id',
+                'nombre',
+                'rfc',
+                'codigo_postal',
+                'regimen_fiscal',
+                'uso_cfdi',
+                'email',
+                'telefono_whatsapp',
+                'nivel_lealtad',
+                'puntos_acumulados',
+                'saldo_monedero',
+            ]);
 
         return response()->json($clientes);
     }
@@ -750,6 +767,193 @@ class PosController extends Controller
             ]);
 
         return response()->json($ventas);
+    }
+
+    /**
+     * Asigna los datos fiscales de un cliente a una venta específica para permitir su timbrado.
+     */
+    public function asignarClienteVenta(Request $request, Venta $venta): JsonResponse
+    {
+        // Validar nombre y RFC fiscal distinto a genéricos
+        $validated = $request->validate([
+            'cliente_nombre' => ['required', 'string', 'max:150'],
+            'cliente_rfc' => [
+                'required',
+                'string',
+                'min:12',
+                'max:13',
+                'regex:/^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$/i',
+                'not_in:XAXX010101000,XEXX010101000,xxxxxxxxxxxx,xxxxxxxxxxxxx',
+            ],
+            'cliente_email' => ['nullable', 'email', 'max:150'],
+        ]);
+
+        $rfcNormalizado = strtoupper(trim($validated['cliente_rfc']));
+        $nombreNormalizado = trim($validated['cliente_nombre']);
+
+        // Buscar cliente en catálogo para obtener sus datos fiscales completos
+        $clienteCatalogo = Cliente::query()
+            ->whereRaw('UPPER(TRIM(rfc)) = ?', [$rfcNormalizado])
+            ->first();
+
+        $datosUpdate = [
+            'cliente_nombre' => $nombreNormalizado,
+            'cliente_rfc' => $rfcNormalizado,
+        ];
+
+        // Copiar campos fiscales adicionales a la venta si existen en la tabla ventas
+        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_id') && $clienteCatalogo) {
+            $datosUpdate['cliente_id'] = $clienteCatalogo->id;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_email')) {
+            $datosUpdate['cliente_email'] = $validated['cliente_email'] ?? ($clienteCatalogo->email ?? null);
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_codigo_postal') && ! empty($clienteCatalogo?->codigo_postal)) {
+            $datosUpdate['cliente_codigo_postal'] = $clienteCatalogo->codigo_postal;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_regimen_fiscal') && ! empty($clienteCatalogo?->regimen_fiscal)) {
+            $datosUpdate['cliente_regimen_fiscal'] = $clienteCatalogo->regimen_fiscal;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'uso_cfdi_sat') && ! empty($clienteCatalogo?->uso_cfdi)) {
+            $datosUpdate['uso_cfdi_sat'] = $clienteCatalogo->uso_cfdi;
+        }
+
+        $venta->update($datosUpdate);
+
+        return response()->json([
+            'message' => 'Cliente fiscal asignado correctamente a la venta.',
+            'venta' => Venta::query()->find($venta->id),
+        ]);
+    }
+
+    /**
+     * Elimina un cliente únicamente si no tiene facturas vinculadas.
+     */
+    public function eliminarClienteLealtad(Cliente $cliente): JsonResponse
+    {
+        // Verificar si el cliente tiene alguna venta facturada vinculada (por cliente_id o por RFC)
+        $tieneFactura = $this->clienteTieneFacturaVinculada($cliente);
+
+        if ($tieneFactura) {
+            return response()->json([
+                'message' => 'No se puede eliminar el cliente porque ya tiene una factura vinculada. Puedes homologarlo con otro cliente.',
+            ], 422);
+        }
+
+        try {
+            // Eliminar registro de cliente sin facturas vinculadas
+            $cliente->delete();
+
+            return response()->json([
+                'message' => 'Cliente eliminado correctamente.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'No se pudo eliminar el cliente por registros relacionados en el sistema.',
+            ], 422);
+        }
+    }
+
+    /**
+     * Homologa (fusiona) un cliente origen duplicado o inactivo hacia un cliente destino,
+     * reasignando sus ventas y eliminando el registro origen si no tiene facturas vinculadas.
+     */
+    public function homologarClienteLealtad(Request $request, Cliente $cliente): JsonResponse
+    {
+        // Validar que el cliente destino exista en la tabla de clientes
+        $validated = $request->validate([
+            'cliente_destino_id' => [
+                'required',
+                'integer',
+                'exists:clientes,id',
+            ],
+        ]);
+
+        $destinoId = (int) $validated['cliente_destino_id'];
+
+        // Validar explícitamente que el destino sea distinto al cliente origen
+        if ($destinoId === (int) $cliente->id) {
+            return response()->json([
+                'message' => 'Debes seleccionar un cliente destino diferente al cliente a homologar.',
+            ], 422);
+        }
+
+        /** @var Cliente $clienteDestino */
+        $clienteDestino = Cliente::query()->findOrFail($destinoId);
+
+        // Impedir la eliminación/homologación si el cliente origen tiene factura vinculada
+        if ($this->clienteTieneFacturaVinculada($cliente)) {
+            return response()->json([
+                'message' => 'No se puede homologar/eliminar este cliente porque ya tiene una factura vinculada.',
+            ], 422);
+        }
+
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($cliente, $clienteDestino): JsonResponse {
+            // Reasignar ventas vinculadas por cliente_id hacia el cliente destino
+            if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_id')) {
+                Venta::query()
+                    ->where('cliente_id', $cliente->id)
+                    ->update([
+                        'cliente_id' => $clienteDestino->id,
+                        'cliente_nombre' => $clienteDestino->nombre,
+                        'cliente_rfc' => $clienteDestino->rfc ?: 'XAXX010101000',
+                    ]);
+            }
+
+            // Reasignar ventas no facturadas asociadas al nombre o RFC del cliente origen
+            $consultaVentas = Venta::query()
+                ->where(function ($q): void {
+                    $q->whereNull('estado_facturacion')
+                        ->orWhere('estado_facturacion', '!=', 'facturada');
+                });
+
+            if (! empty($cliente->rfc)) {
+                $consultaVentas->where(function ($q) use ($cliente): void {
+                    $q->where('cliente_rfc', strtoupper(trim((string) $cliente->rfc)))
+                        ->orWhere('cliente_nombre', $cliente->nombre);
+                });
+            } else {
+                $consultaVentas->where('cliente_nombre', $cliente->nombre);
+            }
+
+            $consultaVentas->update([
+                'cliente_nombre' => $clienteDestino->nombre,
+                'cliente_rfc' => $clienteDestino->rfc ?: 'XAXX010101000',
+            ]);
+
+            // Eliminar el cliente duplicado o inactivo tras reasignar sus registros
+            $cliente->delete();
+
+            return response()->json([
+                'message' => "Cliente \"{$cliente->nombre}\" homologado correctamente hacia \"{$clienteDestino->nombre}\".",
+                'cliente_destino' => $clienteDestino,
+            ]);
+        });
+    }
+
+    /**
+     * Determina si el cliente tiene al menos una venta facturada vinculada.
+     */
+    protected function clienteTieneFacturaVinculada(Cliente $cliente): bool
+    {
+        return Venta::query()
+            ->where(function ($q) use ($cliente): void {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_id')) {
+                    $q->where('cliente_id', $cliente->id);
+                }
+                if (! empty($cliente->rfc)) {
+                    $method = \Illuminate\Support\Facades\Schema::hasColumn('ventas', 'cliente_id') ? 'orWhere' : 'where';
+                    $q->{$method}(function ($sub) use ($cliente): void {
+                        $sub->whereRaw('UPPER(TRIM(cliente_rfc)) = ?', [strtoupper(trim((string) $cliente->rfc))])
+                            ->where('cliente_nombre', $cliente->nombre);
+                    });
+                }
+            })
+            ->where(function ($q): void {
+                $q->where('estado_facturacion', 'facturada')
+                    ->orWhereNotNull('uuid_fiscal');
+            })
+            ->exists();
     }
 
     /**

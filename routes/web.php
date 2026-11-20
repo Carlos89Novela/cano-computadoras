@@ -285,6 +285,11 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/ultimas-ventas', [PosController::class, 'ultimasVentas'])->name('ultimas-ventas');
         Route::get('/ventas/{uuid}/ticket', [PosController::class, 'reimprimirTicket'])->name('ventas.ticket');
         Route::post('/devoluciones', [PosController::class, 'devolucion'])->middleware('permission:pos.devoluciones')->name('devoluciones.store');
+        Route::get('/clientes-lealtad', [PosController::class, 'buscarClientesLealtad'])->name('clientes.lealtad');
+        Route::post('/ventas/{venta}/asignar-cliente', [PosController::class, 'asignarClienteVenta'])->name('ventas.asignar-cliente');
+        // Homologa (fusiona) un cliente duplicado o inactivo hacia otro cliente destino
+        Route::post('/clientes-lealtad/{cliente}/homologar', [PosController::class, 'homologarClienteLealtad'])
+            ->name('clientes-lealtad.homologar');
 
         // Cuentas y Mesas de Restaurante en POS
         Route::get('/restaurante/comandas-abiertas', [PosController::class, 'comandasAbiertasRestaurante'])->name('restaurante.comandas-abiertas');
@@ -314,6 +319,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/lote-pendientes', [FacturacionController::class, 'procesarLotePendientes'])->name('lote-pendientes');
         Route::get('/global', [FacturacionGlobalController::class, 'index'])->name('global.index');
         Route::post('/global/procesar', [FacturacionGlobalController::class, 'procesar'])->name('global.procesar');
+        Route::post('/ventas/{venta}/enviar-correo', [FacturacionController::class, 'enviarCorreo'])->name('ventas.enviar-correo');
+        // Regenera el comprobante CFDI de una venta facturada únicamente si está en el mes actual
+        Route::post('/ventas/{venta}/regenerar', [FacturacionController::class, 'regenerar'])->name('ventas.regenerar');
     });
 });
 
