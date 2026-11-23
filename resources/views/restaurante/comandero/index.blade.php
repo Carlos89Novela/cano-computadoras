@@ -150,7 +150,7 @@
                 {{-- GRID EXTRAS --}}
                 <div class="flex-1 overflow-y-auto pr-2 hide-scrollbar content-start" x-show="categoriaSeleccionada === 'extras'" x-cloak>
                     <div class="grid gap-2.5" style="grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));">
-                        <template x-for="ext in extrasDisponibles" :key="'extra-'+ext.id">
+                        <template x-for="ext in extrasUnicos" :key="'extra-'+ext.id">
                             <div @click="agregarExtraSuelto(ext)" class="h-28 p-3 bg-[#1c1811] border border-amber-500/60 rounded-xl cursor-pointer flex flex-col justify-between hover:border-amber-400 hover:bg-[#262016] transition-all shadow-md relative overflow-hidden group">
                                 <div>
                                     <div class="flex items-center justify-between mb-1">
@@ -436,6 +436,36 @@
                     accion: null
                 },
 
+                /**
+                 * Elimina modificadores o extras repetidos por ID o por nombre normalizado
+                 * para evitar que aparezcan duplicados en la interfaz del comandero.
+                 *
+                 * @param {Array} lista
+                 * @returns {Array}
+                 */
+                deduplicarModificadores(lista) {
+                    if (!Array.isArray(lista)) return [];
+                    const vistosId = new Set();
+                    const vistosNombre = new Set();
+
+                    return lista.filter(item => {
+                        if (!item) return false;
+                        const idKey = item.id !== undefined && item.id !== null ? String(item.id) : '';
+                        const nombreKey = String(item.nombre || '').trim().toLowerCase();
+
+                        if (idKey && vistosId.has(idKey)) return false;
+                        if (nombreKey && vistosNombre.has(nombreKey)) return false;
+
+                        if (idKey) vistosId.add(idKey);
+                        if (nombreKey) vistosNombre.add(nombreKey);
+                        return true;
+                    });
+                },
+
+                get extrasUnicos() {
+                    return this.deduplicarModificadores(this.extrasDisponibles);
+                },
+
                 get totalOrden() {
                     return this.orden.reduce((sum, item) => sum + this.calcularSubtotalItem(item), 0);
                 },
@@ -448,11 +478,12 @@
                 },
 
                 get lechesDisponibles() {
-                    return this.extrasDisponibles.filter(ext => {
+                    const filtradas = this.extrasUnicos.filter(ext => {
                         const nombre = (ext.nombre || '').toLowerCase();
                         const sku = (ext.sku || '').toLowerCase();
                         return nombre.includes('leche') || sku.includes('lech');
                     });
+                    return this.deduplicarModificadores(filtradas);
                 },
 
                 requiereLeche() {
@@ -467,13 +498,13 @@
                     const est = (this.productoSeleccionado.estacion || '').toLowerCase();
                     const esBebida = est.includes('bar') || est.includes('bebida');
 
-                    return this.extrasDisponibles.filter(ext => {
+                    const filtrados = this.extrasUnicos.filter(ext => {
                         const nombreExtra = (ext.nombre || '').toLowerCase();
                         const skuExtra = (ext.sku || '').toLowerCase();
                         if (nombreExtra.includes('leche') || skuExtra.includes('lech')) return false;
 
                         const esSab = nombreExtra.includes('sabor') || nombreExtra.includes('jarabe');
-                        const esEsp = nombreExtra.includes('espresso');
+                        const esEsp = nombreExtra.includes('espresso') || nombreExtra.includes('expresso');
                         const esLic = nombreExtra.includes('tequila') || nombreExtra.includes('mezcal') || nombreExtra.includes('licor');
                         const esExtraBarra = esSab || esEsp || esLic;
 
@@ -483,6 +514,8 @@
                             return !esExtraBarra;
                         }
                     });
+
+                    return this.deduplicarModificadores(filtrados);
                 },
 
                 async init() {
@@ -567,7 +600,6 @@
                     }
                 },
 
-                // Muestra una notificación visual dentro de la página sin usar alert() del navegador
                 mostrarToastSistema(titulo, mensaje, tipo = 'exito', icono = '✅') {
                     const notifId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
                     const nuevaNotif = {
@@ -716,7 +748,6 @@
                 decrementar(idx) { if (this.orden[idx].cantidad > 1) this.orden[idx].cantidad -= 1; },
                 eliminar(idx) { this.orden.splice(idx, 1); },
 
-                // Abre el modal dentro de la página para confirmar o ejecutar una acción
                 abrirModalConfirmacion({ icono = '🧾', titulo, mensaje, textoConfirmar = 'Confirmar', accion }) {
                     this.modalConfirmacion = {
                         abierto: true,
