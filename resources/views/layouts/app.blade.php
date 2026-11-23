@@ -5,7 +5,19 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Laravel') }}</title>
+        @props(['title' => null])
+
+        @php
+            $empresaActual = $empresa
+                ?? auth()->user()?->empresa
+                ?? auth()->user()?->sucursales()->with('empresa')->first()?->empresa
+                ?? \App\Models\Empresa::query()->where('giro_comercial', 'restaurantes_alimentos')->first()
+                ?? \App\Models\Empresa::query()->first();
+
+            $nombreEmpresa = $empresaActual?->nombre ?? config('app.name', 'Sistema');
+            $tituloSeccion = trim((string) ($title ?? $__env->yieldContent('title')));
+        @endphp
+        <title>{{ $tituloSeccion !== '' ? $tituloSeccion . ' | ' . $nombreEmpresa : $nombreEmpresa }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">

@@ -1,23 +1,76 @@
-<x-app-layout>
+@php
+    // =====================================================================
+    // 1. RESOLUCIÓN DEL USUARIO Y SU NIVEL DE ROL (MULTI-TENANT)
+    // =====================================================================
+    $usuario = auth()->user();
+
+    // Extraer el rol desde el atributo directo del usuario o desde Spatie Roles
+    $rolBruto = strtolower((string) (
+        $usuario?->rol
+        ?? $usuario?->role
+        ?? $usuario?->nivel_rol
+        ?? (method_exists($usuario, 'getRoleNames') ? ($usuario->getRoleNames()->first() ?? '') : '')
+    ));
+
+    // Identificar si el usuario pertenece a Subgerencia o Gerencia/Administración
+    $esSubgerente = str_contains($rolBruto, 'subgerente') || str_contains($rolBruto, 'sub_gerente');
+    $esGerenteActual = $esGerente ?? (
+        $esSubgerente
+        || str_contains($rolBruto, 'gerente')
+        || str_contains($rolBruto, 'admin')
+        || true
+    );
+
+    // =====================================================================
+    // 2. TÍTULO DINÁMICO DE LA PESTAÑA Y ENCABEZADOS SEGÚN ROL
+    // =====================================================================
+    $tituloDashboard = match (true) {
+        $esSubgerente => 'Dashboard Subgerente',
+        $esGerenteActual => 'Dashboard Gerencia',
+        default => 'Dashboard',
+    };
+
+    $encabezadoRol = $esSubgerente ? 'Panel del Subgerente' : 'Panel del Administrador';
+    $subtituloArea = $esSubgerente ? 'Subgerencia' : 'Administración';
+
+    // =====================================================================
+    // 3. IDENTIFICACIÓN DEL GIRO COMERCIAL DE LA EMPRESA ACTIVA
+    //    (Restaurante, Tecnología, Abarrotes y Ferretería)
+    // =====================================================================
+    $giroActual = strtolower((string) ($giro ?? $empresa?->giro_comercial ?? ''));
+
+    $etiquetaGiro = match ($giroActual) {
+        'restaurantes_alimentos', 'restaurante' => 'Giro Restaurante',
+        'abarrotes', 'abarrotes_minisuper' => 'Giro Abarrotes',
+        'ferreteria', 'ferreteria_tlapaleria' => 'Giro Ferretería',
+        default => 'Giro Tecnología',
+    };
+@endphp
+
+<x-app-layout :title="$tituloDashboard">
+    {{-- ===================================================================== --}}
+    {{-- ENCABEZADO SUPERIOR: TÍTULO DE ROL Y BADGE DE EMPRESA / GIRO          --}}
+    {{-- ===================================================================== --}}
     <x-slot name="header">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <p class="text-sm font-semibold uppercase tracking-wide text-purple-500">
-                    Administración
+                    {{ $subtituloArea }}
                 </p>
 
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
-                    Panel del Administrador
+                    {{ $encabezadoRol }}
                 </h2>
             </div>
 
+            {{-- Indicador de empresa activa y giro comercial --}}
             @if(isset($empresa))
                 <div class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/80 px-3.5 py-1 text-xs text-slate-300 backdrop-blur">
-                    <span class="inline-block h-2 w-2 rounded-full {{ ($giro ?? '') === 'restaurantes_alimentos' ? 'bg-amber-400' : 'bg-emerald-400' }}"></span>
+                    <span class="inline-block h-2 w-2 rounded-full {{ $giroActual === 'restaurantes_alimentos' ? 'bg-amber-400' : 'bg-emerald-400' }}"></span>
                     <span class="font-semibold text-white">{{ $empresa->nombre }}</span>
                     <span class="text-slate-500">|</span>
                     <span class="capitalize text-slate-400">
-                        {{ ($giro ?? '') === 'restaurantes_alimentos' ? 'Giro Restaurante' : 'Giro Tecnología' }}
+                        {{ $etiquetaGiro }}
                     </span>
                 </div>
             @endif
@@ -34,7 +87,7 @@
                 {{-- Tarjeta 1: Órdenes / Comandas --}}
                 <div class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ ($giro ?? '') === 'restaurantes_alimentos' ? 'Comandas / Pedidos' : 'Total de reparaciones' }}
+                        {{ $giroActual === 'restaurantes_alimentos' ? 'Comandas / Pedidos' : 'Total de reparaciones' }}
                     </p>
 
                     <p class="mt-3 text-4xl font-bold text-purple-500">
@@ -45,7 +98,7 @@
                 {{-- Tarjeta 2: Pendientes / Sin asignar --}}
                 <div class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ ($giro ?? '') === 'restaurantes_alimentos' ? 'Comandas por atender' : 'Sin asignar' }}
+                        {{ $giroActual === 'restaurantes_alimentos' ? 'Comandas por atender' : 'Sin asignar' }}
                     </p>
 
                     <p class="mt-3 text-4xl font-bold text-amber-500">
@@ -56,7 +109,7 @@
                 {{-- Tarjeta 3: Servicios / Platillos del Menú --}}
                 <div class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ ($giro ?? '') === 'restaurantes_alimentos' ? 'Platillos en menú' : 'Servicios registrados' }}
+                        {{ $giroActual === 'restaurantes_alimentos' ? 'Platillos en menú' : 'Servicios registrados' }}
                     </p>
 
                     <p class="mt-3 text-4xl font-bold text-blue-500">
@@ -67,7 +120,7 @@
                 {{-- Tarjeta 4: Personal / Empleados registrados --}}
                 <div class="rounded-xl bg-white p-6 shadow dark:bg-zinc-900">
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ ($giro ?? '') === 'restaurantes_alimentos' ? 'Personal de sucursal' : 'Usuarios registrados' }}
+                        {{ $giroActual === 'restaurantes_alimentos' ? 'Personal de sucursal' : 'Usuarios registrados' }}
                     </p>
 
                     <p class="mt-3 text-4xl font-bold text-green-500">
@@ -77,9 +130,9 @@
             </section>
 
             {{-- ============================================================= --}}
-            {{-- 2. MÓDULOS ADMINISTRATIVOS DEL GERENTE (RESTAURANTE)           --}}
+            {{-- 2. MÓDULOS ADMINISTRATIVOS DEL GERENTE / SUBGERENTE (REST.)   --}}
             {{-- ============================================================= --}}
-            @if(($giro ?? '') === 'restaurantes_alimentos' && ($esGerente ?? true) && isset($empresa))
+            @if($giroActual === 'restaurantes_alimentos' && $esGerenteActual && isset($empresa))
                 <section class="w-full rounded-2xl border border-slate-800 bg-zinc-900 p-6 shadow space-y-5">
                     <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <div>
@@ -95,6 +148,7 @@
                         </span>
                     </div>
 
+                    {{-- Accesos rápidos a los módulos operativos de restaurante --}}
                     <div class="grid w-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {{-- 1. Recetas (Composición y Edición) --}}
                         <a href="{{ route('restaurante.recetas.index') }}"
