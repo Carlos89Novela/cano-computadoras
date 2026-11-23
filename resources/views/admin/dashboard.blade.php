@@ -1,3 +1,8 @@
+{{-- ===================================================================== --}}
+{{-- VISTA: PANEL DEL ADMINISTRADOR / GERENTE (MULTI-TENANT Y MULTI-GIRO) --}}
+{{-- Muestra estadísticas clave, accesos operativos de restaurante y      --}}
+{{-- gestión directa de proveedores de la empresa activa.                 --}}
+{{-- ===================================================================== --}}
 @php
     // =====================================================================
     // 1. RESOLUCIÓN DEL USUARIO Y SU NIVEL DE ROL (MULTI-TENANT)
@@ -64,7 +69,7 @@
             </div>
 
             {{-- Indicador de empresa activa y giro comercial --}}
-            @if(isset($empresa))
+            @if (isset($empresa))
                 <div class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/80 px-3.5 py-1 text-xs text-slate-300 backdrop-blur">
                     <span class="inline-block h-2 w-2 rounded-full {{ $giroActual === 'restaurantes_alimentos' ? 'bg-amber-400' : 'bg-emerald-400' }}"></span>
                     <span class="font-semibold text-white">{{ $empresa->nombre }}</span>
@@ -132,7 +137,7 @@
             {{-- ============================================================= --}}
             {{-- 2. MÓDULOS ADMINISTRATIVOS DEL GERENTE / SUBGERENTE (REST.)   --}}
             {{-- ============================================================= --}}
-            @if($giroActual === 'restaurantes_alimentos' && $esGerenteActual && isset($empresa))
+            @if ($giroActual === 'restaurantes_alimentos' && $esGerenteActual && isset($empresa))
                 <section class="w-full rounded-2xl border border-slate-800 bg-zinc-900 p-6 shadow space-y-5">
                     <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <div>
@@ -140,7 +145,7 @@
                                 Gestión Gerencial de Restaurante
                             </p>
                             <h3 class="text-lg font-bold text-white">
-                                Recetas, Inventarios, Compras, Caja y KDS
+                                Recetas, Inventarios, Compras, Proveedores, Caja y KDS
                             </h3>
                         </div>
                         <span class="text-xs text-slate-400">
@@ -206,7 +211,31 @@
                             <span class="text-xs font-semibold text-purple-400">Ver órdenes de compra →</span>
                         </a>
 
-                        {{-- 5. Cortes y Auditoría de Caja --}}
+                        {{-- 5. Catálogo de Proveedores de la Empresa Activa --}}
+                        @if (\Illuminate\Support\Facades\Route::has('operacion.proveedores.index'))
+                            <div class="group flex flex-col justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4 transition hover:border-teal-500/50">
+                                <div>
+                                    <div class="text-sm font-bold text-white group-hover:text-teal-300">
+                                        🏢 Proveedores
+                                    </div>
+                                    <p class="mt-1 text-xs text-slate-400">
+                                        Consulta, registra y edita proveedores para órdenes de compra de {{ $empresa->nombre }}.
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-3 text-xs font-semibold">
+                                    <a href="{{ route('operacion.proveedores.index', ['empresa' => $empresa->id]) }}"
+                                       class="text-teal-400 hover:text-teal-300 transition">
+                                        Ver proveedores →
+                                    </a>
+                                    <a href="{{ route('operacion.proveedores.create', ['empresa' => $empresa->id]) }}"
+                                       class="text-emerald-400 hover:text-emerald-300 transition">
+                                        + Nuevo
+                                    </a>
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- 6. Cortes y Auditoría de Caja --}}
                         <a href="{{ route('pos.cajas.index') }}"
                            class="group flex flex-col justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4 transition hover:border-indigo-500/50">
                             <div>
@@ -220,7 +249,7 @@
                             <span class="text-xs font-semibold text-indigo-400">Auditar cajas →</span>
                         </a>
 
-                        {{-- 6. Monitor KDS --}}
+                        {{-- 7. Monitor KDS --}}
                         <a href="{{ route('restaurante.kds.index') }}"
                            class="group flex flex-col justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4 transition hover:border-rose-500/50">
                             <div>

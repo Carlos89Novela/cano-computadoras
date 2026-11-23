@@ -19,23 +19,87 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View as ViewFacade;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Controlador de Órdenes de Compra a Proveedores (Multi-Tenant y Multi-Giro).
+ */
 class OrdenCompraController extends Controller
 {
+    /**
+     * Resuelve la empresa activa del usuario autenticado priorizando:
+     * 1) Parámetro explícito en ruta o query (?empresa=3)
+     * 2) Sesión activa (empresa_activa_id / empresa_id)
+     * 3) Empresa o sucursal asignada al usuario en base de datos
+     * 4) Primera empresa activa como respaldo final
+     */
+    /**
+     * Resuelve la empresa activa del usuario autenticado usando ruta,
+     * sesión multi-tenant o la sucursal activa asignada en sucursal_usuario.
+     */
     protected function obtenerEmpresa(Request $request): Empresa
     {
         $user = $request->user();
 
-        /** @var Empresa|null $empresa */
-        $empresa = $user->empresa;
-
-        if (! $empresa && ! empty($user->empresa_id)) {
-            $empresa = Empresa::query()->find($user->empresa_id);
+        // 1) Parámetro explícito en ruta o query (?empresa=3)
+        $empresaParam = $request->route('empresa') ?? $request->query('empresa');
+        if ($empresaParam instanceof Empresa) {
+            session(['empresa_activa_id' => $empresaParam->id]);
+            return $empresaParam;
+        }
+        if (is_numeric($empresaParam)) {
+            $encontrada = Empresa::query()->find((int) $empresaParam);
+            if ($encontrada) {
+                session(['empresa_activa_id' => $encontrada->id]);
+                return $encontrada;
+            }
         }
 
+        // 2) Empresa guardada en sesión activa
+        $sessionEmpresaId = session('empresa_activa_id') ?? session('empresa_id');
+        if (! empty($sessionEmpresaId)) {
+            $encontrada = Empresa::query()->find((int) $sessionEmpresaId);
+            if ($encontrada) {
+                return $encontrada;
+            }
+        }
+
+        // 3) Empresa de la sucursal principal/activa asignada al usuario en sucursal_usuario
+        /** @var Empresa|null $empresa */
+        $empresa = null;
+
+        if ($user && method_exists($user, 'sucursales')) {
+            $sucursalActiva = $user->sucursales()
+                ->wherePivot('activo', true)
+                ->orderByDesc('sucursal_usuario.es_principal')
+                ->with('empresa')
+                ->first();
+
+            if ($sucursalActiva?->empresa instanceof Empresa) {
+                $empresa = $sucursalActiva->empresa;
+                session(['empresa_activa_id' => $empresa->id]);
+            }
+        }
+
+        // 4) Respaldo final a la primera empresa activa registrada
         if (! $empresa) {
             /** @var Empresa $empresa */
-            $empresa = Empresa::query()->firstOrFail();
+            $empresa = Empresa::query()->where('activo', true)->firstOrFail();
         }
+
+        return $empresa;
+    }
+
+    /**
+     * Valida que la orden de compra pertenezca a la empresa activa del usuario.
+     */
+    protected function autorizarOrdenDeEmpresa(Request $request, OrdenCompra $orden): Empresa
+    {
+        $empresa = $this->obtenerEmpresa($request);
+
+        abort_unless(
+            (int) $orden->empresa_id === (int) $empresa->id,
+            403,
+            'La orden de compra no pertenece a la empresa activa.'
+        );
 
         return $empresa;
     }
@@ -46,7 +110,12 @@ class OrdenCompraController extends Controller
 
         $ordenes = OrdenCompra::query()
             ->where('empresa_id', $empresa->id)
-            ->with(['proveedor:id,razon_social,nombre,rfc', 'sucursal:id,nombre', 'usuario:id,name'])
+            ->with([
+                'proveedor:id,razon_social,nombre,rfc',
+                'sucursal:id,nombre',
+                'almacen:id,nombre',
+                'usuario:id,name',
+            ])
             ->latest('id')
             ->paginate(15);
 
@@ -56,21 +125,43 @@ class OrdenCompraController extends Controller
     public function create(Request $request): View
     {
         $empresa = $this->obtenerEmpresa($request);
+        $giro = strtolower((string) ($empresa->giro_comercial ?? ''));
+        $esRestaurante = in_array($giro, ['restaurantes_alimentos', 'restaurante'], true);
 
-        $sucursales = Sucursal::query()->where('empresa_id', $empresa->id)->get(['id', 'nombre', 'codigo']);
-        $almacenes = Almacen::query()->where('empresa_id', $empresa->id)->where('activo', true)->get(['id', 'nombre', 'sucursal_id']);
+        $sucursales = Sucursal::query()
+            ->where('empresa_id', $empresa->id)
+            ->get(['id', 'nombre', 'codigo']);
+
+        $almacenes = Almacen::query()
+            ->where('empresa_id', $empresa->id)
+            ->where('activo', true)
+            ->get(['id', 'nombre', 'sucursal_id']);
+
         $proveedores = Proveedor::query()
             ->where('empresa_id', $empresa->id)
             ->where('activo', true)
             ->orderBy('razon_social')
             ->get(['id', 'razon_social', 'nombre', 'rfc']);
-        $productos = Producto::query()
+
+        $queryProductos = Producto::query()
             ->where('empresa_id', $empresa->id)
             ->where('activo', true)
-            ->orderBy('nombre')
-            ->get(['id', 'sku', 'nombre', 'costo_referencia']);
+            ->orderBy('nombre');
 
-        return ViewFacade::make('compras.ordenes.create', compact('empresa', 'sucursales', 'almacenes', 'proveedores', 'productos'));
+        // En giro restaurante filtra únicamente insumos (SKU "INS-")
+        if ($esRestaurante) {
+            $queryProductos->where(function ($q) {
+                $q->where('sku', 'like', 'INS-%')
+                  ->orWhere('sku', 'like', 'ins-%');
+            });
+        }
+
+        $productos = $queryProductos->get(['id', 'sku', 'nombre', 'costo_referencia']);
+
+        return ViewFacade::make(
+            'compras.ordenes.create',
+            compact('empresa', 'sucursales', 'almacenes', 'proveedores', 'productos')
+        );
     }
 
     public function store(StoreOrdenCompraRequest $request, CrearOrdenCompraService $service): RedirectResponse
@@ -89,15 +180,19 @@ class OrdenCompraController extends Controller
             ->with('status', "Orden de compra {$orden->folio} registrada exitosamente.");
     }
 
-    public function show(OrdenCompra $orden): View
+    public function show(Request $request, OrdenCompra $orden): View
     {
+        $this->autorizarOrdenDeEmpresa($request, $orden);
+
         $orden->load(['detalles.producto', 'proveedor', 'sucursal', 'almacen', 'usuario', 'autorizador']);
 
         return ViewFacade::make('compras.ordenes.show', compact('orden'));
     }
 
-    public function solicitar(OrdenCompra $orden, TransicionEstadoOrdenCompraService $service): RedirectResponse
+    public function solicitar(Request $request, OrdenCompra $orden, TransicionEstadoOrdenCompraService $service): RedirectResponse
     {
+        $this->autorizarOrdenDeEmpresa($request, $orden);
+
         try {
             $service->solicitar($orden);
 
@@ -107,9 +202,17 @@ class OrdenCompraController extends Controller
         }
     }
 
-    public function autorizar(OrdenCompra $orden, TransicionEstadoOrdenCompraService $service, Request $request): RedirectResponse
+    public function autorizar(Request $request, OrdenCompra $orden, TransicionEstadoOrdenCompraService $service): RedirectResponse
     {
+        $this->autorizarOrdenDeEmpresa($request, $orden);
         $user = $request->user();
+
+        $esGerente = $user && (
+            (method_exists($user, 'esPropietario') && $user->esPropietario())
+            || ($user->hasRole('administrador') && ! $user->hasRole('supervisor'))
+        );
+
+        abort_unless($esGerente, 403, 'Solo el Gerente (administrador) puede autorizar órdenes de compra.');
 
         try {
             $service->autorizar($orden, $user);
@@ -122,6 +225,8 @@ class OrdenCompraController extends Controller
 
     public function cancelar(Request $request, OrdenCompra $orden, TransicionEstadoOrdenCompraService $service): RedirectResponse
     {
+        $this->autorizarOrdenDeEmpresa($request, $orden);
+
         $request->validate([
             'motivo_cancelacion' => ['required', 'string', 'min:5', 'max:500'],
         ]);
@@ -135,8 +240,10 @@ class OrdenCompraController extends Controller
         }
     }
 
-    public function pdf(OrdenCompra $orden): Response
+    public function pdf(Request $request, OrdenCompra $orden): Response
     {
+        $this->autorizarOrdenDeEmpresa($request, $orden);
+
         $orden->load([
             'detalles.producto',
             'proveedor',

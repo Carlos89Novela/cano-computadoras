@@ -12,9 +12,18 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
+/**
+ * Servicio de dominio para registrar Órdenes de Compra a Proveedores.
+ *
+ * Calcula cada partida considerando que el `costo_unitario` capturado
+ * ya incluye IVA (IVA incluido), desglosando subtotal e IVA hacia atrás
+ * para mantener coherencia en totales, PDF, recepción de inventario y CXP.
+ */
 class CrearOrdenCompraService
 {
     /**
+     * Ejecuta el registro transaccional de una orden de compra y sus partidas.
+     *
      * @param array{
      *     empresa_id: int,
      *     sucursal_id: int,
@@ -67,18 +76,23 @@ class CrearOrdenCompraService
                     ->findOrFail($linea['producto_id']);
 
                 $cantidad = (float) $linea['cantidad'];
-                $costoUnitario = (float) $linea['costo_unitario'];
-                $descuentoUnitario = (float) ($linea['descuento_unitario'] ?? 0.0);
+                // El costo_unitario recibido ya viene con IVA incluido
+                $costoUnitarioConIva = (float) $linea['costo_unitario'];
+                $descuentoUnitarioConIva = (float) ($linea['descuento_unitario'] ?? 0.0);
                 $tasaIva = isset($linea['tasa_iva']) ? (float) $linea['tasa_iva'] : 0.1600;
+                $factorIva = 1.0 + max(0.0, $tasaIva);
 
-                $costoEfectivo = max(0.0, $costoUnitario - $descuentoUnitario);
-                $subtotalLinea = round($costoEfectivo * $cantidad, 2);
-                $ivaUnitario = round($costoEfectivo * $tasaIva, 4);
-                $ivaLinea = round($ivaUnitario * $cantidad, 2);
-                $totalLinea = round($subtotalLinea + $ivaLinea, 2);
+                // Costo efectivo unitario con IVA y total de la partida (IVA incluido)
+                $costoEfectivoConIva = max(0.0, $costoUnitarioConIva - $descuentoUnitarioConIva);
+                $totalLinea = round($costoEfectivoConIva * $cantidad, 2);
+
+                // Desglose de subtotal (sin IVA) e IVA a partir del importe con IVA incluido
+                $subtotalLinea = round($totalLinea / $factorIva, 2);
+                $ivaLinea = round($totalLinea - $subtotalLinea, 2);
+                $ivaUnitario = $cantidad > 0 ? round($ivaLinea / $cantidad, 4) : 0.0;
 
                 $subtotalAcumulado += $subtotalLinea;
-                $descuentoAcumulado += round($descuentoUnitario * $cantidad, 2);
+                $descuentoAcumulado += round(($descuentoUnitarioConIva / $factorIva) * $cantidad, 2);
                 $ivaAcumulado += $ivaLinea;
                 $totalAcumulado += $totalLinea;
 
@@ -87,8 +101,8 @@ class CrearOrdenCompraService
                     'producto_id' => $producto->id,
                     'cantidad' => $cantidad,
                     'cantidad_recibida' => 0.0,
-                    'costo_unitario' => $costoUnitario,
-                    'descuento_unitario' => $descuentoUnitario,
+                    'costo_unitario' => $costoUnitarioConIva,
+                    'descuento_unitario' => $descuentoUnitarioConIva,
                     'tasa_iva' => $tasaIva,
                     'monto_iva_unitario' => $ivaUnitario,
                     'subtotal' => $subtotalLinea,
@@ -108,10 +122,10 @@ class CrearOrdenCompraService
                 'estado' => 'borrador',
                 'fecha_emision' => $datos['fecha_emision'],
                 'fecha_entrega_esperada' => $datos['fecha_entrega_esperada'] ?? null,
-                'subtotal' => $subtotalAcumulado,
-                'descuento_total' => $descuentoAcumulado,
-                'iva_total' => $ivaAcumulado,
-                'total' => $totalAcumulado,
+                'subtotal' => round($subtotalAcumulado, 2),
+                'descuento_total' => round($descuentoAcumulado, 2),
+                'iva_total' => round($ivaAcumulado, 2),
+                'total' => round($totalAcumulado, 2),
                 'moneda' => $datos['moneda'] ?? 'MXN',
                 'tipo_cambio' => (float) ($datos['tipo_cambio'] ?? 1.0000),
                 'notas' => $datos['notas'] ?? null,
@@ -125,6 +139,9 @@ class CrearOrdenCompraService
         });
     }
 
+    /**
+     * Genera un folio consecutivo diario por sucursal (ej. OC-REST-01-20261123-0001).
+     */
     protected function generarFolio(Sucursal $sucursal): string
     {
         $fecha = Carbon::now()->format('Ymd');

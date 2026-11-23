@@ -25,10 +25,6 @@
                     ← Volver a Existencias
                 </a>
             </div>
-            <a href="{{ route('inventario.existencias.index', $empresa) }}"
-               class="rounded-lg bg-zinc-800 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 transition">
-                ← Volver a existencias
-            </a>
         </div>
     </x-slot>
 

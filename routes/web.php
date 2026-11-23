@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\SucursalController;
 use App\Http\Controllers\Admin\UsuarioController;
 use App\Http\Controllers\Compras\CuentaPorPagarController;
 use App\Http\Controllers\Compras\OrdenCompraController;
+use App\Http\Controllers\Compras\ProveedorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\Finanzas\BancoController;
@@ -175,7 +176,7 @@ Route::middleware(['auth', 'verified', 'role:supervisor'])
 
 /*
 |--------------------------------------------------------------------------
-| BLOQUE 4: OPERACIONES GENERALES (CATÁLOGO, RECETAS, INVENTARIO, COMPRAS, BANCOS)
+| BLOQUE 4: OPERACIONES GENERALES (CATÁLOGO, RECETAS, INVENTARIO, COMPRAS, PROVEEDORES, BANCOS)
 |--------------------------------------------------------------------------
 */
 
@@ -237,6 +238,19 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/empresas/{empresa}/inventario/kardex-pdf/{producto}/{almacen?}', [InventarioKardexController::class, 'exportarKardexPdf'])->name('kardex.pdf');
     });
 
+    // --- Catálogo de Proveedores por Empresa (Gerente / Subgerente) ---
+    Route::prefix('operacion/empresas/{empresa}/proveedores')
+        ->name('operacion.proveedores.')
+        ->middleware('role:administrador|supervisor')
+        ->group(function (): void {
+            Route::get('/', [ProveedorController::class, 'index'])->name('index');
+            Route::get('/crear', [ProveedorController::class, 'create'])->name('create');
+            Route::post('/', [ProveedorController::class, 'store'])->name('store');
+            Route::get('/{proveedor}/editar', [ProveedorController::class, 'edit'])->name('edit');
+            Route::put('/{proveedor}', [ProveedorController::class, 'update'])->name('update');
+            Route::patch('/{proveedor}/estado', [ProveedorController::class, 'toggleEstado'])->name('estado');
+        });
+
     // --- Órdenes de Compra y Cuentas por Pagar (CXP) ---
     Route::prefix('operacion/compras')->group(function (): void {
         Route::name('compras.ordenes.')->group(function (): void {
@@ -246,7 +260,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             Route::get('/{orden}', [OrdenCompraController::class, 'show'])->name('show');
             Route::get('/{orden}/pdf', [OrdenCompraController::class, 'pdf'])->name('pdf');
             Route::patch('/{orden}/solicitar', [OrdenCompraController::class, 'solicitar'])->name('solicitar');
-            Route::patch('/{orden}/autorizar', [OrdenCompraController::class, 'autorizar'])->middleware('permission:compras.autorizar')->name('autorizar');
+            Route::patch('/{orden}/autorizar', [OrdenCompraController::class, 'autorizar'])->middleware('role:administrador')->name('autorizar');
             Route::patch('/{orden}/cancelar', [OrdenCompraController::class, 'cancelar'])->name('cancelar');
         });
 

@@ -1,3 +1,26 @@
+{{-- ===================================================================== --}}
+{{-- VISTA: PANEL DEL SUPERVISOR / SUBGERENTE (OPERACIÓN DE PISO Y APOYO) --}}
+{{-- ===================================================================== --}}
+@php
+    $usuarioSup = auth()->user();
+    $empresaSup = $empresa ?? null;
+
+    if (! $empresaSup) {
+        $sessionEmpId = session('empresa_activa_id') ?? session('empresa_id');
+        if (! empty($sessionEmpId)) {
+            $empresaSup = \App\Models\Empresa::query()->find((int) $sessionEmpId);
+        }
+    }
+
+    if (! $empresaSup && $usuarioSup && method_exists($usuarioSup, 'sucursales')) {
+        $empresaSup = $usuarioSup->sucursales()
+            ->wherePivot('activo', true)
+            ->orderByDesc('sucursal_usuario.es_principal')
+            ->with('empresa')
+            ->first()?->empresa;
+    }
+@endphp
+
 <x-app-layout>
     <x-slot name="header">
         <div>
@@ -22,14 +45,14 @@
                         Operación de Piso y Caja (Subgerencia)
                     </p>
                     <h3 class="text-lg font-bold text-white">
-                        Meseros, Mesas Ocupadas, Caja y KDS
+                        Meseros, Mesas Ocupadas, Caja, Proveedores y KDS
                     </h3>
                     <p class="text-xs text-slate-400 mt-0.5">
-                        Acceso operativo para supervisión de meseros, cobros/cortes de caja y monitores KDS (sin administración de recetas, inventarios ni compras).
+                        Acceso operativo para supervisión de meseros, cobros/cortes de caja, catálogo de proveedores y monitores KDS.
                     </p>
                 </div>
 
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <a href="{{ route('pos.index') }}"
                        class="rounded-xl border border-slate-800 bg-slate-950/70 p-4 hover:border-cyan-500/50 transition">
                         <div class="text-sm font-bold text-white">🪑 Mesas Ocupadas y POS</div>
@@ -53,6 +76,28 @@
                             Supervisa el despacho de comandas de los meseros en cocina y barra.
                         </p>
                     </a>
+
+                    {{-- Tarjeta: Proveedores de la Empresa Activa (Subgerente) --}}
+                    @if ($empresaSup && \Illuminate\Support\Facades\Route::has('operacion.proveedores.index'))
+                        <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-4 hover:border-teal-500/50 transition flex flex-col justify-between gap-2">
+                            <div>
+                                <div class="text-sm font-bold text-white">🏢 Proveedores</div>
+                                <p class="text-xs text-slate-400 mt-1">
+                                    Consulta, registra y edita proveedores para {{ $empresaSup->nombre }}.
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs font-semibold">
+                                <a href="{{ route('operacion.proveedores.index', ['empresa' => $empresaSup->id]) }}"
+                                   class="text-teal-400 hover:text-teal-300 transition">
+                                    Ver proveedores →
+                                </a>
+                                <a href="{{ route('operacion.proveedores.create', ['empresa' => $empresaSup->id]) }}"
+                                   class="text-emerald-400 hover:text-emerald-300 transition">
+                                    + Nuevo
+                                </a>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </section>
 

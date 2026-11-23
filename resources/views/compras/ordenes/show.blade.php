@@ -1,7 +1,17 @@
-<x-app-layout>
+{{-- ===================================================================== --}}
+{{-- VISTA: DETALLE Y TRANSICIÓN DE ESTADOS DE ORDEN DE COMPRA             --}}
+{{-- Muestra folio, estado, datos del proveedor, sucursal/almacén,         --}}
+{{-- partidas solicitadas/recibidas, desglose económico y acciones.       --}}
+{{-- La autorización de la orden está reservada exclusivamente al Gerente   --}}
+{{-- (rol administrador o propietario); el Subgerente (supervisor) no     --}}
+{{-- puede autorizar órdenes de compra.                                    --}}
+{{-- ===================================================================== --}}
+<x-app-layout :title="'Orden ' . $orden->folio . ' | ' . config('app.name')">
     <div x-data="{ modalCancelar: false, motivo: '' }" class="min-h-screen bg-slate-950 text-slate-100 p-4 lg:p-6 space-y-6">
 
-        {{-- Mensajes de estado y errores --}}
+        {{-- ----------------------------------------------------------------- --}}
+        {{-- MENSAJES DE ESTADO Y ERRORES DE VALIDACIÓN / TRANSICIÓN          --}}
+        {{-- ----------------------------------------------------------------- --}}
         @if (session('status'))
             <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-xs font-semibold">
                 {{ session('status') }}
@@ -14,13 +24,18 @@
             </div>
         @endif
 
+        {{-- ----------------------------------------------------------------- --}}
+        {{-- ENCABEZADO: FOLIO, ESTADO, AUDITORÍA Y BOTONERA DE ACCIONES        --}}
+        {{-- ----------------------------------------------------------------- --}}
         <header class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div>
                 <div class="flex items-center gap-3">
                     <h1 class="text-xl font-bold tracking-tight text-white font-mono">
                         {{ $orden->folio }}
                     </h1>
+
                     @php
+                        // Estilos visuales según el estado actual de la orden de compra
                         $badgeColor = match ($orden->estado) {
                             'borrador' => 'bg-slate-800 text-slate-300 border-slate-700',
                             'solicitada' => 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -31,42 +46,66 @@
                             default => 'bg-slate-800 text-slate-400 border-slate-700',
                         };
                     @endphp
+
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ $badgeColor }}">
                         {{ ucfirst(str_replace('_', ' ', $orden->estado)) }}
                     </span>
                 </div>
+
                 <p class="text-xs text-slate-400 mt-1">
-                    Emitida el {{ $orden->fecha_emision?->format('d/m/Y') }} por <span class="text-slate-200">{{ $orden->usuario?->name }}</span>
+                    Emitida el {{ $orden->fecha_emision?->format('d/m/Y') }} por
+                    <span class="text-slate-200">{{ $orden->usuario?->name }}</span>
+
                     @if ($orden->autorizador)
-                        | Autorizada por <span class="text-emerald-400 font-semibold">{{ $orden->autorizador->name }}</span> el {{ $orden->autorizada_at?->format('d/m/Y H:i') }}
+                        | Autorizada por
+                        <span class="text-emerald-400 font-semibold">{{ $orden->autorizador->name }}</span>
+                        el {{ $orden->autorizada_at?->format('d/m/Y H:i') }}
                     @endif
                 </p>
             </div>
 
-            {{-- Botonera de Transición de Estados --}}
+            {{-- Botonera de transición de estados, PDF y regreso --}}
             <div class="flex flex-wrap items-center gap-2">
+                @php
+                    $usuarioActual = auth()->user();
+
+                    // Solo el Gerente (administrador) o propietario puede autorizar;
+                    // el Subgerente (supervisor) queda excluido de esta acción.
+                    $esGerenteAutorizador = $usuarioActual && (
+                        (method_exists($usuarioActual, 'esPropietario') && $usuarioActual->esPropietario())
+                        || ($usuarioActual->hasRole('administrador') && ! $usuarioActual->hasRole('supervisor'))
+                    );
+                @endphp
+
+                {{-- Enviar a solicitud de autorización si está en borrador --}}
                 @if ($orden->estado === 'borrador')
                     <form method="POST" action="{{ route('compras.ordenes.solicitar', $orden->id) }}">
                         @csrf
                         @method('PATCH')
-                        <button type="submit" class="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold transition">
+                        <button type="submit"
+                                class="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold transition">
                             Solicitar Autorización
                         </button>
                     </form>
                 @endif
 
+                {{-- Acciones disponibles mientras la orden está en borrador o solicitada --}}
                 @if (in_array($orden->estado, ['borrador', 'solicitada'], true))
-                    @can('compras.autorizar')
+                    @if ($esGerenteAutorizador)
                         <form method="POST" action="{{ route('compras.ordenes.autorizar', $orden->id) }}">
                             @csrf
                             @method('PATCH')
-                            <button type="submit" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/20 transition">
+                            <button type="submit"
+                                    onclick="return confirm('¿Confirmas autorizar formalmente la orden de compra {{ $orden->folio }}?')"
+                                    class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/20 transition">
                                 ✓ Autorizar Orden
                             </button>
                         </form>
-                    @endcan
+                    @endif
 
-                    <button type="button" @click="modalCancelar = true" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-semibold transition">
+                    <button type="button"
+                            @click="modalCancelar = true"
+                            class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-semibold transition">
                         ✕ Cancelar
                     </button>
                 @endif
@@ -87,6 +126,7 @@
             </div>
         </header>
 
+        {{-- Motivo visible cuando la orden fue cancelada --}}
         @if ($orden->estado === 'cancelada')
             <div class="p-4 bg-rose-950/40 border border-rose-800/60 rounded-2xl text-xs space-y-1">
                 <span class="font-bold text-rose-400 uppercase tracking-wider text-[10px]">Motivo de Cancelación</span>
@@ -94,12 +134,14 @@
             </div>
         @endif
 
-        {{-- Tarjetas Informativas --}}
+        {{-- ----------------------------------------------------------------- --}}
+        {{-- TARJETAS INFORMATIVAS: PROVEEDOR, DESTINO Y ENTREGA ESPERADA      --}}
+        {{-- ----------------------------------------------------------------- --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
                 <span class="text-slate-400 uppercase font-semibold text-[10px]">Proveedor</span>
                 <div class="text-sm font-bold text-white">{{ $orden->proveedor?->razon_social ?? $orden->proveedor?->nombre }}</div>
-                <div class="text-slate-400 font-mono">RFC: {{ $orden->proveedor?->rfc }}</div>
+                <div class="text-slate-400 font-mono">RFC: {{ $orden->proveedor?->rfc ?? 'S/RFC' }}</div>
             </div>
 
             <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
@@ -117,7 +159,9 @@
             </div>
         </div>
 
-        {{-- Partidas Solicitadas --}}
+        {{-- ----------------------------------------------------------------- --}}
+        {{-- PARTIDAS SOLICITADAS Y DESGLOSE ECONÓMICO                         --}}
+        {{-- ----------------------------------------------------------------- --}}
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
             <h2 class="text-sm font-bold text-white uppercase tracking-wider">Partidas de la Orden</h2>
 
@@ -134,6 +178,7 @@
                             <th class="py-2.5 px-3 text-right">Total</th>
                         </tr>
                     </thead>
+
                     <tbody class="divide-y divide-slate-800/80">
                         @foreach ($orden->detalles as $detalle)
                             <tr class="hover:bg-slate-800/50 transition">
@@ -152,7 +197,7 @@
                 </table>
             </div>
 
-            {{-- Desglose Económico --}}
+            {{-- Desglose de subtotal, IVA desglosado (16%) y total con IVA --}}
             <div class="flex justify-end pt-4 border-t border-slate-800">
                 <div class="w-72 space-y-2 text-xs">
                     <div class="flex justify-between text-slate-400">
@@ -171,7 +216,9 @@
             </div>
         </div>
 
-        {{-- Modal de Cancelación --}}
+        {{-- ----------------------------------------------------------------- --}}
+        {{-- MODAL DE CANCELACIÓN DE ORDEN DE COMPRA                           --}}
+        {{-- ----------------------------------------------------------------- --}}
         <div x-show="modalCancelar" x-cloak class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div @click.away="modalCancelar = false" class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
                 <div class="flex justify-between items-center pb-2 border-b border-slate-800">
