@@ -289,7 +289,7 @@
                                         <a href="{{ route('productos.categorias.index', $empresaActual) }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
                                             Categorías de Productos
                                         </a>
-                                        <a href="{{ route('proveedores.index', $empresaActual) }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
+                                        <a href="{{ route('operacion.proveedores.index', $empresaActual) }}" class="block px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white">
                                             Proveedores
                                         </a>
                                     @endif

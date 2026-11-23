@@ -19,10 +19,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
+/**
+ * Controlador para la recepción de mercancía/insumos en almacén.
+ *
+ * Soporta recepciones vinculadas a órdenes de compra autorizadas o entradas
+ * de mercancía para cualquier giro comercial (restaurante, tecnología,
+ * abarrotes o ferretería), asegurando el aislamiento por `empresa_id`.
+ */
 class RecepcionInventarioController extends Controller
 {
     /**
-     * Muestra el historial de recepciones con tabla DataTables.
+     * Muestra el historial de recepciones de la empresa con tabla DataTables.
      */
     public function index(Empresa $empresa): View
     {
@@ -30,7 +37,7 @@ class RecepcionInventarioController extends Controller
     }
 
     /**
-     * Retorna los datos de recepciones formateados para DataTables en formato JSON.
+     * Retorna los datos de recepciones de la empresa formateados para DataTables.
      */
     public function data(Empresa $empresa): JsonResponse
     {
@@ -76,7 +83,9 @@ class RecepcionInventarioController extends Controller
     }
 
     /**
-     * Muestra la pantalla para capturar una recepción múltiple de inventario.
+     * Muestra la pantalla para capturar una recepción de inventario
+     * filtrada estrictamente a almacenes, proveedores, productos y órdenes
+     * de compra pertenecientes a `$empresa`.
      */
     public function create(Empresa $empresa): View
     {
@@ -116,7 +125,8 @@ class RecepcionInventarioController extends Controller
     }
 
     /**
-     * Procesa y registra una recepción múltiple de inventario para una empresa.
+     * Procesa y registra una recepción de inventario validando que el almacén
+     * y el proveedor pertenezcan a `$empresa`.
      */
     public function store(
         RecepcionInventarioRequest $request,
@@ -124,13 +134,15 @@ class RecepcionInventarioController extends Controller
         RegistrarRecepcionInventario $action
     ): RedirectResponse {
         /** @var Almacen $almacen */
-        $almacen = Almacen::query()->findOrFail(
-            $request->integer('almacen_id')
-        );
+        $almacen = Almacen::query()
+            ->where('empresa_id', $empresa->id)
+            ->findOrFail($request->integer('almacen_id'));
 
         /** @var Proveedor|null $proveedor */
         $proveedor = $request->filled('proveedor_id')
-            ? Proveedor::query()->findOrFail($request->integer('proveedor_id'))
+            ? Proveedor::query()
+                ->where('empresa_id', $empresa->id)
+                ->findOrFail($request->integer('proveedor_id'))
             : null;
 
         /** @var User $actor */
@@ -149,6 +161,10 @@ class RecepcionInventarioController extends Controller
             ->with('success', "Recepción {$recepcion->folio} registrada correctamente.");
     }
 
+    /**
+     * Retorna en JSON las partidas pendientes de recepción de una orden de compra
+     * verificando su pertenencia a `$empresa`.
+     */
     public function ordenCompraData(Empresa $empresa, OrdenCompra $orden): JsonResponse
     {
         abort_unless((int) $orden->empresa_id === (int) $empresa->id, 404);

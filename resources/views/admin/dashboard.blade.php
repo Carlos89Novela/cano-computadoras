@@ -1,11 +1,12 @@
 {{-- ===================================================================== --}}
 {{-- VISTA: PANEL DEL ADMINISTRADOR / GERENTE (MULTI-TENANT Y MULTI-GIRO) --}}
-{{-- Muestra estadísticas clave, accesos operativos de restaurante y      --}}
-{{-- gestión directa de proveedores de la empresa activa.                 --}}
+{{-- Soporta gerentes/administradores por empresa (con o sin estatus de   --}}
+{{-- propietario), mostrando métricas, módulos por giro y acceso directo a  --}}
+{{-- la gestión de usuarios y suplencias temporales de supervisor.         --}}
 {{-- ===================================================================== --}}
 @php
     // =====================================================================
-    // 1. RESOLUCIÓN DEL USUARIO Y SU NIVEL DE ROL (MULTI-TENANT)
+    // 1. RESOLUCIÓN DEL USUARIO, ESTATUS PROPIETARIO Y NIVEL DE ROL
     // =====================================================================
     $usuario = auth()->user();
 
@@ -17,14 +18,42 @@
         ?? (method_exists($usuario, 'getRoleNames') ? ($usuario->getRoleNames()->first() ?? '') : '')
     ));
 
+    $esPropietarioCuenta = (bool) (
+        $usuario
+        && method_exists($usuario, 'esPropietario')
+        && $usuario->esPropietario()
+    );
+
+    $tieneRolAdminGerente = (bool) (
+        $usuario
+        && (
+            (method_exists($usuario, 'hasRole') && $usuario->hasRole(['administrador', 'gerente']))
+            || str_contains($rolBruto, 'admin')
+            || str_contains($rolBruto, 'gerente')
+        )
+    );
+
     // Identificar si el usuario pertenece a Subgerencia o Gerencia/Administración
     $esSubgerente = str_contains($rolBruto, 'subgerente') || str_contains($rolBruto, 'sub_gerente');
     $esGerenteActual = $esGerente ?? (
         $esSubgerente
-        || str_contains($rolBruto, 'gerente')
-        || str_contains($rolBruto, 'admin')
+        || $tieneRolAdminGerente
+        || $esPropietarioCuenta
         || true
     );
+
+    // Determinar si se muestra el acceso a Usuarios y Suplencias en el panel
+    $puedeVerAccesoUsuarios = (bool) ($usuario && ($esPropietarioCuenta || $tieneRolAdminGerente));
+
+    // Conteo de suplencias temporales de supervisor activas (si existe la tabla y modelo)
+    $suplenciasActivasCount = 0;
+    if (
+        $puedeVerAccesoUsuarios
+        && class_exists(\App\Models\SuplenciaRol::class)
+        && \Illuminate\Support\Facades\Schema::hasTable('suplencias_rol')
+    ) {
+        $suplenciasActivasCount = \App\Models\SuplenciaRol::query()->activas()->count();
+    }
 
     // =====================================================================
     // 2. TÍTULO DINÁMICO DE LA PESTAÑA Y ENCABEZADOS SEGÚN ROL
@@ -35,8 +64,13 @@
         default => 'Dashboard',
     };
 
-    $encabezadoRol = $esSubgerente ? 'Panel del Subgerente' : 'Panel del Administrador';
-    $subtituloArea = $esSubgerente ? 'Subgerencia' : 'Administración';
+    $encabezadoRol = match (true) {
+        $esSubgerente => 'Panel del Subgerente',
+        $esPropietarioCuenta => 'Panel del Administrador (Propietario)',
+        default => 'Panel del Gerente / Administrador',
+    };
+
+    $subtituloArea = $esSubgerente ? 'Subgerencia' : 'Gerencia y Administración';
 
     // =====================================================================
     // 3. IDENTIFICACIÓN DEL GIRO COMERCIAL DE LA EMPRESA ACTIVA
@@ -135,7 +169,48 @@
             </section>
 
             {{-- ============================================================= --}}
-            {{-- 2. MÓDULOS ADMINISTRATIVOS DEL GERENTE / SUBGERENTE (REST.)   --}}
+            {{-- 2. ACCESO DIRECTO A USUARIOS Y SUPLENCIAS DE SUPERVISOR       --}}
+            {{-- ============================================================= --}}
+            @if ($puedeVerAccesoUsuarios && \Illuminate\Support\Facades\Route::has('admin.usuarios.index'))
+                <section class="w-full rounded-2xl border border-slate-800 bg-zinc-900 p-6 shadow space-y-4">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-xs font-bold uppercase tracking-wider text-purple-400">
+                                Control de Acceso y Continuidad Operativa
+                            </p>
+                            <h3 class="text-lg font-bold text-white">
+                                Usuarios, Permisos y Suplencias Temporales de Supervisor
+                            </h3>
+                        </div>
+
+                        @if ($suplenciasActivasCount > 0)
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
+                                {{ $suplenciasActivasCount }} {{ $suplenciasActivasCount === 1 ? 'suplencia activa' : 'suplencias activas' }}
+                            </span>
+                        @endif
+                    </div>
+
+                    <div class="grid w-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <a href="{{ route('admin.usuarios.index') }}"
+                           class="group flex flex-col justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4 transition hover:border-purple-500/50">
+                            <div>
+                                <div class="text-sm font-bold text-white group-hover:text-purple-300">
+                                    👥 Usuarios y Suplencias de Supervisor
+                                </div>
+                                <p class="mt-1 text-xs text-slate-400">
+                                    Consulta el equipo, administra permisos y gestiona suplencias temporales de supervisor por vacaciones o ausencia.
+                                </p>
+                            </div>
+                            <span class="text-xs font-semibold text-purple-400">
+                                Gestionar usuarios y suplencias →
+                            </span>
+                        </a>
+                    </div>
+                </section>
+            @endif
+
+            {{-- ============================================================= --}}
+            {{-- 3. MÓDULOS ADMINISTRATIVOS DEL GERENTE / SUBGERENTE (REST.)   --}}
             {{-- ============================================================= --}}
             @if ($giroActual === 'restaurantes_alimentos' && $esGerenteActual && isset($empresa))
                 <section class="w-full rounded-2xl border border-slate-800 bg-zinc-900 p-6 shadow space-y-5">

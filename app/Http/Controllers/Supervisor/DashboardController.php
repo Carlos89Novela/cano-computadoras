@@ -6,31 +6,49 @@ use App\Enums\EstadoAutorizacion;
 use App\Enums\EstadoOrden;
 use App\Enums\EstadoRevisionCotizacion;
 use App\Http\Controllers\Controller;
+use App\Models\Empresa;
 use App\Models\OrdenServicio;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
  * Controlador del Panel de Control de Supervisión Operativa.
  *
- * Este controlador consolida las métricas clave del taller de servicio y organiza
- * los flujos de trabajo que requieren atención inmediata por parte del supervisor:
- * 1. Balanceo de cargas de trabajo: Asignación de órdenes a técnicos disponibles.
- * 2. Control de cotizaciones: Aprobación o rechazo de diagnósticos y presupuestos propuestos.
- * 3. Supervisión de calidad y entrega: Monitoreo de equipos listos para ser devueltos al cliente.
+ * Resuelve el contexto multi-tenant y el giro comercial de la empresa activa:
+ * - Para giro de restaurante (`restaurantes_alimentos` / `restaurante_cafeteria`),
+ *   renderiza la vista operativa completa (`dashboard`) con el encabezado de
+ *   supervisión del restaurante.
+ * - Para giro de taller / tecnología, consolida métricas y colas de trabajo de
+ *   reparaciones (asignación, revisión de cotizaciones y entregas).
  */
 class DashboardController extends Controller
 {
     /**
-     * Muestra la vista principal del dashboard de supervisión con métricas y colas de trabajo.
-     *
-     * @return View Vista Blade con contadores consolidados, listas de técnicos y órdenes prioritarias.
+     * Muestra la vista de supervisión acorde al giro comercial de la empresa activa.
      */
-    public function index(): View
+    public function index(Request $request): View
     {
+        /** @var User|null $usuario */
+        $usuario = $request->user();
+        $empresa = $this->resolverEmpresaActiva($request, $usuario);
+
+        $esRestaurante = $empresa instanceof Empresa && (
+            (method_exists($empresa, 'esRestaurante') && $empresa->esRestaurante())
+            || in_array((string) $empresa->giro_comercial, ['restaurantes_alimentos', 'restaurante_cafeteria'], true)
+        );
+
+        // En restaurantes, utilizar la vista operativa completa con distintivo de Supervisor
+        if ($esRestaurante) {
+            return view('dashboard', [
+                'empresa' => $empresa,
+                'giro' => $empresa->giro_comercial,
+            ]);
+        }
+
         // ---------------------------------------------------------------------
-        // 1. Métricas Globales de Operación
+        // 1. Métricas Globales de Operación (Taller / Reparaciones)
         // ---------------------------------------------------------------------
 
         // Conteo histórico absoluto de órdenes recibidas en el sistema
@@ -166,10 +184,11 @@ class DashboardController extends Controller
             ->limit(20)
             ->get();
 
-        // Renderiza el panel unificado de supervisión
+        // Renderiza el panel de supervisión para taller / reparaciones
         return view(
             'supervisor.dashboard',
             compact(
+                'empresa',
                 'totalOrdenes',
                 'ordenesActivas',
                 'ordenesSinAsignar',
@@ -181,5 +200,37 @@ class DashboardController extends Controller
                 'ordenesListasEntrega'
             )
         );
+    }
+
+    /**
+     * Resuelve la empresa activa desde sesión, sucursal asignada o primera empresa activa.
+     */
+    protected function resolverEmpresaActiva(Request $request, ?User $usuario): ?Empresa
+    {
+        $sessionEmpresaId = $request->session()->get('empresa_activa_id')
+            ?? $request->session()->get('empresa_id');
+
+        if (! empty($sessionEmpresaId)) {
+            $empresa = Empresa::query()->find((int) $sessionEmpresaId);
+            if ($empresa instanceof Empresa) {
+                return $empresa;
+            }
+        }
+
+        if ($usuario && method_exists($usuario, 'sucursales')) {
+            $sucursalActiva = $usuario->sucursales()
+                ->wherePivot('activo', true)
+                ->orderByDesc('sucursal_usuario.es_principal')
+                ->with('empresa')
+                ->first();
+
+            if ($sucursalActiva?->empresa instanceof Empresa) {
+                $request->session()->put('empresa_activa_id', $sucursalActiva->empresa->id);
+
+                return $sucursalActiva->empresa;
+            }
+        }
+
+        return Empresa::query()->where('activo', true)->first();
     }
 }

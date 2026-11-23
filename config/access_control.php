@@ -19,6 +19,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Segmentación de permisos exclusivos de taller / reparación de cómputo
+    |--------------------------------------------------------------------------
+    |
+    | Grupos y permisos específicos del flujo de órdenes de servicio,
+    | cotizaciones y refacciones de taller. Se excluyen automáticamente cuando
+    | se administran usuarios en empresas de giro restaurante.
+    |
+    */
+
+    'grupos_exclusivos_taller' => [
+        'ordenes',
+        'servicios',
+    ],
+
+    'permisos_exclusivos_taller' => [
+        'inventario.consumir',
+        'auditoria.ver_ordenes',
+        'auditoria.ver_servicios',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Roles que puede asignar el propietario
     |--------------------------------------------------------------------------
     */

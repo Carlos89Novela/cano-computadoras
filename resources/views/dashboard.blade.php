@@ -1,17 +1,59 @@
+{{-- ===================================================================== --}}
+{{-- VISTA: DASHBOARD OPERATIVO MULTI-TENANT Y MULTI-GIRO               --}}
+{{-- Renderiza el panel operativo de restaurante (o taller de cómputo)    --}}
+{{-- resolviendo empresa activa, sucursal y rol del usuario autenticado.   --}}
+{{-- ===================================================================== --}}
 <x-app-layout>
     @php
         /** @var \App\Models\User $usuario */
         $usuario = auth()->user();
 
-        $sucursalUser = $usuario->sucursales()->with('empresa')->where('sucursales.activo', true)->first();
-        /** @var \App\Models\Empresa|null $empresaActual */
-        $empresaActual = $sucursalUser?->empresa ?? $usuario->empresa ?? \App\Models\Empresa::query()->where('activo', true)->first();
+        // -----------------------------------------------------------------
+        // 1. RESOLUCIÓN DE EMPRESA Y SUCURSAL ACTIVAS (SESIÓN / PIVOTE)
+        // -----------------------------------------------------------------
+        $empresaSesionId = session('empresa_activa_id') ?? session('empresa_id');
+        $sucursalUser = null;
 
+        if ($usuario && method_exists($usuario, 'sucursales')) {
+            $querySucursales = $usuario->sucursales()
+                ->wherePivot('activo', true)
+                ->orderByDesc('sucursal_usuario.es_principal')
+                ->with('empresa');
+
+            if (! empty($empresaSesionId)) {
+                $sucursalUser = (clone $querySucursales)
+                    ->where('sucursales.empresa_id', (int) $empresaSesionId)
+                    ->first();
+            }
+
+            if (! $sucursalUser) {
+                $sucursalUser = $querySucursales->first();
+            }
+        }
+
+        /** @var \App\Models\Empresa|null $empresaActual */
+        $empresaActual = $sucursalUser?->empresa
+            ?? (! empty($empresaSesionId) ? \App\Models\Empresa::query()->find((int) $empresaSesionId) : null)
+            ?? $usuario?->empresa
+            ?? \App\Models\Empresa::query()->where('activo', true)->first();
+
+        if ($empresaActual) {
+            session(['empresa_activa_id' => $empresaActual->id]);
+        }
+
+        // -----------------------------------------------------------------
+        // 2. IDENTIFICACIÓN DE GIRO COMERCIAL Y ROL DE SUPERVISOR
+        // -----------------------------------------------------------------
         $esRestaurante = $empresaActual && (
             (method_exists($empresaActual, 'esRestaurante') && $empresaActual->esRestaurante())
             || in_array($empresaActual->giro_comercial, ['restaurantes_alimentos', 'restaurante_cafeteria'], true)
         );
 
+        $esSupervisor = (bool) ($usuario && $usuario->hasRole('supervisor'));
+
+        // -----------------------------------------------------------------
+        // 3. MÉTRICAS OPERATIVAS EN TIEMPO REAL PARA GIRO RESTAURANTE
+        // -----------------------------------------------------------------
         $comandasPendientes = 0;
         $comandasEnPreparacion = 0;
         $comandasCompletadasHoy = 0;
@@ -35,18 +77,26 @@
         }
     @endphp
 
+    {{-- ===================================================================== --}}
+    {{-- ENCABEZADO SUPERIOR: TÍTULO DE PANEL, ROL, SUCURSAL Y ACCIONES      --}}
+    {{-- ===================================================================== --}}
     <x-slot name="header">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h2 class="text-xl font-bold leading-tight text-white flex items-center gap-2">
                     @if ($esRestaurante)
-                        <span>🍽️ Panel Operativo: {{ $empresaActual->nombre }}</span>
+                        <span>
+                            🍽️ {{ $esSupervisor ? 'Panel de Supervisor' : 'Panel Operativo' }}: {{ $empresaActual->nombre }}
+                        </span>
                     @else
-                        <span>⚡ Dashboard</span>
+                        <span>⚡ {{ $esSupervisor ? 'Dashboard Supervisor' : 'Dashboard' }}</span>
                     @endif
                 </h2>
                 <p class="text-xs text-zinc-400 mt-1">
                     Bienvenido, <strong class="text-zinc-200">{{ $usuario->name }}</strong>
+                    @if ($esSupervisor)
+                        | Rol: <span class="text-amber-400 font-semibold">Supervisor</span>
+                    @endif
                     @if ($sucursalUser)
                         | Sucursal: <span class="text-emerald-400 font-semibold">{{ $sucursalUser->nombre }} ({{ $sucursalUser->codigo }})</span>
                     @endif
@@ -167,7 +217,7 @@
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <a href="{{ route('productos.index', ['empresa' => $empresaActual->id]) }}"
                                class="p-4 bg-zinc-950 border border-zinc-800 hover:border-zinc-700 rounded-xl flex items-center gap-3 transition">
-                                <span class="text-2xl">🍳</span>
+                                <span class="text-2xl">🍽️</span>
                                 <div>
                                     <h4 class="text-xs font-bold text-white">Fichas Técnicas & Recetas (BOM)</h4>
                                     <p class="text-[11px] text-zinc-400">Escandallos, costeo por porción y mermas.</p>

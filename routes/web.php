@@ -152,12 +152,18 @@ Route::middleware(['auth', 'administrador'])
         // Servicios y Tarifas
         Route::resource('servicios', AdminServicioController::class)->parameters(['servicios' => 'servicio'])->except(['show']);
 
-        // Configuración Propietario (Usuarios, Permisos, Sucursales)
+        // Configuración Propietario (Usuarios, Permisos, Suplencias, Sucursales)
         Route::middleware(PropietarioMiddleware::class)->group(function (): void {
             Route::get('/usuarios', [UsuarioController::class, 'index'])->name('usuarios.index');
             Route::get('/usuarios/{usuario}/editar', [UsuarioController::class, 'edit'])->name('usuarios.edit');
             Route::patch('/usuarios/{usuario}/rol', [UsuarioController::class, 'updateRole'])->name('usuarios.rol.update');
             Route::patch('/usuarios/{usuario}/permisos', [UsuarioController::class, 'updatePermissions'])->name('usuarios.permisos.update');
+
+            // Suplencias temporales de supervisor por vacaciones, incapacidad o ausencia
+            Route::post('/usuarios/suplencias', [UsuarioController::class, 'activarSuplencia'])
+                ->name('usuarios.suplencias.store');
+            Route::post('/usuarios/suplencias/{suplencia}/restaurar', [UsuarioController::class, 'restaurarSuplencia'])
+                ->name('usuarios.suplencias.restaurar');
 
             Route::get('/empresas/{empresa}/sucursales', [SucursalController::class, 'index'])->name('empresas.sucursales.index');
             Route::get('/empresas/{empresa}/sucursales/crear', [SucursalController::class, 'create'])->name('empresas.sucursales.create');
