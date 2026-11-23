@@ -344,12 +344,15 @@ Route::middleware(['auth', 'verified'])->prefix('restaurante')->group(function (
         Route::get('/estado-mesas', [ComanderoController::class, 'estadoMesas'])->name('estado-mesas');
     });
 
-    // --- 2. Monitor KDS de Cocina, Parrilla y Barra ---
+    // --- 2. Monitor KDS de Cocina, Parrilla, Barra y Postres ---
     Route::prefix('kds')->name('restaurante.kds.')->group(function (): void {
         Route::get('/', [KdsController::class, 'index'])->name('index');
         Route::get('/comandas-activas', [KdsController::class, 'comandasActivas'])->name('comandas-activas');
         Route::patch('/items/{item}/estado', [KdsController::class, 'cambiarEstadoItem'])->name('items.estado');
         Route::post('/comandas/{comanda}/completar', [KdsController::class, 'completarComanda'])->name('completar');
+        Route::get('/estacion/{estacion}', [KdsController::class, 'estacion'])
+            ->whereIn('estacion', ['cocina', 'parrilla', 'barra', 'postres', 'todas'])
+            ->name('estacion');
     });
 
     // --- 3. Plano Gráfico de Mesas (Floor Plan) ---

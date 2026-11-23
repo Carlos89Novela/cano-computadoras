@@ -64,8 +64,39 @@ class KdsController extends Controller
         };
     }
 
+    /**
+     * Resuelve la empresa y sucursal activas del giro restaurantero.
+     *
+     * @return array{0: Empresa, 1: Sucursal|null}
+     */
+    private function resolverContextoRestaurante(User $user): array
+    {
+        $empresa = Empresa::query()
+            ->where('giro_comercial', 'restaurantes_alimentos')
+            ->orWhere('nombre', 'like', '%Bistro%')
+            ->orWhere('nombre', 'like', '%Restaurante%')
+            ->first()
+            ?? $user->empresa
+            ?? Empresa::query()->firstOrFail();
+
+        $sucursal = $user->sucursales()
+            ->with('empresa')
+            ->whereHas('empresa', function ($q) {
+                $q->where('giro_comercial', 'restaurantes_alimentos')
+                    ->orWhere('nombre', 'like', '%Bistro%')
+                    ->orWhere('nombre', 'like', '%Restaurante%');
+            })
+            ->where('sucursales.activo', true)
+            ->first()
+            ?? Sucursal::query()->where('empresa_id', $empresa->id)->where('activo', true)->first()
+            ?? Sucursal::query()->where('codigo', 'REST-01')->first()
+            ?? Sucursal::query()->first();
+
+        return [$empresa, $sucursal];
+    }
+
     // =========================================================
-    // SECCIÓN 2: VISTA PRINCIPAL DEL MONITOR KDS
+    // SECCIÓN 2: VISTAS DEL MONITOR KDS (MAESTRO E INDIVIDUALES)
     // =========================================================
 
     /**
@@ -77,35 +108,14 @@ class KdsController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        // 1. Resolver la Empresa enfocada estrictamente a Alimentos/Restaurantes
-        $empresa = Empresa::query()
-            ->where('giro_comercial', 'restaurantes_alimentos')
-            ->orWhere('nombre', 'like', '%Bistro%')
-            ->orWhere('nombre', 'like', '%Restaurante%')
-            ->first()
-            ?? $user->empresa
-            ?? Empresa::query()->firstOrFail();
-
-        // 2. Resolver la Sucursal activa correspondiente al restaurante
-        $sucursal = $user->sucursales()
-            ->with('empresa')
-            ->whereHas('empresa', function ($q) {
-                $q->where('giro_comercial', 'restaurantes_alimentos')
-                  ->orWhere('nombre', 'like', '%Bistro%')
-                  ->orWhere('nombre', 'like', '%Restaurante%');
-            })
-            ->where('sucursales.activo', true)
-            ->first()
-            ?? Sucursal::query()->where('empresa_id', $empresa->id)->where('activo', true)->first()
-            ?? Sucursal::query()->where('codigo', 'REST-01')->first()
-            ?? Sucursal::query()->first();
+        [$empresa, $sucursal] = $this->resolverContextoRestaurante($user);
 
         $puedeVerTodas = $this->puedeVerTodasLasEstaciones($user);
         $estacionUrl = mb_strtolower($request->string('estacion')->trim()->toString());
 
         $estacionesPermitidas = $puedeVerTodas
-            ? ['todas', 'cocina', 'parrilla', 'barra']
-            : ['cocina', 'parrilla', 'barra'];
+            ? ['todas', 'cocina', 'parrilla', 'barra', 'postres']
+            : ['cocina', 'parrilla', 'barra', 'postres'];
 
         $estacionInicial = in_array($estacionUrl, $estacionesPermitidas, true)
             ? $estacionUrl
@@ -117,6 +127,31 @@ class KdsController extends Controller
             'puedeVerTodas' => $puedeVerTodas,
             'estacionesPermitidas' => $estacionesPermitidas,
             'estacionInicial' => $estacionInicial,
+        ]);
+    }
+
+    /**
+     * Renderiza una vista KDS individual dedicada a una estación específica
+     * para abrir cada monitor por separado (cocina, parrilla, barra, postres o todas).
+     */
+    public function estacion(Request $request, string $estacion): View
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        [$empresa, $sucursal] = $this->resolverContextoRestaurante($user);
+
+        $estacionNormalizada = mb_strtolower(trim($estacion));
+        $estacionesValidas = ['cocina', 'parrilla', 'barra', 'postres', 'todas'];
+
+        if (! in_array($estacionNormalizada, $estacionesValidas, true)) {
+            $estacionNormalizada = 'cocina';
+        }
+
+        return ViewFacade::make('restaurante.kds.estacion', [
+            'empresa' => $empresa,
+            'sucursal' => $sucursal,
+            'estacionFija' => $estacionNormalizada,
         ]);
     }
 

@@ -13,6 +13,52 @@
 
     <div class="py-12">
         <div class="mx-auto max-w-7xl space-y-8 px-6">
+            {{-- ============================================================= --}}
+            {{-- OPERACIÓN DIARIA DEL SUBGERENTE (PISO, MESEROS, CAJA Y KDS)   --}}
+            {{-- ============================================================= --}}
+            <section class="rounded-2xl border border-slate-800 bg-zinc-900 p-6 shadow space-y-4">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                        Operación de Piso y Caja (Subgerencia)
+                    </p>
+                    <h3 class="text-lg font-bold text-white">
+                        Meseros, Mesas Ocupadas, Caja y KDS
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        Acceso operativo para supervisión de meseros, cobros/cortes de caja y monitores KDS (sin administración de recetas, inventarios ni compras).
+                    </p>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <a href="{{ route('pos.index') }}"
+                       class="rounded-xl border border-slate-800 bg-slate-950/70 p-4 hover:border-cyan-500/50 transition">
+                        <div class="text-sm font-bold text-white">🪑 Mesas Ocupadas y POS</div>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Revisa mesas abiertas, cuentas de meseros y cobros de caja.
+                        </p>
+                    </a>
+
+                    <a href="{{ route('pos.cajas.index') }}"
+                       class="rounded-xl border border-slate-800 bg-slate-950/70 p-4 hover:border-indigo-500/50 transition">
+                        <div class="text-sm font-bold text-white">💵 Caja y Cortes de Turno</div>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Consulta movimientos, arqueos y turnos de cajeros.
+                        </p>
+                    </a>
+
+                    <a href="{{ route('restaurante.kds.index') }}"
+                       class="rounded-xl border border-slate-800 bg-slate-950/70 p-4 hover:border-amber-500/50 transition">
+                        <div class="text-sm font-bold text-white">👨‍🍳 Acceso a Monitores KDS</div>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Supervisa el despacho de comandas de los meseros en cocina y barra.
+                        </p>
+                    </a>
+                </div>
+            </section>
+
+            {{-- ============================================================= --}}
+            {{-- MENSAJES DE ÉXITO O ERROR DE OPERACIONES DEL SUPERVISOR       --}}
+            {{-- ============================================================= --}}
             @if (session('success'))
                 <div class="rounded-lg border border-green-700 bg-green-950 p-4 text-green-200">
                     {{ session('success') }}
